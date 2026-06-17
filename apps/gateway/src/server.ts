@@ -11,12 +11,9 @@ import {
   type LLMAdapter,
   estimateAdapterUsage,
 } from "@fountlayer/adapter-core";
-import { deductFaucetGrant, findMatchingFaucetGrant } from "@fountlayer/faucet";
 import {
   createBalancedLedgerEntries,
   createUsageEvent,
-  type LedgerEntryRecord,
-  type UsageEventRecord,
 } from "@fountlayer/ledger";
 import {
   demoModelPrices,
@@ -33,42 +30,11 @@ import {
   sessionRequestSchema,
 } from "@fountlayer/protocol";
 
+import { createInMemoryGatewayStore, type GatewayStore } from "./store.js";
+
 type AuthContext = {
   token: string;
   scheme: "Bearer";
-};
-
-type GatewayAppRecord = {
-  id: string;
-  status: "active" | "disabled";
-  defaultRouteId: string;
-};
-
-type GatewayChannelRecord = {
-  id: string;
-  appId: string;
-  status: "active" | "disabled";
-};
-
-type GatewayGrantRecord = {
-  id: string;
-  appId: string;
-  channelId: string;
-  endUserId: string;
-  remaining: string;
-  allowedModels: string[];
-  allowedUseCases: string[];
-  dailyCap: string;
-  expiresAt: string;
-  status: "active" | "exhausted" | "expired" | "revoked";
-};
-
-type GatewayStore = {
-  apps: Map<string, GatewayAppRecord>;
-  channels: Map<string, GatewayChannelRecord>;
-  faucetGrants: GatewayGrantRecord[];
-  usageEvents: UsageEventRecord[];
-  ledgerEntries: LedgerEntryRecord[];
 };
 
 type GatewayServerOptions = {
@@ -82,45 +48,6 @@ declare module "fastify" {
     auth?: AuthContext;
   }
 }
-
-const defaultStore: GatewayStore = {
-  apps: new Map([
-    [
-      "app_pdf_reader",
-      {
-        id: "app_pdf_reader",
-        status: "active",
-        defaultRouteId: "route_paper_summary",
-      },
-    ],
-  ]),
-  channels: new Map([
-    [
-      "channel_desktop",
-      {
-        id: "channel_desktop",
-        appId: "app_pdf_reader",
-        status: "active",
-      },
-    ],
-  ]),
-  faucetGrants: [
-    {
-      id: "grant_new_user",
-      appId: "app_pdf_reader",
-      channelId: "channel_desktop",
-      endUserId: "user_hash_123",
-      remaining: "1.00000000",
-      allowedModels: ["vertical/paper-summary", "demo-local-model"],
-      allowedUseCases: ["paper_summary"],
-      dailyCap: "0.25000000",
-      expiresAt: "2026-07-17T00:00:00Z",
-      status: "active",
-    },
-  ],
-  usageEvents: [],
-  ledgerEntries: [],
-};
 
 const defaultWallets = {
   payerWalletId: "wallet_faucet_new_user",
@@ -200,11 +127,11 @@ function parseAuthorizationHeader(
   };
 }
 
-function requireAttribution(
+async function requireAttribution(
   request: FastifyRequest,
   reply: FastifyReply,
   store: GatewayStore,
-): AttributionContext | undefined {
+): Promise<AttributionContext | undefined> {
   let attribution: AttributionContext;
 
   try {
@@ -220,32 +147,43 @@ function requireAttribution(
     return undefined;
   }
 
-  const app = store.apps.get(attribution.appId);
+  try {
+    const app = await store.getActiveApp(attribution.appId);
 
-  if (!app || app.status !== "active") {
+    if (!app) {
+      jsonError(
+        reply,
+        403,
+        "unknown_app",
+        "The requested app is not registered or active.",
+      );
+      return undefined;
+    }
+
+    const channel = await store.getActiveChannel(app.id, attribution.channelId);
+
+    if (!channel) {
+      jsonError(
+        reply,
+        403,
+        "unknown_channel",
+        "The requested channel is not registered or active for this app.",
+      );
+      return undefined;
+    }
+
+    request.attribution = attribution;
+    return attribution;
+  } catch (error) {
     jsonError(
       reply,
-      403,
-      "unknown_app",
-      "The requested app is not registered or active.",
+      500,
+      "store_error",
+      "Gateway store failed while validating attribution.",
+      error instanceof Error ? error.message : undefined,
     );
     return undefined;
   }
-
-  const channel = store.channels.get(attribution.channelId);
-
-  if (!channel || channel.appId !== app.id || channel.status !== "active") {
-    jsonError(
-      reply,
-      403,
-      "unknown_channel",
-      "The requested channel is not registered or active for this app.",
-    );
-    return undefined;
-  }
-
-  request.attribution = attribution;
-  return attribution;
 }
 
 function requireAuth(
@@ -293,29 +231,6 @@ function assertAttributionMatch(
 
 function formatMoney(amount: number): string {
   return Math.max(0, amount).toFixed(8);
-}
-
-function matchingGrants(
-  store: GatewayStore,
-  attribution: AttributionContext,
-  model?: string,
-): GatewayGrantRecord[] {
-  const now = Date.now();
-
-  return store.faucetGrants.filter((grant) => {
-    const modelAllowed = model ? grant.allowedModels.includes(model) : true;
-
-    return (
-      grant.appId === attribution.appId &&
-      grant.channelId === attribution.channelId &&
-      grant.endUserId === attribution.endUserId &&
-      grant.allowedUseCases.includes(attribution.useCase) &&
-      modelAllowed &&
-      grant.status === "active" &&
-      Number(grant.remaining) > 0 &&
-      Date.parse(grant.expiresAt) > now
-    );
-  });
 }
 
 function requireRequestAttribution(
@@ -374,31 +289,8 @@ function resolvePriceBreakdown(
         });
 }
 
-function updateGrant(
-  store: GatewayStore,
-  updated: Pick<GatewayGrantRecord, "id" | "remaining" | "status">,
-): void {
-  const index = store.faucetGrants.findIndex(
-    (grant) => grant.id === updated.id,
-  );
-
-  if (index >= 0) {
-    const existing = store.faucetGrants[index];
-
-    if (!existing) {
-      return;
-    }
-
-    store.faucetGrants[index] = {
-      ...existing,
-      remaining: updated.remaining,
-      status: updated.status,
-    };
-  }
-}
-
 export function buildGatewayServer(
-  store: GatewayStore = defaultStore,
+  store: GatewayStore = createInMemoryGatewayStore(),
   options: GatewayServerOptions = {},
 ): FastifyInstance {
   const adapter = options.adapter ?? new DemoLocalAdapter();
@@ -450,7 +342,7 @@ export function buildGatewayServer(
       return;
     }
 
-    const attribution = requireAttribution(request, reply, store);
+    const attribution = await requireAttribution(request, reply, store);
 
     if (!attribution) {
       return reply;
@@ -492,7 +384,7 @@ export function buildGatewayServer(
 
   server.get("/v1/balance", async (request) => {
     const attribution = requireRequestAttribution(request);
-    const grants = matchingGrants(store, attribution);
+    const grants = await store.listActiveGrants(attribution);
     const faucetBalance = grants.reduce(
       (total, grant) => total + Number(grant.remaining),
       0,
@@ -509,7 +401,7 @@ export function buildGatewayServer(
   server.get("/v1/faucet-grants", async (request) => {
     const attribution = requireRequestAttribution(request);
     return {
-      grants: matchingGrants(store, attribution).map((grant) => ({
+      grants: (await store.listActiveGrants(attribution)).map((grant) => ({
         id: grant.id,
         remaining: grant.remaining,
         allowed_models: grant.allowedModels,
@@ -544,10 +436,11 @@ export function buildGatewayServer(
         "No model price is configured for this route.",
       );
     }
-    const grants = matchingGrants(store, attribution, parsed.data.model);
-    const grantCanPay = grants.some(
-      (grant) => Number(grant.remaining) >= Number(estimate.retailPrice),
-    );
+    const grantMatch = await store.findPayingGrant({
+      attribution,
+      model: parsed.data.model,
+      requestedAmount: estimate.retailPrice,
+    });
 
     return {
       currency: "USD",
@@ -557,7 +450,7 @@ export function buildGatewayServer(
       upstream_cost: estimate.upstreamCost,
       wholesale_price: estimate.wholesalePrice,
       retail_price: estimate.retailPrice,
-      payment_source: grantCanPay ? "faucet_grant" : "wallet",
+      payment_source: grantMatch.matched ? "faucet_grant" : "wallet",
     };
   });
 
@@ -586,8 +479,7 @@ export function buildGatewayServer(
       );
     }
 
-    const faucetMatch = findMatchingFaucetGrant({
-      grants: store.faucetGrants,
+    const faucetMatch = await store.findPayingGrant({
       attribution,
       model: parsed.data.model,
       requestedAmount: estimate.retailPrice,
@@ -642,7 +534,10 @@ export function buildGatewayServer(
     });
     const ledgerEntries = createBalancedLedgerEntries({
       usageEventId: usageEvent.id,
-      wallets: defaultWallets,
+      wallets: {
+        ...defaultWallets,
+        payerWalletId: faucetMatch.grant.walletId,
+      },
       upstreamCost: usageEvent.upstreamCost,
       retailPrice: usageEvent.retailPrice,
       metadata: {
@@ -654,14 +549,24 @@ export function buildGatewayServer(
         mode: attribution.mode,
       },
     });
-    const updatedGrant = deductFaucetGrant(
-      faucetMatch.grant,
-      estimate.retailPrice,
-    );
+    let recordResult;
 
-    updateGrant(store, updatedGrant);
-    store.usageEvents.push(usageEvent);
-    store.ledgerEntries.push(...ledgerEntries);
+    try {
+      recordResult = await store.recordBillableCall({
+        grantId: faucetMatch.grant.id,
+        amount: estimate.retailPrice,
+        usageEvent,
+        ledgerEntries,
+      });
+    } catch (error) {
+      return jsonError(
+        reply,
+        402,
+        "insufficient_balance",
+        "Faucet grant could not pay for this request after provider execution.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
 
     return {
       id: requestId,
@@ -687,7 +592,7 @@ export function buildGatewayServer(
         upstream_cost: usageEvent.upstreamCost,
         retail_price: usageEvent.retailPrice,
         paid_by: "faucet_grant",
-        faucet_remaining: updatedGrant.remaining,
+        faucet_remaining: recordResult.updatedGrant.remaining,
         usage_event_id: usageEvent.id,
         ledger_entry_count: ledgerEntries.length,
       },
@@ -695,11 +600,11 @@ export function buildGatewayServer(
   });
 
   server.get("/admin/usage-events", async () => ({
-    usage_events: store.usageEvents,
+    usage_events: await store.listUsageEvents(),
   }));
 
   server.get("/admin/ledger", async () => ({
-    ledger_entries: store.ledgerEntries,
+    ledger_entries: await store.listLedgerEntries(),
   }));
 
   return server;

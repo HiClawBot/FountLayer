@@ -33,11 +33,13 @@
 - [x] Ledger entries balance.
 - [x] Developer console shows usage and ledger.
 - [x] Demo app works in browser smoke checks.
+- [x] v0.2.0-alpha branch adds optional PostgreSQL-backed Gateway store.
 
 ## Documentation
 
 - [x] Node/pnpm quickstart commands tested locally.
 - [ ] Docker Compose self-hosting runtime test blocked locally because Docker CLI is unavailable.
+- [ ] Optional Postgres integration test requires `FOUNTLAYER_RUN_DB_TESTS=1` on a Docker/Postgres-enabled machine.
 - [x] Security warning visible.
 - [x] Pricing formula documented.
 - [x] API spec documented.

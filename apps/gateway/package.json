@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@fountlayer/adapter-core": "workspace:*",
+    "@fountlayer/db": "workspace:*",
     "@fountlayer/faucet": "workspace:*",
     "@fountlayer/ledger": "workspace:*",
     "@fountlayer/pricing": "workspace:*",

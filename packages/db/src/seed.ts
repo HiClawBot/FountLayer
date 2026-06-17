@@ -62,7 +62,7 @@ export async function seedDatabase(
 
       await transaction`
         insert into end_users (id, app_id, external_user_hash, region, risk_score)
-        values ('user_demo', 'app_pdf_reader', 'user_hash_123', 'demo', 0)
+        values ('user_hash_123', 'app_pdf_reader', 'user_hash_123', 'demo', 0)
         on conflict (id) do update set
           external_user_hash = excluded.external_user_hash,
           region = excluded.region,
@@ -76,7 +76,7 @@ export async function seedDatabase(
           ('wallet_platform_cost', 'platform', 'platform_cost', 'USD', 0),
           ('wallet_provider_payable', 'provider_payable', 'demo', 'USD', 0),
           ('wallet_faucet_new_user', 'platform', 'grant_new_user', 'USD', 1.00000000),
-          ('wallet_user_demo', 'end_user', 'user_demo', 'USD', 0)
+          ('wallet_user_demo', 'end_user', 'user_hash_123', 'USD', 0)
         on conflict (id) do update set
           owner_type = excluded.owner_type,
           owner_id = excluded.owner_id,
@@ -188,7 +188,7 @@ export async function seedDatabase(
           'platform',
           'app_pdf_reader',
           'channel_desktop',
-          'user_demo',
+          'user_hash_123',
           'wallet_faucet_new_user',
           1.00000000,
           1.00000000,

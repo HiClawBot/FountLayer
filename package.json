@@ -10,6 +10,9 @@
   "scripts": {
     "build": "pnpm -r --if-present build",
     "clean": "pnpm -r --if-present clean && rm -rf coverage",
+    "db:migrate": "pnpm --filter @fountlayer/db db:migrate",
+    "db:seed": "pnpm --filter @fountlayer/db db:seed",
+    "db:test:setup": "pnpm --filter @fountlayer/db db:test:setup",
     "dev": "pnpm -r --parallel --if-present dev",
     "format": "prettier --check .",
     "format:write": "prettier --write .",

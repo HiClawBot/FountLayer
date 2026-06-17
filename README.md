@@ -92,6 +92,24 @@ pnpm --filter @fountlayer/console dev
 NEXT_PUBLIC_GATEWAY_BASE_URL=http://localhost:8787 pnpm --filter @fountlayer/demo-pdf-reader dev
 ```
 
+### Database-Backed Gateway
+
+The default Gateway mode is `memory` so the demo works without Docker. To use
+the v0.2.0-alpha PostgreSQL-backed store:
+
+```bash
+docker compose up -d postgres redis
+pnpm db:migrate
+pnpm db:seed
+FOUNTLAYER_GATEWAY_STORE=postgres pnpm --filter @fountlayer/gateway dev
+```
+
+Run the optional Postgres integration test with:
+
+```bash
+FOUNTLAYER_RUN_DB_TESTS=1 pnpm test
+```
+
 If another service already uses port `8787`, start the gateway on another port and point the demo at it:
 
 ```bash
@@ -189,7 +207,8 @@ The first public version proves the full commercial loop:
 ## Current Limitations
 
 - Gateway runtime state is in-memory in `v0.1.0`; PostgreSQL schema, migration,
-  and seed packages are present but not yet wired into the Gateway request path.
+  seed packages, and a v0.2.0-alpha Gateway store are present. Use
+  `FOUNTLAYER_GATEWAY_STORE=postgres` to enable the database-backed path.
 - Wallet-funded calls, hosted BYOK, settlement jobs, OpenMeter, and Lago adapters
   are planned after the faucet-funded loop.
 - This release is not production-ready for a hosted managed service. Add

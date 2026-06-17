@@ -85,6 +85,9 @@ importers:
       '@fountlayer/adapter-core':
         specifier: workspace:*
         version: link:../../packages/adapter-core
+      '@fountlayer/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@fountlayer/faucet':
         specifier: workspace:*
         version: link:../../packages/faucet
