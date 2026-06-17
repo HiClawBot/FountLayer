@@ -13,6 +13,28 @@ const attributionHeaders = {
   "x-fl-mode": "managed",
 };
 
+async function createSessionHeaders(
+  server: ReturnType<typeof buildGatewayServer>,
+) {
+  const response = await server.inject({
+    method: "POST",
+    url: "/v1/sessions",
+    headers: attributionHeaders,
+    payload: {
+      appId: "app_pdf_reader",
+      channelId: "channel_desktop",
+      endUserId: "user_hash_123",
+      useCase: "paper_summary",
+      mode: "managed",
+    },
+  });
+
+  return {
+    ...attributionHeaders,
+    authorization: `Bearer ${response.json().token}`,
+  };
+}
+
 describe("gateway minimum API", () => {
   it("serves a health check without attribution", async () => {
     const server = buildGatewayServer();
@@ -60,6 +82,19 @@ describe("gateway minimum API", () => {
     expect(response.json().error.code).toBe("unknown_app");
   });
 
+  it("rejects invalid session tokens after attribution validation", async () => {
+    const server = buildGatewayServer();
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/v1/balance",
+      headers: attributionHeaders,
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json().error.code).toBe("invalid_auth");
+  });
+
   it("creates a session only when body attribution matches headers", async () => {
     const server = buildGatewayServer();
 
@@ -82,11 +117,12 @@ describe("gateway minimum API", () => {
 
   it("returns a cost estimate with a faucet payment source", async () => {
     const server = buildGatewayServer();
+    const headers = await createSessionHeaders(server);
 
     const response = await server.inject({
       method: "POST",
       url: "/v1/estimate",
-      headers: attributionHeaders,
+      headers,
       payload: {
         model: "vertical/paper-summary",
         messages: [{ role: "user", content: "Summarize this paper." }],
@@ -104,11 +140,12 @@ describe("gateway minimum API", () => {
 
   it("exposes active faucet grant controls", async () => {
     const server = buildGatewayServer();
+    const headers = await createSessionHeaders(server);
 
     const response = await server.inject({
       method: "GET",
       url: "/v1/faucet-grants",
-      headers: attributionHeaders,
+      headers,
     });
 
     expect(response.statusCode).toBe(200);
@@ -119,6 +156,23 @@ describe("gateway minimum API", () => {
       allowed_use_cases: ["paper_summary"],
       daily_cap: "0.25000000",
     });
+  });
+
+  it("rejects session tokens used with different attribution", async () => {
+    const server = buildGatewayServer();
+    const headers = await createSessionHeaders(server);
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/v1/balance",
+      headers: {
+        ...headers,
+        "x-fl-use-case": "different_use_case",
+      },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json().error.code).toBe("session_attribution_mismatch");
   });
 
   it("runs the smallest billable SDK-to-gateway loop", async () => {

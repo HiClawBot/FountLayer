@@ -7,6 +7,7 @@ import {
   channels,
   faucetGrants,
   ledgerEntries,
+  sessions,
   usageEvents,
 } from "./src/schema";
 
@@ -28,6 +29,7 @@ describe("database migration", () => {
       "usage_events",
       "ledger_entries",
       "provider_credentials",
+      "sessions",
       "routes",
       "pricing_policies",
     ]) {
@@ -57,6 +59,16 @@ describe("database migration", () => {
     expect(migrationSql).toContain("mode text not null");
     expect(migrationSql).toContain("use_case text not null");
   });
+
+  it("stores session tokens as hashes with full attribution and expiration", () => {
+    expect(migrationSql).toContain("create table sessions");
+    expect(migrationSql).toContain("token_hash text not null unique");
+    expect(migrationSql).toContain("expires_at timestamptz not null");
+    expect(migrationSql).toContain("revoked_at timestamptz");
+    expect(migrationSql).toContain(
+      "create index idx_sessions_token_hash on sessions(token_hash)",
+    );
+  });
 });
 
 describe("drizzle schema exports", () => {
@@ -64,6 +76,7 @@ describe("drizzle schema exports", () => {
     expect(apps).toBeDefined();
     expect(channels).toBeDefined();
     expect(faucetGrants).toBeDefined();
+    expect(sessions).toBeDefined();
     expect(usageEvents).toBeDefined();
     expect(ledgerEntries).toBeDefined();
   });

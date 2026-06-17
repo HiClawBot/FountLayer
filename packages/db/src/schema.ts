@@ -165,6 +165,36 @@ export const providerCredentials = pgTable("provider_credentials", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
+export const sessions = pgTable(
+  "sessions",
+  {
+    id: text("id").primaryKey(),
+    appId: text("app_id")
+      .notNull()
+      .references(() => apps.id),
+    channelId: text("channel_id")
+      .notNull()
+      .references(() => channels.id),
+    endUserId: text("end_user_id")
+      .notNull()
+      .references(() => endUsers.id),
+    useCase: text("use_case").notNull(),
+    mode: text("mode").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    index("idx_sessions_token_hash").on(table.tokenHash),
+    index("idx_sessions_attribution").on(
+      table.appId,
+      table.channelId,
+      table.endUserId,
+    ),
+  ],
+);
+
 export const faucetGrants = pgTable(
   "faucet_grants",
   {

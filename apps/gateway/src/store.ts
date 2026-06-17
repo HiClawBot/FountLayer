@@ -33,6 +33,15 @@ export type GatewayGrantRecord = {
   status: "active" | "exhausted" | "expired" | "revoked";
 };
 
+export type GatewaySessionRecord = {
+  id: string;
+  tokenHash: string;
+  attribution: AttributionContext;
+  expiresAt: string;
+  revokedAt?: string;
+  createdAt: string;
+};
+
 export type GatewayGrantMatch =
   | {
       matched: true;
@@ -58,6 +67,17 @@ export type BillableCallRecordResult = {
 };
 
 export type GatewayStore = {
+  createSession(input: {
+    id: string;
+    tokenHash: string;
+    attribution: AttributionContext;
+    expiresAt: string;
+    createdAt?: string;
+  }): Promise<GatewaySessionRecord>;
+  getActiveSessionByTokenHash(
+    tokenHash: string,
+    now?: Date,
+  ): Promise<GatewaySessionRecord | undefined>;
   getActiveApp(id: string): Promise<GatewayAppRecord | undefined>;
   getActiveChannel(
     appId: string,
@@ -86,6 +106,7 @@ export type InMemoryGatewayState = {
   faucetGrants: GatewayGrantRecord[];
   usageEvents: UsageEventRecord[];
   ledgerEntries: LedgerEntryRecord[];
+  sessions: GatewaySessionRecord[];
 };
 
 type GrantRow = {
@@ -136,6 +157,19 @@ type LedgerEntryRow = {
   created_at: string | Date;
 };
 
+type SessionRow = {
+  id: string;
+  app_id: string;
+  channel_id: string;
+  end_user_id: string;
+  use_case: string;
+  mode: AttributionContext["mode"];
+  token_hash: string;
+  expires_at: string | Date;
+  revoked_at: string | Date | null;
+  created_at: string | Date;
+};
+
 type JsonValue =
   | null
   | string
@@ -178,6 +212,7 @@ export function createDefaultInMemoryGatewayState(): InMemoryGatewayState {
     faucetGrants: [{ ...defaultGrant }],
     usageEvents: [],
     ledgerEntries: [],
+    sessions: [],
   };
 }
 
@@ -262,6 +297,23 @@ function mapLedgerEntryRow(row: LedgerEntryRow): LedgerEntryRecord {
     amount: row.amount,
     reason: row.reason,
     metadata: row.metadata ?? {},
+    createdAt: toIso(row.created_at),
+  };
+}
+
+function mapSessionRow(row: SessionRow): GatewaySessionRecord {
+  return {
+    id: row.id,
+    tokenHash: row.token_hash,
+    attribution: {
+      appId: row.app_id,
+      channelId: row.channel_id,
+      endUserId: row.end_user_id,
+      useCase: row.use_case,
+      mode: row.mode,
+    },
+    expiresAt: toIso(row.expires_at),
+    revokedAt: row.revoked_at ? toIso(row.revoked_at) : undefined,
     createdAt: toIso(row.created_at),
   };
 }
@@ -351,6 +403,28 @@ export function createInMemoryGatewayStore(
   state: InMemoryGatewayState = createDefaultInMemoryGatewayState(),
 ): GatewayStore {
   return {
+    async createSession(input) {
+      const session: GatewaySessionRecord = {
+        id: input.id,
+        tokenHash: input.tokenHash,
+        attribution: input.attribution,
+        expiresAt: input.expiresAt,
+        createdAt: input.createdAt ?? new Date().toISOString(),
+      };
+
+      state.sessions.push(session);
+      return session;
+    },
+
+    async getActiveSessionByTokenHash(tokenHash, now = new Date()) {
+      return state.sessions.find(
+        (session) =>
+          session.tokenHash === tokenHash &&
+          !session.revokedAt &&
+          Date.parse(session.expiresAt) > now.getTime(),
+      );
+    },
+
     async getActiveApp(id) {
       const app = state.apps.get(id);
       return app?.status === "active" ? app : undefined;
@@ -611,6 +685,90 @@ async function insertLedgerEntries(
 
 export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
   return {
+    async createSession(input) {
+      const rows = await sql<SessionRow[]>`
+        with upsert_end_user as (
+          insert into end_users (
+            id,
+            app_id,
+            external_user_hash
+          )
+          values (
+            ${input.attribution.endUserId},
+            ${input.attribution.appId},
+            ${input.attribution.endUserId}
+          )
+          on conflict (id) do update set
+            external_user_hash = excluded.external_user_hash
+          returning id
+        )
+        insert into sessions (
+          id,
+          app_id,
+          channel_id,
+          end_user_id,
+          use_case,
+          mode,
+          token_hash,
+          expires_at,
+          created_at
+        )
+        values (
+          ${input.id},
+          ${input.attribution.appId},
+          ${input.attribution.channelId},
+          ${input.attribution.endUserId},
+          ${input.attribution.useCase},
+          ${input.attribution.mode},
+          ${input.tokenHash},
+          ${input.expiresAt},
+          ${input.createdAt ?? new Date().toISOString()}
+        )
+        returning
+          id,
+          app_id,
+          channel_id,
+          end_user_id,
+          use_case,
+          mode,
+          token_hash,
+          expires_at,
+          revoked_at,
+          created_at
+      `;
+      const row = rows[0];
+
+      if (!row) {
+        throw new Error("Session was not created.");
+      }
+
+      return mapSessionRow(row);
+    },
+
+    async getActiveSessionByTokenHash(tokenHash, now = new Date()) {
+      const rows = await sql<SessionRow[]>`
+        select
+          id,
+          app_id,
+          channel_id,
+          end_user_id,
+          use_case,
+          mode,
+          token_hash,
+          expires_at,
+          revoked_at,
+          created_at
+        from sessions
+        where token_hash = ${tokenHash}
+          and expires_at > ${now.toISOString()}
+          and revoked_at is null
+        limit 1
+      `;
+      const row = rows[0];
+
+      return row ? mapSessionRow(row) : undefined;
+    },
+
     async getActiveApp(id) {
       const rows = await sql<
         Array<{

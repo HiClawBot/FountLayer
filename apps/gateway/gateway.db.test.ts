@@ -62,6 +62,9 @@ describeDb("gateway postgres store", () => {
       useCase: "paper_summary",
       mode: "managed",
     });
+    const sessionRows = await sql<Array<{ token_hash: string }>>`
+      select token_hash from sessions
+    `;
     const beforeBalance = await session.getBalance();
 
     const result = await session.chat({
@@ -83,6 +86,9 @@ describeDb("gateway postgres store", () => {
 
     expect(result.billing.paid_by).toBe("faucet_grant");
     expect(result.billing.usage_event_id).toMatch(/^ue_/);
+    expect(sessionRows).toHaveLength(1);
+    expect(sessionRows[0]?.token_hash).not.toBe(session.token);
+    expect(sessionRows[0]?.token_hash).toHaveLength(64);
     expect(Number(beforeBalance.faucet_balance)).toBe(1);
     expect(Number(afterBalance.faucet_balance)).toBeLessThan(1);
     expect(usageRows[0]?.count).toBe("1");

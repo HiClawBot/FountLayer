@@ -97,6 +97,19 @@ create table provider_credentials (
   created_at timestamptz default now()
 );
 
+create table sessions (
+  id text primary key,
+  app_id text not null references apps(id),
+  channel_id text not null references channels(id),
+  end_user_id text not null references end_users(id),
+  use_case text not null,
+  mode text not null, -- managed, developer_key, byok, local
+  token_hash text not null unique,
+  expires_at timestamptz not null,
+  revoked_at timestamptz,
+  created_at timestamptz default now()
+);
+
 create table faucet_grants (
   id text primary key,
   sponsor_type text not null, -- platform, developer, provider, campaign
@@ -154,3 +167,5 @@ create index idx_usage_events_channel_created on usage_events(channel_id, create
 create index idx_usage_events_user_created on usage_events(end_user_id, created_at);
 create index idx_ledger_entries_usage_event on ledger_entries(usage_event_id);
 create index idx_faucet_grants_scope on faucet_grants(app_id, channel_id, end_user_id, status);
+create index idx_sessions_token_hash on sessions(token_hash);
+create index idx_sessions_attribution on sessions(app_id, channel_id, end_user_id);

@@ -18,6 +18,7 @@
 
 - [x] No real provider keys found in local placeholder-only scans.
 - [x] Logs redact common credential headers when Gateway logging is enabled.
+- [x] Session tokens are stored as hashes only in the v0.2.0-alpha Gateway path.
 - [x] Managed mode uses server-side placeholders only in this release.
 - [x] BYOK local mode does not upload keys.
 - [x] Hosted BYOK is not implemented; docs require explicit opt-in before adding it.

@@ -7,6 +7,8 @@
 - Gateway Store abstraction with in-memory and PostgreSQL implementations.
 - PostgreSQL-backed Gateway mode via `FOUNTLAYER_GATEWAY_STORE=postgres`.
 - Transactional faucet deduction with usage event and ledger entry persistence.
+- `sessions` table and Gateway session validation with persisted token hashes.
+- Session attribution checks for authenticated Gateway requests.
 - Optional Postgres integration test gated by `FOUNTLAYER_RUN_DB_TESTS=1`.
 - Root database scripts: `pnpm db:migrate`, `pnpm db:seed`, and `pnpm db:test:setup`.
 

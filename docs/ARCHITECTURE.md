@@ -34,6 +34,8 @@ Console / Worker / Optional Billing
 
 - `usage_events` are the source of truth for token flow.
 - `ledger_entries` are the source of truth for money flow.
+- `sessions` are the source of truth for Gateway session auth; only token
+  hashes are persisted.
 - `model_prices` are the source of truth for cost estimation.
 - `faucet_grants` are the source of truth for free credits.
 - Provider logs and SDK telemetry are not financial sources of truth.
@@ -43,13 +45,15 @@ Console / Worker / Optional Billing
 1. SDK creates or resumes a session.
 2. SDK sends chat request with attribution headers.
 3. Gateway validates app, channel, end user, and mode.
-4. Gateway estimates request cost.
-5. Gateway chooses payment source: faucet grant, wallet, BYOK, or local.
-6. Gateway resolves route to provider/model.
-7. Adapter calls LiteLLM, developer credential, BYOK, or local endpoint.
-8. Gateway records usage event.
-9. Ledger engine records debits and credits.
-10. Response returns usage and billing metadata.
+4. Gateway validates the session token hash and checks that session attribution
+   matches request attribution.
+5. Gateway estimates request cost.
+6. Gateway chooses payment source: faucet grant, wallet, BYOK, or local.
+7. Gateway resolves route to provider/model.
+8. Adapter calls LiteLLM, developer credential, BYOK, or local endpoint.
+9. Gateway records usage event.
+10. Ledger engine records debits and credits.
+11. Response returns usage and billing metadata.
 
 ## Routing Model
 

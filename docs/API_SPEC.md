@@ -5,7 +5,11 @@ The public Gateway API should be OpenAI-compatible where possible while adding F
 ## Required Headers
 
 All `/v1` requests carry attribution headers. All `/v1` endpoints except
-`POST /v1/sessions` also require a session or app bearer token.
+`POST /v1/sessions` require a session bearer token in `v0.2.0-alpha`.
+
+Gateway stores only a SHA-256 hash of the session token. The attribution headers
+on each authenticated request must match the attribution captured when the
+session was created.
 
 ```http
 Authorization: Bearer fl_session_or_app_token
@@ -19,6 +23,9 @@ x-fl-mode: managed
 ## POST /v1/sessions
 
 Creates a session for an end user.
+
+The response returns the only plaintext copy of the session token. Store it on
+the client side as an application session token, not as a provider API key.
 
 Request:
 

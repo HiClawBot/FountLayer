@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import Fastify, {
   type FastifyInstance,
@@ -33,6 +33,13 @@ import {
 import { createInMemoryGatewayStore, type GatewayStore } from "./store.js";
 
 type AuthContext = {
+  sessionId: string;
+  tokenHash: string;
+  expiresAt: string;
+  scheme: "Bearer";
+};
+
+type ParsedAuthorization = {
   token: string;
   scheme: "Bearer";
 };
@@ -110,7 +117,7 @@ function jsonError(
 
 function parseAuthorizationHeader(
   authorization: string | undefined,
-): AuthContext | undefined {
+): ParsedAuthorization | undefined {
   if (!authorization) {
     return undefined;
   }
@@ -125,6 +132,10 @@ function parseAuthorizationHeader(
     scheme,
     token,
   };
+}
+
+function hashSessionToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
 }
 
 async function requireAttribution(
@@ -186,13 +197,14 @@ async function requireAttribution(
   }
 }
 
-function requireAuth(
+async function requireAuth(
   request: FastifyRequest,
   reply: FastifyReply,
-): AuthContext | undefined {
-  const auth = parseAuthorizationHeader(request.headers.authorization);
+  store: GatewayStore,
+): Promise<AuthContext | undefined> {
+  const parsed = parseAuthorizationHeader(request.headers.authorization);
 
-  if (!auth) {
+  if (!parsed) {
     jsonError(
       reply,
       401,
@@ -201,6 +213,55 @@ function requireAuth(
     );
     return undefined;
   }
+
+  const tokenHash = hashSessionToken(parsed.token);
+  let session;
+
+  try {
+    session = await store.getActiveSessionByTokenHash(tokenHash);
+  } catch (error) {
+    jsonError(
+      reply,
+      500,
+      "store_error",
+      "Gateway store failed while validating session token.",
+      error instanceof Error ? error.message : undefined,
+    );
+    return undefined;
+  }
+
+  if (!session) {
+    jsonError(
+      reply,
+      401,
+      "invalid_auth",
+      "Session token is invalid, expired, or revoked.",
+    );
+    return undefined;
+  }
+
+  const attribution = requireRequestAttribution(request);
+  const mismatches = Object.entries(session.attribution).filter(
+    ([key, value]) => attribution[key as keyof AttributionContext] !== value,
+  );
+
+  if (mismatches.length > 0) {
+    jsonError(
+      reply,
+      403,
+      "session_attribution_mismatch",
+      "Session token attribution does not match request attribution.",
+      mismatches.map(([field]) => field),
+    );
+    return undefined;
+  }
+
+  const auth = {
+    scheme: parsed.scheme,
+    sessionId: session.id,
+    tokenHash,
+    expiresAt: session.expiresAt,
+  } as const;
 
   request.auth = auth;
   return auth;
@@ -349,7 +410,7 @@ export function buildGatewayServer(
     }
 
     if (request.method !== "POST" || request.url !== "/v1/sessions") {
-      const auth = requireAuth(request, reply);
+      const auth = await requireAuth(request, reply, store);
 
       if (!auth) {
         return reply;
@@ -375,10 +436,31 @@ export function buildGatewayServer(
       return reply;
     }
 
+    const sessionId = `sess_${randomUUID()}`;
+    const token = `fl_sess_${randomUUID()}`;
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+    try {
+      await store.createSession({
+        id: sessionId,
+        tokenHash: hashSessionToken(token),
+        attribution: parsed.data,
+        expiresAt,
+      });
+    } catch (error) {
+      return jsonError(
+        reply,
+        500,
+        "store_error",
+        "Gateway store failed while creating a session.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+
     return reply.code(201).send({
-      session_id: `sess_${randomUUID()}`,
-      token: `fl_sess_${randomUUID()}`,
-      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      session_id: sessionId,
+      token,
+      expires_at: expiresAt,
     });
   });
 
