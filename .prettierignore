@@ -1,0 +1,6 @@
+coverage
+.next
+dist
+node_modules
+pnpm-lock.yaml
+fountlayer_project_docs.zip

@@ -1,0 +1,20 @@
+{
+  "name": "@fountlayer/gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@fountlayer/adapter-core": "workspace:*",
+    "@fountlayer/faucet": "workspace:*",
+    "@fountlayer/ledger": "workspace:*",
+    "@fountlayer/pricing": "workspace:*",
+    "@fountlayer/protocol": "workspace:*",
+    "fastify": "^5.8.5"
+  }
+}

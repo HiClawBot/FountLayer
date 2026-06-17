@@ -1,0 +1,87 @@
+# Security
+
+## Rule Zero
+
+Provider API keys must never appear in SDK source code, frontend bundles, mobile apps, desktop packages, logs, screenshots, or Git history.
+
+## v0.1.0 Security Boundary
+
+- The Gateway uses a demo local adapter by default and does not require real
+  provider API keys.
+- `.env.example`, Docker Compose, LiteLLM config, tests, SDK, frontend apps, and
+  docs use placeholders only.
+- Gateway logging redacts common credential headers when logging is enabled.
+- BYOK SDK helpers store keys locally only.
+- Hosted BYOK, managed provider key storage, production authentication, and
+  persistent rate limits are not implemented in `v0.1.0`.
+
+## Key Storage
+
+| Credential type       | Storage                                                         |
+| --------------------- | --------------------------------------------------------------- |
+| Platform managed keys | Server-side encrypted storage only.                             |
+| Developer keys        | Server-side encrypted storage or developer self-hosted Gateway. |
+| BYOK local            | User device only. Never upload.                                 |
+| BYOK hosted           | Encrypted server-side storage with explicit opt-in.             |
+| Local endpoint key    | User device or enterprise local environment.                    |
+
+## Required Controls
+
+- KMS/Vault or equivalent envelope encryption.
+- Key rotation.
+- Redaction in logs.
+- Per-app budgets.
+- Per-channel budgets.
+- Per-end-user budgets.
+- Per-grant daily cap.
+- Anonymous usage throttling.
+- High-price model allowlist.
+- Streaming budget interruption.
+- Prompt/output logging disabled by default.
+
+## Log Policy
+
+Default logs should contain:
+
+```txt
+request_id
+app_id
+channel_id
+end_user_id hash
+mode
+route
+provider
+model
+token counts
+costs
+latency
+status
+error class
+```
+
+Default logs should not contain:
+
+```txt
+provider API keys
+raw prompts
+raw outputs
+PII
+payment card data
+```
+
+## BYOK Trust Policy
+
+Default BYOK mode should be local-only. Hosted BYOK requires clear user consent and a visible delete/rotate function.
+
+## Abuse Prevention MVP
+
+- Email or app-level authentication for managed mode.
+- IP and device rate limits.
+- CAPTCHA hook for public demos.
+- Free grant limits.
+- Spend alerts.
+- Provider-level hard spend cap.
+
+## Compliance Positioning
+
+FountLayer should be positioned as an application AI infrastructure layer. Avoid language implying sale, rental, sharing, or transfer of upstream provider API keys.

@@ -1,0 +1,52 @@
+import {
+  BadgeDollarSign,
+  Boxes,
+  CircuitBoard,
+  KeyRound,
+  Landmark,
+  LayoutDashboard,
+  RadioTower,
+  Route,
+  WalletCards,
+} from "lucide-react";
+import Link from "next/link";
+
+const navItems = [
+  { href: "/overview", label: "Overview", icon: LayoutDashboard },
+  { href: "/apps", label: "Apps", icon: Boxes },
+  { href: "/channels", label: "Channels", icon: RadioTower },
+  { href: "/routes", label: "Routes", icon: Route },
+  { href: "/credentials", label: "Credentials", icon: KeyRound },
+  { href: "/faucet", label: "Faucet", icon: WalletCards },
+  { href: "/pricing", label: "Pricing", icon: BadgeDollarSign },
+  { href: "/usage-ledger", label: "Usage & Ledger", icon: Landmark },
+];
+
+export function ConsoleShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="shell">
+      <aside className="sidebar">
+        <div className="brand">
+          <strong>FountLayer</strong>
+          <span>Distribution Console</span>
+        </div>
+        <nav className="nav" aria-label="Console sections">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link href={item.href} key={item.href}>
+                <Icon size={18} aria-hidden="true" />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+        <div className="brand">
+          <CircuitBoard size={20} aria-hidden="true" />
+          <span>Gateway http://localhost:8787</span>
+        </div>
+      </aside>
+      <main className="main">{children}</main>
+    </div>
+  );
+}

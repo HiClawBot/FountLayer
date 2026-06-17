@@ -1,0 +1,189 @@
+openapi: 3.1.0
+info:
+  title: FountLayer Gateway API
+  version: 0.1.0
+  description: OpenAI-compatible Gateway API with attribution, faucet credits, usage events, and billing metadata.
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: Gateway is healthy
+
+  /v1/sessions:
+    post:
+      summary: Create an end-user session
+      parameters:
+        - $ref: "#/components/parameters/AppId"
+        - $ref: "#/components/parameters/ChannelId"
+        - $ref: "#/components/parameters/EndUserId"
+        - $ref: "#/components/parameters/UseCase"
+        - $ref: "#/components/parameters/Mode"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttributionContext"
+      responses:
+        "201":
+          description: Session created
+
+  /v1/balance:
+    get:
+      summary: Return wallet and faucet balances
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AppId"
+        - $ref: "#/components/parameters/ChannelId"
+        - $ref: "#/components/parameters/EndUserId"
+        - $ref: "#/components/parameters/UseCase"
+        - $ref: "#/components/parameters/Mode"
+      responses:
+        "200":
+          description: Balance response
+
+  /v1/faucet-grants:
+    get:
+      summary: Return active faucet grants for the attribution context
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AppId"
+        - $ref: "#/components/parameters/ChannelId"
+        - $ref: "#/components/parameters/EndUserId"
+        - $ref: "#/components/parameters/UseCase"
+        - $ref: "#/components/parameters/Mode"
+      responses:
+        "200":
+          description: Faucet grants response
+
+  /v1/estimate:
+    post:
+      summary: Estimate request cost
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AppId"
+        - $ref: "#/components/parameters/ChannelId"
+        - $ref: "#/components/parameters/EndUserId"
+        - $ref: "#/components/parameters/UseCase"
+        - $ref: "#/components/parameters/Mode"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRequest"
+      responses:
+        "200":
+          description: Cost estimate
+
+  /v1/chat/completions:
+    post:
+      summary: OpenAI-compatible chat completions with FountLayer billing metadata
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AppId"
+        - $ref: "#/components/parameters/ChannelId"
+        - $ref: "#/components/parameters/EndUserId"
+        - $ref: "#/components/parameters/UseCase"
+        - $ref: "#/components/parameters/Mode"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRequest"
+      responses:
+        "200":
+          description: Chat completion
+
+  /admin/usage-events:
+    get:
+      summary: MVP admin usage event view
+      responses:
+        "200":
+          description: Usage events
+
+  /admin/ledger:
+    get:
+      summary: MVP admin ledger view
+      responses:
+        "200":
+          description: Ledger entries
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+
+  parameters:
+    AppId:
+      in: header
+      name: x-fl-app-id
+      required: true
+      schema: { type: string }
+    ChannelId:
+      in: header
+      name: x-fl-channel-id
+      required: true
+      schema: { type: string }
+    EndUserId:
+      in: header
+      name: x-fl-end-user-id
+      required: true
+      schema: { type: string }
+    UseCase:
+      in: header
+      name: x-fl-use-case
+      required: true
+      schema: { type: string }
+    Mode:
+      in: header
+      name: x-fl-mode
+      required: true
+      schema:
+        type: string
+        enum: [managed, developer_key, byok, local]
+
+  schemas:
+    AttributionContext:
+      type: object
+      required: [appId, channelId, endUserId, useCase, mode]
+      properties:
+        appId: { type: string }
+        channelId: { type: string }
+        endUserId: { type: string }
+        useCase: { type: string }
+        mode:
+          type: string
+          enum: [managed, developer_key, byok, local]
+
+    ChatMessage:
+      type: object
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [system, user, assistant, tool]
+        content: { type: string }
+
+    ChatRequest:
+      type: object
+      required: [model, messages]
+      properties:
+        model: { type: string }
+        messages:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ChatMessage"
+        stream: { type: boolean }
+        metadata:
+          type: object
+          additionalProperties: true
