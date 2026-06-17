@@ -13,6 +13,8 @@ PostgreSQL-backed attribution, faucet, usage, and ledger state.
   successful billable call.
 - Session auth persistence with stored token hashes only.
 - Session attribution matching for authenticated `/v1` requests.
+- Console Usage/Ledger and Overview pages backed by Gateway Admin API data with
+  static fallback.
 - Optional Postgres integration test gated by `FOUNTLAYER_RUN_DB_TESTS=1`.
 - Documentation for enabling `FOUNTLAYER_GATEWAY_STORE=postgres`.
 
@@ -34,12 +36,15 @@ PostgreSQL-backed attribution, faucet, usage, and ledger state.
       usage/ledger writes.
 - [x] Added `sessions` table, hashed session persistence, and session
       attribution checks.
+- [x] Wired Console Overview and Usage/Ledger pages to Gateway Admin API data
+      with static fallback.
 - [x] Added optional Postgres integration test.
 - [x] Added root DB scripts and README instructions.
 - [ ] Docker Compose runtime validation is still blocked on machines without
       Docker CLI.
 - [ ] CI Postgres service is not yet enabled.
-- [ ] Console still reads static data rather than live Admin APIs.
+- [ ] App/channel/faucet/route/credential Console pages still read static
+      seed-shaped data.
 - [ ] App tokens and production tenant auth are not yet implemented.
 
 ## Next Checks

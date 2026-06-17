@@ -149,6 +149,9 @@ GET    /admin/usage-events
 GET    /admin/ledger
 ```
 
+The v0.2.0-alpha Console can read these endpoints directly for live usage and
+ledger views. Admin authentication is still planned.
+
 Planned:
 
 ```txt

@@ -131,6 +131,10 @@ The developer console runs on `http://localhost:3000` by default, and the PDF
 reader demo runs on `http://localhost:3002`. Next.js may choose the next
 available port if a default port is already in use.
 
+The Console reads live Gateway Admin API usage and ledger data from
+`CONSOLE_GATEWAY_BASE_URL` or `GATEWAY_BASE_URL`, and falls back to local sample
+data when the Gateway is unavailable.
+
 ## SDK Example
 
 ```ts

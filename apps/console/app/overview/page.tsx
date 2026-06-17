@@ -1,17 +1,47 @@
 import { Metric, PageHeader, Panel, Status } from "../../components/ui";
-import {
-  ledgerEntries,
-  overviewMetrics,
-  usageEvents,
-} from "../../lib/console-data";
+import { channels, faucetGrants } from "../../lib/console-data";
+import { getConsoleRuntimeData } from "../../lib/gateway-admin";
 
-export default function OverviewPage() {
+export const dynamic = "force-dynamic";
+
+export default async function OverviewPage() {
+  const { ledgerEntries, source, usageEvents } = await getConsoleRuntimeData();
   const debitTotal = ledgerEntries
     .filter((entry) => entry.direction === "debit")
     .reduce((sum, entry) => sum + Number(entry.amount), 0);
   const creditTotal = ledgerEntries
     .filter((entry) => entry.direction === "credit")
     .reduce((sum, entry) => sum + Number(entry.amount), 0);
+  const faucetBalance = faucetGrants.reduce(
+    (sum, grant) => sum + Number(grant.remaining),
+    0,
+  );
+  const dailyCap = faucetGrants.reduce(
+    (sum, grant) => sum + Number(grant.dailyCap),
+    0,
+  );
+  const overviewMetrics = [
+    {
+      label: "Apps",
+      value: "1",
+      detail: `${channels.length} active channel`,
+    },
+    {
+      label: "Faucet Balance",
+      value: `$${faucetBalance.toFixed(8)}`,
+      detail: `daily cap $${dailyCap.toFixed(8)}`,
+    },
+    {
+      label: "Usage Events",
+      value: String(usageEvents.length),
+      detail: source === "gateway" ? "live Gateway data" : "static fallback",
+    },
+    {
+      label: "Ledger Entries",
+      value: String(ledgerEntries.length),
+      detail: "debits equal credits",
+    },
+  ];
 
   return (
     <div className="page">

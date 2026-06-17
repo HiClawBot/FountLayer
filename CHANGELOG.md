@@ -9,6 +9,8 @@
 - Transactional faucet deduction with usage event and ledger entry persistence.
 - `sessions` table and Gateway session validation with persisted token hashes.
 - Session attribution checks for authenticated Gateway requests.
+- Console Overview and Usage/Ledger pages can read live Gateway Admin API data
+  with static fallback for offline builds.
 - Optional Postgres integration test gated by `FOUNTLAYER_RUN_DB_TESTS=1`.
 - Root database scripts: `pnpm db:migrate`, `pnpm db:seed`, and `pnpm db:test:setup`.
 

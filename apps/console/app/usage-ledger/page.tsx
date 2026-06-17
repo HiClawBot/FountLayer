@@ -1,12 +1,16 @@
 import { PageHeader, Panel, Status } from "../../components/ui";
-import { ledgerEntries, usageEvents } from "../../lib/console-data";
+import { getConsoleRuntimeData } from "../../lib/gateway-admin";
 
-export default function UsageLedgerPage() {
+export const dynamic = "force-dynamic";
+
+export default async function UsageLedgerPage() {
+  const { ledgerEntries, source, usageEvents } = await getConsoleRuntimeData();
+
   return (
     <div className="page">
       <PageHeader
         title="Usage & Ledger"
-        eyebrow="Token flow and append-only money movement records."
+        eyebrow={`Token flow and append-only money movement records. Source: ${source}.`}
       />
       <Panel title="Usage Events">
         <div className="table-wrap">
