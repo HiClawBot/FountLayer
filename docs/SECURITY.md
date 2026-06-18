@@ -38,6 +38,8 @@ Provider API keys must never appear in SDK source code, frontend bundles, mobile
   the first successful response without duplicate usage or ledger records.
 - Route policy model allowlists and route spend caps are checked before adapter
   execution, usage event creation, or ledger entry creation.
+- Wallet-funded calls must atomically prevent negative balances. Calls rejected
+  for insufficient wallet balance do not create usage events or ledger entries.
 - App tokens, API key rotation UI, and production-grade tenant authentication are
   still planned work.
 

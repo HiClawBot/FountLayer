@@ -37,6 +37,8 @@
 - SDK BYOK/local helpers now validate local endpoint URLs, support local clear
   helpers, and Gateway hosted end-user BYOK credential writes require explicit
   opt-in.
+- Gateway billable chat calls now fall back to end-user wallet balances when
+  faucet grants cannot pay, with negative-balance prevention and ledger writes.
 - Root database scripts: `pnpm db:migrate`, `pnpm db:seed`, and `pnpm db:test:setup`.
 
 ## 0.1.0 - 2026-06-17

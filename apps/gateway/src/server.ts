@@ -33,8 +33,10 @@ import {
 
 import {
   createInMemoryGatewayStore,
+  type GatewayGrantRecord,
   type GatewayRoutePolicyRecord,
   type GatewayStore,
+  type GatewayWalletRecord,
 } from "./store.js";
 
 type AuthContext = {
@@ -112,12 +114,13 @@ type RateLimitCounter = {
 type ChatCompletionResponse = {
   billing: {
     currency: string;
-    faucet_remaining: string;
+    faucet_remaining?: string;
     ledger_entry_count: number;
-    paid_by: "faucet_grant";
+    paid_by: "faucet_grant" | "wallet";
     retail_price: string;
     upstream_cost: string;
     usage_event_id: string;
+    wallet_balance?: string;
   };
   choices: Array<{
     finish_reason: string;
@@ -136,6 +139,16 @@ type ChatCompletionResponse = {
     total_tokens: number;
   };
 };
+
+type PaymentSource =
+  | {
+      type: "faucet_grant";
+      grant: GatewayGrantRecord;
+    }
+  | {
+      type: "wallet";
+      wallet: GatewayWalletRecord;
+    };
 
 type ProviderCredentialCreateBody = {
   apiKey: string;
@@ -911,6 +924,12 @@ export function buildGatewayServer(
       model: parsed.data.model,
       requestedAmount: estimate.retailPrice,
     });
+    const walletMatch = grantMatch.matched
+      ? undefined
+      : await store.findPayingWallet({
+          attribution,
+          requestedAmount: estimate.retailPrice,
+        });
 
     return {
       currency: "USD",
@@ -922,7 +941,11 @@ export function buildGatewayServer(
       upstream_cost: estimate.upstreamCost,
       wholesale_price: estimate.wholesalePrice,
       retail_price: estimate.retailPrice,
-      payment_source: grantMatch.matched ? "faucet_grant" : "wallet",
+      payment_source: grantMatch.matched
+        ? "faucet_grant"
+        : walletMatch?.matched
+          ? "wallet"
+          : "none",
     };
   });
 
@@ -1034,14 +1057,34 @@ export function buildGatewayServer(
       model: parsed.data.model,
       requestedAmount: estimate.retailPrice,
     });
+    const walletMatch = faucetMatch.matched
+      ? undefined
+      : await store.findPayingWallet({
+          attribution,
+          requestedAmount: estimate.retailPrice,
+        });
+    const paymentSource: PaymentSource | undefined = faucetMatch.matched
+      ? {
+          type: "faucet_grant",
+          grant: faucetMatch.grant,
+        }
+      : walletMatch?.matched
+        ? {
+            type: "wallet",
+            wallet: walletMatch.wallet,
+          }
+        : undefined;
 
-    if (!faucetMatch.matched) {
+    if (!paymentSource) {
       return jsonError(
         reply,
         402,
         "insufficient_balance",
         "No faucet grant or wallet balance can pay for this request.",
-        faucetMatch.reasons,
+        {
+          faucet: faucetMatch.matched ? [] : faucetMatch.reasons,
+          wallet: walletMatch?.matched ? undefined : walletMatch?.reason,
+        },
       );
     }
 
@@ -1080,13 +1123,19 @@ export function buildGatewayServer(
       upstreamCost: estimate.upstreamCost,
       wholesalePrice: estimate.wholesalePrice,
       retailPrice: estimate.retailPrice,
-      faucetGrantId: faucetMatch.grant.id,
+      faucetGrantId:
+        paymentSource.type === "faucet_grant"
+          ? paymentSource.grant.id
+          : undefined,
     });
     const ledgerEntries = createBalancedLedgerEntries({
       usageEventId: usageEvent.id,
       wallets: {
         ...defaultWallets,
-        payerWalletId: faucetMatch.grant.walletId,
+        payerWalletId:
+          paymentSource.type === "faucet_grant"
+            ? paymentSource.grant.walletId
+            : paymentSource.wallet.id,
       },
       upstreamCost: usageEvent.upstreamCost,
       retailPrice: usageEvent.retailPrice,
@@ -1099,60 +1148,75 @@ export function buildGatewayServer(
         mode: attribution.mode,
       },
     });
-    let recordResult;
 
     try {
-      recordResult = await store.recordBillableCall({
-        grantId: faucetMatch.grant.id,
-        amount: estimate.retailPrice,
-        usageEvent,
-        ledgerEntries,
-      });
+      const paymentBillingFields =
+        paymentSource.type === "faucet_grant"
+          ? {
+              faucet_remaining: (
+                await store.recordBillableCall({
+                  grantId: paymentSource.grant.id,
+                  amount: estimate.retailPrice,
+                  usageEvent,
+                  ledgerEntries,
+                })
+              ).updatedGrant.remaining,
+            }
+          : {
+              wallet_balance: (
+                await store.recordWalletBillableCall({
+                  walletId: paymentSource.wallet.id,
+                  amount: estimate.retailPrice,
+                  usageEvent,
+                  ledgerEntries,
+                })
+              ).updatedWallet.balance,
+            };
+
+      const response: ChatCompletionResponse = {
+        id: requestId,
+        object: "chat.completion",
+        model: output.model,
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: "assistant",
+              content: output.content,
+            },
+            finish_reason: output.finishReason ?? "stop",
+          },
+        ],
+        usage: {
+          input_tokens: output.usage.inputTokens,
+          output_tokens: output.usage.outputTokens,
+          total_tokens: output.usage.totalTokens,
+        },
+        billing: {
+          currency: estimate.currency,
+          upstream_cost: usageEvent.upstreamCost,
+          retail_price: usageEvent.retailPrice,
+          paid_by: paymentSource.type,
+          ...paymentBillingFields,
+          usage_event_id: usageEvent.id,
+          ledger_entry_count: ledgerEntries.length,
+        },
+      };
+
+      if (idempotencyCacheKey) {
+        idempotencyCache.set(idempotencyCacheKey, response);
+      }
+
+      return response;
     } catch (error) {
       return jsonError(
         reply,
         402,
         "insufficient_balance",
-        "Faucet grant could not pay for this request after provider execution.",
+        "Payment source could not pay for this request after provider execution.",
         error instanceof Error ? error.message : undefined,
       );
     }
-
-    const response: ChatCompletionResponse = {
-      id: requestId,
-      object: "chat.completion",
-      model: output.model,
-      choices: [
-        {
-          index: 0,
-          message: {
-            role: "assistant",
-            content: output.content,
-          },
-          finish_reason: output.finishReason ?? "stop",
-        },
-      ],
-      usage: {
-        input_tokens: output.usage.inputTokens,
-        output_tokens: output.usage.outputTokens,
-        total_tokens: output.usage.totalTokens,
-      },
-      billing: {
-        currency: estimate.currency,
-        upstream_cost: usageEvent.upstreamCost,
-        retail_price: usageEvent.retailPrice,
-        paid_by: "faucet_grant",
-        faucet_remaining: recordResult.updatedGrant.remaining,
-        usage_event_id: usageEvent.id,
-        ledger_entry_count: ledgerEntries.length,
-      },
-    };
-
-    if (idempotencyCacheKey) {
-      idempotencyCache.set(idempotencyCacheKey, response);
-    }
-
-    return response;
   });
 
   server.get("/admin/apps", async () => ({

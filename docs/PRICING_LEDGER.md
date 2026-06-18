@@ -58,6 +58,19 @@ Debit  platform_revenue_wallet      0.0003   reason=channel_commission_payout
 
 The exact accounts can be adjusted, but the principle must remain: no hidden money movement.
 
+## Example: Wallet-funded Managed Call
+
+When no faucet grant can pay, the end-user wallet can fund the same billable
+call if it has sufficient balance. The Gateway must deduct the wallet
+atomically with the usage event and ledger entries.
+
+```txt
+Debit  end_user_wallet              0.0034   reason=retail_charge
+Credit platform_revenue_wallet      0.0034   reason=platform_revenue
+Debit  platform_cost_wallet         0.0021   reason=provider_cost
+Credit provider_payable_wallet      0.0021   reason=provider_payable
+```
+
 ## Channel Commission Options
 
 - No commission on platform-sponsored free grants.

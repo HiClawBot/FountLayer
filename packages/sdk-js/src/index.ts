@@ -79,6 +79,7 @@ export type ChatCompletionResponse = {
     retail_price: string;
     paid_by: string;
     faucet_remaining?: string;
+    wallet_balance?: string;
     usage_event_id?: string;
     ledger_entry_count?: number;
   };

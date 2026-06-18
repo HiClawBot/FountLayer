@@ -104,6 +104,10 @@ Response:
 }
 ```
 
+`payment_source` is `faucet_grant` when a matching faucet grant can pay,
+`wallet` when the end-user wallet has sufficient balance, and `none` when
+neither source can pay.
+
 ## POST /v1/chat/completions
 
 OpenAI-compatible chat completion endpoint.
@@ -154,6 +158,9 @@ Response:
   }
 }
 ```
+
+Wallet-funded responses use `"paid_by": "wallet"` and return
+`wallet_balance` instead of `faucet_remaining`.
 
 ## Admin APIs
 

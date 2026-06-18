@@ -126,6 +126,14 @@ export type GatewayGrantRecord = {
   status: "active" | "exhausted" | "expired" | "revoked";
 };
 
+export type GatewayWalletRecord = {
+  id: string;
+  ownerType: string;
+  ownerId: string;
+  balance: string;
+  currency: string;
+};
+
 export type GatewaySessionRecord = {
   id: string;
   tokenHash: string;
@@ -145,6 +153,16 @@ export type GatewayGrantMatch =
       reasons: FaucetRejectionReason[];
     };
 
+export type GatewayWalletMatch =
+  | {
+      matched: true;
+      wallet: GatewayWalletRecord;
+    }
+  | {
+      matched: false;
+      reason: "wallet_not_found" | "insufficient_wallet_balance";
+    };
+
 export type BillableCallRecord = {
   grantId: string;
   amount: string;
@@ -157,6 +175,12 @@ export type BillableCallRecordResult = {
   usageEvent: UsageEventRecord;
   ledgerEntries: LedgerEntryRecord[];
   updatedGrant: GatewayGrantRecord;
+};
+
+export type WalletBillableCallRecordResult = {
+  usageEvent: UsageEventRecord;
+  ledgerEntries: LedgerEntryRecord[];
+  updatedWallet: GatewayWalletRecord;
 };
 
 export type GatewayStore = {
@@ -190,9 +214,16 @@ export type GatewayStore = {
     requestedAmount: string;
     now?: Date;
   }): Promise<GatewayGrantMatch>;
+  findPayingWallet(input: {
+    attribution: AttributionContext;
+    requestedAmount: string;
+  }): Promise<GatewayWalletMatch>;
   recordBillableCall(
     input: BillableCallRecord,
   ): Promise<BillableCallRecordResult>;
+  recordWalletBillableCall(
+    input: Omit<BillableCallRecord, "grantId"> & { walletId: string },
+  ): Promise<WalletBillableCallRecordResult>;
   listApps(): Promise<GatewayAdminAppRecord[]>;
   listChannels(): Promise<GatewayAdminChannelRecord[]>;
   listFaucetGrants(): Promise<GatewayGrantRecord[]>;
@@ -216,6 +247,7 @@ export type InMemoryGatewayState = {
   faucetGrants: GatewayGrantRecord[];
   providerCredentials: GatewayProviderCredentialRecord[];
   routePolicies: GatewayRoutePolicyRecord[];
+  wallets: Map<string, GatewayWalletRecord>;
   usageEvents: UsageEventRecord[];
   ledgerEntries: LedgerEntryRecord[];
   sessions: GatewaySessionRecord[];
@@ -280,6 +312,14 @@ type SessionRow = {
   expires_at: string | Date;
   revoked_at: string | Date | null;
   created_at: string | Date;
+};
+
+type WalletRow = {
+  id: string;
+  owner_type: string;
+  owner_id: string;
+  currency: string;
+  balance: string;
 };
 
 type AdminAppRow = {
@@ -415,6 +455,14 @@ const defaultGrant: GatewayGrantRecord = {
   status: "active",
 };
 
+const defaultUserWallet: GatewayWalletRecord = {
+  id: "wallet_user_demo",
+  ownerType: "end_user",
+  ownerId: "user_hash_123",
+  balance: "0.00000000",
+  currency: "USD",
+};
+
 export function createDefaultInMemoryGatewayState(): InMemoryGatewayState {
   return {
     apps: new Map([[defaultApp.id, { ...defaultApp }]]),
@@ -434,6 +482,7 @@ export function createDefaultInMemoryGatewayState(): InMemoryGatewayState {
         modelAllowlist: [...defaultRoutePolicy.modelAllowlist],
       },
     ],
+    wallets: new Map([[defaultUserWallet.id, { ...defaultUserWallet }]]),
     usageEvents: [],
     ledgerEntries: [],
     sessions: [],
@@ -539,6 +588,16 @@ function mapSessionRow(row: SessionRow): GatewaySessionRecord {
     expiresAt: toIso(row.expires_at),
     revokedAt: row.revoked_at ? toIso(row.revoked_at) : undefined,
     createdAt: toIso(row.created_at),
+  };
+}
+
+function mapWalletRow(row: WalletRow): GatewayWalletRecord {
+  return {
+    id: row.id,
+    ownerType: row.owner_type,
+    ownerId: row.owner_id,
+    balance: row.balance,
+    currency: row.currency,
   };
 }
 
@@ -783,6 +842,33 @@ export function createInMemoryGatewayStore(
       });
     },
 
+    async findPayingWallet({ attribution, requestedAmount }) {
+      const wallet = [...state.wallets.values()].find(
+        (candidate) =>
+          candidate.ownerType === "end_user" &&
+          candidate.ownerId === attribution.endUserId,
+      );
+
+      if (!wallet) {
+        return {
+          matched: false,
+          reason: "wallet_not_found",
+        };
+      }
+
+      if (Number(wallet.balance) < Number(requestedAmount)) {
+        return {
+          matched: false,
+          reason: "insufficient_wallet_balance",
+        };
+      }
+
+      return {
+        matched: true,
+        wallet,
+      };
+    },
+
     async recordBillableCall(input) {
       const grant = state.faucetGrants.find(
         (candidate) => candidate.id === input.grantId,
@@ -833,6 +919,33 @@ export function createInMemoryGatewayStore(
         usageEvent: input.usageEvent,
         ledgerEntries: input.ledgerEntries,
         updatedGrant,
+      };
+    },
+
+    async recordWalletBillableCall(input) {
+      const wallet = state.wallets.get(input.walletId);
+
+      if (!wallet) {
+        throw new Error("Wallet no longer exists.");
+      }
+
+      if (Number(wallet.balance) < Number(input.amount)) {
+        throw new Error("Wallet balance is insufficient.");
+      }
+
+      const updatedWallet: GatewayWalletRecord = {
+        ...wallet,
+        balance: money(Number(wallet.balance) - Number(input.amount)),
+      };
+
+      state.wallets.set(wallet.id, updatedWallet);
+      state.usageEvents.push(input.usageEvent);
+      state.ledgerEntries.push(...input.ledgerEntries);
+
+      return {
+        usageEvent: input.usageEvent,
+        ledgerEntries: input.ledgerEntries,
+        updatedWallet,
       };
     },
 
@@ -1270,6 +1383,41 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
       });
     },
 
+    async findPayingWallet({ attribution, requestedAmount }) {
+      const rows = await sql<WalletRow[]>`
+        select
+          id,
+          owner_type,
+          owner_id,
+          currency,
+          balance_numeric::text as balance
+        from wallets
+        where owner_type = 'end_user'
+          and owner_id = ${attribution.endUserId}
+        limit 1
+      `;
+      const wallet = rows[0] ? mapWalletRow(rows[0]) : undefined;
+
+      if (!wallet) {
+        return {
+          matched: false,
+          reason: "wallet_not_found",
+        };
+      }
+
+      if (Number(wallet.balance) < Number(requestedAmount)) {
+        return {
+          matched: false,
+          reason: "insufficient_wallet_balance",
+        };
+      }
+
+      return {
+        matched: true,
+        wallet,
+      };
+    },
+
     async recordBillableCall(input) {
       return sql.begin(async (transaction) => {
         const attribution = {
@@ -1342,6 +1490,60 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
           usageEvent: input.usageEvent,
           ledgerEntries: input.ledgerEntries,
           updatedGrant,
+        };
+      });
+    },
+
+    async recordWalletBillableCall(input) {
+      return sql.begin(async (transaction) => {
+        const lockedRows = await transaction<WalletRow[]>`
+          select
+            id,
+            owner_type,
+            owner_id,
+            currency,
+            balance_numeric::text as balance
+          from wallets
+          where id = ${input.walletId}
+          for update
+        `;
+        const wallet = lockedRows[0] ? mapWalletRow(lockedRows[0]) : undefined;
+
+        if (!wallet) {
+          throw new Error("Wallet no longer exists.");
+        }
+
+        if (Number(wallet.balance) < Number(input.amount)) {
+          throw new Error("Wallet balance is insufficient.");
+        }
+
+        const updatedRows = await transaction<WalletRow[]>`
+          update wallets
+          set balance_numeric = balance_numeric - ${input.amount}
+          where id = ${input.walletId}
+            and balance_numeric >= ${input.amount}
+          returning
+            id,
+            owner_type,
+            owner_id,
+            currency,
+            balance_numeric::text as balance
+        `;
+        const updatedWallet = updatedRows[0]
+          ? mapWalletRow(updatedRows[0])
+          : undefined;
+
+        if (!updatedWallet) {
+          throw new Error("Wallet could not be deducted atomically.");
+        }
+
+        await insertUsageEvent(transaction, input.usageEvent);
+        await insertLedgerEntries(transaction, input.ledgerEntries);
+
+        return {
+          usageEvent: input.usageEvent,
+          ledgerEntries: input.ledgerEntries,
+          updatedWallet,
         };
       });
     },

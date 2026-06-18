@@ -684,6 +684,112 @@ describe("gateway minimum API", () => {
     );
   });
 
+  it("falls back to wallet-funded calls when no faucet grant can pay", async () => {
+    const state = createDefaultInMemoryGatewayState();
+
+    state.faucetGrants = [];
+    state.wallets.set("wallet_user_demo", {
+      id: "wallet_user_demo",
+      ownerType: "end_user",
+      ownerId: "user_hash_123",
+      balance: "1.00000000",
+      currency: "USD",
+    });
+
+    const server = buildGatewayServer(createInMemoryGatewayStore(state), {
+      adminTokenHashes: [hashTestToken(adminToken)],
+    });
+    const headers = await createSessionHeaders(server);
+    const estimate = await server.inject({
+      method: "POST",
+      url: "/v1/estimate",
+      headers,
+      payload: {
+        model: "vertical/paper-summary",
+        messages: [{ role: "user", content: "Summarize this paper." }],
+      },
+    });
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/chat/completions",
+      headers,
+      payload: {
+        model: "vertical/paper-summary",
+        messages: [{ role: "user", content: "Summarize this paper." }],
+      },
+    });
+    const usageEvents = await server.inject({
+      method: "GET",
+      url: "/admin/usage-events",
+      headers: adminHeaders,
+    });
+    const ledger = await server.inject({
+      method: "GET",
+      url: "/admin/ledger",
+      headers: adminHeaders,
+    });
+
+    expect(estimate.json().payment_source).toBe("wallet");
+    expect(response.statusCode).toBe(200);
+    expect(response.json().billing.paid_by).toBe("wallet");
+    expect(Number(response.json().billing.wallet_balance)).toBeLessThan(1);
+    expect(usageEvents.json().usage_events).toHaveLength(1);
+    expect(usageEvents.json().usage_events[0].faucetGrantId).toBeUndefined();
+    expect(ledger.json().ledger_entries).toHaveLength(4);
+    expect(ledger.json().ledger_entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          walletId: "wallet_user_demo",
+          direction: "debit",
+          reason: "retail_charge",
+        }),
+      ]),
+    );
+  });
+
+  it("rejects wallet-funded calls with insufficient wallet balance", async () => {
+    const state = createDefaultInMemoryGatewayState();
+
+    state.faucetGrants = [];
+    state.wallets.set("wallet_user_demo", {
+      id: "wallet_user_demo",
+      ownerType: "end_user",
+      ownerId: "user_hash_123",
+      balance: "0.00000000",
+      currency: "USD",
+    });
+
+    const server = buildGatewayServer(createInMemoryGatewayStore(state), {
+      adminTokenHashes: [hashTestToken(adminToken)],
+    });
+    const headers = await createSessionHeaders(server);
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/chat/completions",
+      headers,
+      payload: {
+        model: "vertical/paper-summary",
+        messages: [{ role: "user", content: "Summarize this paper." }],
+      },
+    });
+    const usageEvents = await server.inject({
+      method: "GET",
+      url: "/admin/usage-events",
+      headers: adminHeaders,
+    });
+    const ledger = await server.inject({
+      method: "GET",
+      url: "/admin/ledger",
+      headers: adminHeaders,
+    });
+
+    expect(response.statusCode).toBe(402);
+    expect(response.json().error.code).toBe("insufficient_balance");
+    expect(state.wallets.get("wallet_user_demo")?.balance).toBe("0.00000000");
+    expect(usageEvents.json().usage_events).toHaveLength(0);
+    expect(ledger.json().ledger_entries).toHaveLength(0);
+  });
+
   it("rate limits billable chat calls before creating usage or ledger records", async () => {
     const server = buildGatewayServer(undefined, {
       adminTokenHashes: [hashTestToken(adminToken)],

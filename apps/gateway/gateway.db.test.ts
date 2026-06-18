@@ -95,4 +95,71 @@ describeDb("gateway postgres store", () => {
     expect(ledgerRows[0]?.count).toBe("4");
     expect(Number(grantRows[0]?.remaining)).toBeLessThan(1);
   });
+
+  it("persists wallet deduction when faucet grants cannot pay", async () => {
+    if (!server || !sql) {
+      throw new Error("Postgres test server was not initialized.");
+    }
+
+    await sql`
+      update faucet_grants
+      set status = 'revoked'
+      where id = 'grant_new_user'
+    `;
+    await sql`
+      update wallets
+      set balance_numeric = 1.00000000
+      where id = 'wallet_user_demo'
+    `;
+
+    const sdk = createFountLayer({
+      appId: "app_pdf_reader",
+      channelId: "channel_desktop",
+      endpoint: "http://gateway.test",
+      fetchImpl: async (url, init) => {
+        const injected = await server!.inject({
+          method: init?.method ?? "GET",
+          url: String(url).replace("http://gateway.test", ""),
+          headers: init?.headers as Record<string, string>,
+          payload: init?.body ? JSON.parse(String(init.body)) : undefined,
+        });
+
+        return new Response(injected.body, {
+          status: injected.statusCode,
+          headers: {
+            "content-type":
+              injected.headers["content-type"]?.toString() ??
+              "application/json",
+          },
+        });
+      },
+    });
+    const session = await sdk.startSession({
+      endUserId: "user_hash_123",
+      useCase: "paper_summary",
+      mode: "managed",
+    });
+
+    const result = await session.chat({
+      model: "vertical/paper-summary",
+      messages: [{ role: "user", content: "Summarize this paper." }],
+    });
+    const usageRows = await sql<Array<{ count: string }>>`
+      select count(*)::text as count from usage_events
+    `;
+    const ledgerRows = await sql<Array<{ count: string }>>`
+      select count(*)::text as count from ledger_entries
+    `;
+    const walletRows = await sql<Array<{ balance: string }>>`
+      select balance_numeric::text as balance
+      from wallets
+      where id = 'wallet_user_demo'
+    `;
+
+    expect(result.billing.paid_by).toBe("wallet");
+    expect(result.billing.usage_event_id).toMatch(/^ue_/);
+    expect(usageRows[0]?.count).toBe("1");
+    expect(ledgerRows[0]?.count).toBe("4");
+    expect(Number(walletRows[0]?.balance)).toBeLessThan(1);
+  });
 });

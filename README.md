@@ -178,6 +178,11 @@ Gateway billable chat calls are protected by simple windowed caps. Tune
 Rate-limited calls return `429` before adapter execution, usage event creation,
 or ledger entry creation.
 
+When no faucet grant can pay, the Gateway can fall back to an end-user wallet
+with sufficient balance. Wallet-funded successful calls still create exactly one
+usage event and balanced ledger entries, and wallet deduction prevents negative
+balances.
+
 ## SDK Example
 
 ```ts
