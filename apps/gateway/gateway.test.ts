@@ -59,6 +59,7 @@ describe("gateway minimum API", () => {
       status: "ok",
       service: "fountlayer-gateway",
     });
+    expect(response.headers["x-fl-request-id"]).toBeTruthy();
   });
 
   it("rejects v1 requests missing attribution headers", async () => {
@@ -74,6 +75,7 @@ describe("gateway minimum API", () => {
 
     expect(response.statusCode).toBe(400);
     expect(response.json().error.code).toBe("missing_attribution");
+    expect(response.headers["x-fl-request-id"]).toBeTruthy();
   });
 
   it("rejects unknown apps after attribution validation", async () => {

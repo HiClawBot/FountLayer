@@ -25,6 +25,7 @@
   production settings.
 - Gateway billable chat calls now have configurable per-session and per-end-user
   windowed rate limits before adapter execution or ledger writes.
+- Gateway responses now include an `x-fl-request-id` response header.
 - Root database scripts: `pnpm db:migrate`, `pnpm db:seed`, and `pnpm db:test:setup`.
 
 ## 0.1.0 - 2026-06-17

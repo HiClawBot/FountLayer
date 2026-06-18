@@ -526,6 +526,7 @@ export function buildGatewayServer(
   });
 
   server.addHook("onRequest", async (request, reply) => {
+    reply.header("x-fl-request-id", request.id);
     reply.header("access-control-allow-origin", "*");
     reply.header(
       "access-control-allow-headers",
@@ -539,6 +540,7 @@ export function buildGatewayServer(
         "x-fl-mode",
       ].join(", "),
     );
+    reply.header("access-control-expose-headers", "x-fl-request-id");
     reply.header("access-control-allow-methods", "GET, POST, PATCH, OPTIONS");
 
     if (request.method === "OPTIONS") {

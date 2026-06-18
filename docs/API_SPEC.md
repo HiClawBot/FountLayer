@@ -20,6 +20,9 @@ x-fl-use-case: paper_summary
 x-fl-mode: managed
 ```
 
+All Gateway responses include an `x-fl-request-id` response header for support,
+tracing, and reconciliation without logging raw prompts or outputs.
+
 ## POST /v1/sessions
 
 Creates a session for an end user.
