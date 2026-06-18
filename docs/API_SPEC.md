@@ -142,7 +142,12 @@ Response:
 
 ## Admin APIs
 
-Implemented in `v0.1.0`:
+Admin APIs require `Authorization: Bearer <admin token>` in `v0.2.0-alpha`.
+Configure the Gateway with `FOUNTLAYER_ADMIN_TOKEN_SHA256`, or use
+`FOUNTLAYER_ADMIN_TOKEN` for local development so the Gateway hashes it at
+startup. Console live-data reads use `CONSOLE_GATEWAY_ADMIN_TOKEN` server-side.
+
+Implemented:
 
 ```txt
 GET    /admin/usage-events
@@ -150,7 +155,7 @@ GET    /admin/ledger
 ```
 
 The v0.2.0-alpha Console can read these endpoints directly for live usage and
-ledger views. Admin authentication is still planned.
+ledger views when its server-side admin token is configured.
 
 Planned:
 

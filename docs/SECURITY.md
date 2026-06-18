@@ -22,8 +22,13 @@ Provider API keys must never appear in SDK source code, frontend bundles, mobile
 - Authenticated `/v1` requests must use a non-expired, non-revoked session token.
 - Session attribution must match `app_id`, `channel_id`, `end_user_id`,
   `use_case`, and `mode` request headers.
-- App tokens, API key rotation UI, and production-grade tenant authentication
-  are still planned work.
+- `/admin/*` requires a configured admin bearer token. Prefer
+  `FOUNTLAYER_ADMIN_TOKEN_SHA256`; local development may use
+  `FOUNTLAYER_ADMIN_TOKEN`, which is hashed at Gateway startup and never stored.
+- The Console may use `CONSOLE_GATEWAY_ADMIN_TOKEN` server-side for Admin API
+  reads. Do not expose admin tokens through `NEXT_PUBLIC_*` variables.
+- App tokens, API key rotation UI, and production-grade tenant authentication are
+  still planned work.
 
 ## Key Storage
 

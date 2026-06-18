@@ -133,7 +133,11 @@ available port if a default port is already in use.
 
 The Console reads live Gateway Admin API usage and ledger data from
 `CONSOLE_GATEWAY_BASE_URL` or `GATEWAY_BASE_URL`, and falls back to local sample
-data when the Gateway is unavailable.
+data when the Gateway is unavailable. In `v0.2.0-alpha`, `/admin/*` requires an
+admin bearer token. Configure the Gateway with `FOUNTLAYER_ADMIN_TOKEN_SHA256`
+or `FOUNTLAYER_ADMIN_TOKEN`, and configure the Console server with
+`CONSOLE_GATEWAY_ADMIN_TOKEN`. Do not expose this token through `NEXT_PUBLIC_*`
+environment variables.
 
 ## SDK Example
 

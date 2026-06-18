@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 
 import Fastify, {
   type FastifyInstance,
@@ -39,6 +39,11 @@ type AuthContext = {
   scheme: "Bearer";
 };
 
+type AdminAuthContext = {
+  tokenHash: string;
+  scheme: "Bearer";
+};
+
 type ParsedAuthorization = {
   token: string;
   scheme: "Bearer";
@@ -47,12 +52,14 @@ type ParsedAuthorization = {
 type GatewayServerOptions = {
   logger?: boolean;
   adapter?: LLMAdapter;
+  adminTokenHashes?: readonly string[];
 };
 
 declare module "fastify" {
   interface FastifyRequest {
     attribution?: AttributionContext;
     auth?: AuthContext;
+    adminAuth?: AdminAuthContext;
   }
 }
 
@@ -136,6 +143,18 @@ function parseAuthorizationHeader(
 
 function hashSessionToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
+}
+
+function isValidSha256Hex(value: string): boolean {
+  return /^[a-f0-9]{64}$/i.test(value);
+}
+
+function safeEqualHex(left: string, right: string): boolean {
+  if (!isValidSha256Hex(left) || !isValidSha256Hex(right)) {
+    return false;
+  }
+
+  return timingSafeEqual(Buffer.from(left, "hex"), Buffer.from(right, "hex"));
 }
 
 async function requireAttribution(
@@ -267,6 +286,54 @@ async function requireAuth(
   return auth;
 }
 
+async function requireAdminAuth(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  adminTokenHashes: readonly string[],
+): Promise<AdminAuthContext | undefined> {
+  const configuredHashes = adminTokenHashes.filter(isValidSha256Hex);
+
+  if (configuredHashes.length === 0) {
+    jsonError(
+      reply,
+      503,
+      "admin_auth_not_configured",
+      "Admin API authentication is not configured.",
+    );
+    return undefined;
+  }
+
+  const parsed = parseAuthorizationHeader(request.headers.authorization);
+
+  if (!parsed) {
+    jsonError(
+      reply,
+      401,
+      "missing_admin_auth",
+      "Expected Authorization: Bearer <admin token>.",
+    );
+    return undefined;
+  }
+
+  const tokenHash = hashSessionToken(parsed.token);
+  const matched = configuredHashes.some((configuredHash) =>
+    safeEqualHex(tokenHash, configuredHash),
+  );
+
+  if (!matched) {
+    jsonError(reply, 401, "invalid_admin_auth", "Admin token is invalid.");
+    return undefined;
+  }
+
+  const adminAuth = {
+    scheme: parsed.scheme,
+    tokenHash,
+  } as const;
+
+  request.adminAuth = adminAuth;
+  return adminAuth;
+}
+
 function assertAttributionMatch(
   body: AttributionContext,
   headers: AttributionContext,
@@ -355,6 +422,7 @@ export function buildGatewayServer(
   options: GatewayServerOptions = {},
 ): FastifyInstance {
   const adapter = options.adapter ?? new DemoLocalAdapter();
+  const adminTokenHashes = options.adminTokenHashes ?? [];
   const server = Fastify({
     logger: options.logger
       ? {
@@ -399,6 +467,20 @@ export function buildGatewayServer(
   }));
 
   server.addHook("preHandler", async (request, reply) => {
+    if (request.url.startsWith("/admin/")) {
+      const adminAuth = await requireAdminAuth(
+        request,
+        reply,
+        adminTokenHashes,
+      );
+
+      if (!adminAuth) {
+        return reply;
+      }
+
+      return;
+    }
+
     if (!request.url.startsWith("/v1/")) {
       return;
     }

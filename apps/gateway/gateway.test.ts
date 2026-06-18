@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { describe, expect, it } from "vitest";
 
 import { createFountLayer } from "@fountlayer/sdk-js";
@@ -12,6 +14,14 @@ const attributionHeaders = {
   "x-fl-use-case": "paper_summary",
   "x-fl-mode": "managed",
 };
+const adminToken = "fl_admin_test_token";
+const adminHeaders = {
+  authorization: `Bearer ${adminToken}`,
+};
+
+function hashTestToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
 
 async function createSessionHeaders(
   server: ReturnType<typeof buildGatewayServer>,
@@ -95,6 +105,67 @@ describe("gateway minimum API", () => {
     expect(response.json().error.code).toBe("invalid_auth");
   });
 
+  it("rejects admin requests when admin auth is not configured", async () => {
+    const server = buildGatewayServer();
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/admin/usage-events",
+      headers: adminHeaders,
+    });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json().error.code).toBe("admin_auth_not_configured");
+  });
+
+  it("rejects admin requests missing admin auth", async () => {
+    const server = buildGatewayServer(undefined, {
+      adminTokenHashes: [hashTestToken(adminToken)],
+    });
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/admin/usage-events",
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json().error.code).toBe("missing_admin_auth");
+  });
+
+  it("rejects admin requests with invalid admin auth", async () => {
+    const server = buildGatewayServer(undefined, {
+      adminTokenHashes: [hashTestToken(adminToken)],
+    });
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/admin/usage-events",
+      headers: {
+        authorization: "Bearer fl_wrong_admin_token",
+      },
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json().error.code).toBe("invalid_admin_auth");
+  });
+
+  it("serves admin requests with valid admin auth", async () => {
+    const server = buildGatewayServer(undefined, {
+      adminTokenHashes: [hashTestToken(adminToken)],
+    });
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/admin/usage-events",
+      headers: adminHeaders,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      usage_events: [],
+    });
+  });
+
   it("creates a session only when body attribution matches headers", async () => {
     const server = buildGatewayServer();
 
@@ -176,7 +247,9 @@ describe("gateway minimum API", () => {
   });
 
   it("runs the smallest billable SDK-to-gateway loop", async () => {
-    const server = buildGatewayServer();
+    const server = buildGatewayServer(undefined, {
+      adminTokenHashes: [hashTestToken(adminToken)],
+    });
     const sdk = createFountLayer({
       appId: "app_pdf_reader",
       channelId: "channel_desktop",
@@ -212,10 +285,12 @@ describe("gateway minimum API", () => {
     const usageEvents = await server.inject({
       method: "GET",
       url: "/admin/usage-events",
+      headers: adminHeaders,
     });
     const ledger = await server.inject({
       method: "GET",
       url: "/admin/ledger",
+      headers: adminHeaders,
     });
 
     expect(result.billing.paid_by).toBe("faucet_grant");

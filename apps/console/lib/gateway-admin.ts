@@ -46,6 +46,10 @@ const gatewayBaseUrl =
   process.env.CONSOLE_GATEWAY_BASE_URL ??
   process.env.GATEWAY_BASE_URL ??
   "http://localhost:8787";
+const gatewayAdminToken =
+  process.env.CONSOLE_GATEWAY_ADMIN_TOKEN ??
+  process.env.GATEWAY_ADMIN_TOKEN ??
+  "";
 
 function fallbackRuntimeData(): ConsoleRuntimeData {
   return {
@@ -56,8 +60,14 @@ function fallbackRuntimeData(): ConsoleRuntimeData {
 }
 
 async function fetchJson<T>(path: string): Promise<T> {
+  const headers = gatewayAdminToken
+    ? {
+        authorization: `Bearer ${gatewayAdminToken}`,
+      }
+    : undefined;
   const response = await fetch(`${gatewayBaseUrl}${path}`, {
     cache: "no-store",
+    headers,
     signal: AbortSignal.timeout(800),
   });
 

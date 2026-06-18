@@ -11,6 +11,7 @@
 - Session attribution checks for authenticated Gateway requests.
 - Console Overview and Usage/Ledger pages can read live Gateway Admin API data
   with static fallback for offline builds.
+- Gateway Admin APIs now require configured admin bearer token authentication.
 - Optional Postgres integration test gated by `FOUNTLAYER_RUN_DB_TESTS=1`.
 - Root database scripts: `pnpm db:migrate`, `pnpm db:seed`, and `pnpm db:test:setup`.
 
