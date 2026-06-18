@@ -176,6 +176,36 @@ paths:
         "204":
           description: Credential deleted
 
+  /admin/privacy/request-metadata/purge:
+    post:
+      summary: Purge expired request metadata without deleting accounting facts
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestMetadataRetentionPurge"
+      responses:
+        "200":
+          description: Request metadata retention purge result
+
+  /admin/privacy/end-users/anonymize:
+    post:
+      summary: Anonymize app-owned end-user identifiers
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EndUserAnonymize"
+      responses:
+        "200":
+          description: End-user anonymization result
+
 components:
   securitySchemes:
     bearerAuth:
@@ -272,3 +302,20 @@ components:
         apiKey:
           type: string
           description: Replacement plaintext provider key accepted only by the authenticated server-side Admin API request body.
+
+    RequestMetadataRetentionPurge:
+      type: object
+      properties:
+        retentionDays:
+          type: integer
+          minimum: 0
+          maximum: 3650
+
+    EndUserAnonymize:
+      type: object
+      required: [appId, endUserId]
+      properties:
+        appId: { type: string }
+        endUserId:
+          type: string
+          description: App-owned end-user identifier to replace with a tombstone.

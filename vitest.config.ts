@@ -37,6 +37,10 @@ export default defineConfig({
         "./packages/pricing/src/index.ts",
         import.meta.url,
       ).pathname,
+      "@fountlayer/privacy": new URL(
+        "./packages/privacy/src/index.ts",
+        import.meta.url,
+      ).pathname,
       "@fountlayer/protocol": new URL(
         "./packages/protocol/src/index.ts",
         import.meta.url,

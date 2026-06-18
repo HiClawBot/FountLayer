@@ -183,6 +183,8 @@ DELETE /admin/provider-credentials/:id
 GET    /admin/pricing-policies
 GET    /admin/usage-events
 GET    /admin/ledger
+POST   /admin/privacy/request-metadata/purge
+POST   /admin/privacy/end-users/anonymize
 ```
 
 The v0.2.0-alpha Console can read these endpoints directly for live usage and
@@ -196,6 +198,31 @@ include plaintext keys or encrypted ciphertext. The `display` value is generated
 by the Gateway as a masked value, not accepted from callers. End-user hosted
 BYOK credential writes (`ownerType: "end_user"`) are rejected unless the Gateway
 is explicitly configured with `FOUNTLAYER_ALLOW_HOSTED_BYOK=true`.
+
+Privacy endpoints operate on metadata and app-owned identifiers without deleting
+accounting facts. Request metadata purge clears `ledger_entries.metadata` older
+than the configured retention window but keeps usage events, ledger entries, and
+amounts intact. End-user anonymization replaces matching `end_user_id` values
+with a deterministic tombstone, revokes sessions, active faucet grants, and
+hosted end-user credentials, and scrubs ledger metadata. The response does not
+echo the original end-user identifier.
+
+Request metadata purge body:
+
+```json
+{
+  "retentionDays": 30
+}
+```
+
+End-user anonymization body:
+
+```json
+{
+  "appId": "app_pdf_reader",
+  "endUserId": "user_hash_123"
+}
+```
 
 Create credential request:
 

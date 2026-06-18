@@ -100,6 +100,16 @@ Retries happen before usage events or ledger entries are written. When a circuit
 is open, the Gateway rejects the request before adapter execution and before any
 usage or ledger write.
 
+## Privacy And Retention
+
+FountLayer does not persist raw prompts or assistant outputs in the Gateway
+billable loop. Request metadata retention controls clear ledger-entry metadata
+after the configured window while keeping usage events and ledger amounts intact
+for accounting. End-user anonymization replaces app-owned `end_user_id` values
+with deterministic tombstone IDs, revokes sessions, active faucet grants, and
+hosted end-user credentials, and scrubs ledger metadata without deleting usage
+or money-movement facts.
+
 ### Managed cloud
 
 FountLayer Cloud hosts Gateway, key pool, anti-abuse, billing, and settlement. SDK points to managed endpoint.

@@ -103,6 +103,9 @@ importers:
       '@fountlayer/pricing':
         specifier: workspace:*
         version: link:../../packages/pricing
+      '@fountlayer/privacy':
+        specifier: workspace:*
+        version: link:../../packages/privacy
       '@fountlayer/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -170,6 +173,8 @@ importers:
       '@fountlayer/protocol':
         specifier: workspace:*
         version: link:../protocol
+
+  packages/privacy: {}
 
   packages/protocol:
     dependencies:

@@ -45,6 +45,11 @@ Provider API keys must never appear in SDK source code, frontend bundles, mobile
   be emitted.
 - Adapter retries and circuit breakers run before usage event or ledger writes,
   so failed retries and open circuits do not create billable records.
+- Privacy retention purge clears request metadata from ledger entries without
+  deleting usage events or money-movement ledger entries.
+- App-owned end-user anonymization replaces end-user identifiers with tombstone
+  IDs and revokes active sessions, faucet grants, and hosted end-user
+  credentials.
 - App tokens, API key rotation UI, and production-grade tenant authentication are
   still planned work.
 

@@ -75,6 +75,7 @@ type GatewayServerOptions = {
   adapterRetry?: RetryOptions;
   adminTokenHashes?: readonly string[];
   credentialCipher?: CredentialCipher;
+  privacy?: GatewayPrivacyOptions;
   rateLimits?: GatewayRateLimitOptions;
   telemetrySink?: TelemetrySink;
 };
@@ -83,6 +84,10 @@ export type GatewayRateLimitOptions = {
   billableWindowMs?: number;
   endUserBillableRequestsPerWindow?: number;
   sessionBillableRequestsPerWindow?: number;
+};
+
+export type GatewayPrivacyOptions = {
+  requestMetadataRetentionDays?: number;
 };
 
 declare module "fastify" {
@@ -177,6 +182,11 @@ type ProviderCredentialRotateBody = {
   apiKey: string;
 };
 
+type PrivacyEndUserAnonymizeBody = {
+  appId: string;
+  endUserId: string;
+};
+
 function recordFromBody(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object"
     ? (value as Record<string, unknown>)
@@ -256,6 +266,47 @@ function parseProviderCredentialRotateBody(
 
   return {
     apiKey,
+  };
+}
+
+function parseRetentionDays(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && /^\d+$/.test(value)
+        ? Number(value)
+        : Number.NaN;
+
+  if (!Number.isInteger(parsed) || parsed < 0 || parsed > 3650) {
+    throw new Error("retentionDays must be an integer from 0 to 3650.");
+  }
+
+  return parsed;
+}
+
+function parsePrivacyEndUserAnonymizeBody(
+  value: unknown,
+): PrivacyEndUserAnonymizeBody | undefined {
+  const body = recordFromBody(value);
+
+  if (!body) {
+    return undefined;
+  }
+
+  const appId = requiredBodyString(body, "appId");
+  const endUserId = requiredBodyString(body, "endUserId");
+
+  if (!appId || !endUserId) {
+    return undefined;
+  }
+
+  return {
+    appId,
+    endUserId,
   };
 }
 
@@ -768,6 +819,7 @@ export function buildGatewayServer(
     options.allowHostedByokCredentials ?? false;
   const adminTokenHashes = options.adminTokenHashes ?? [];
   const credentialCipher = options.credentialCipher;
+  const privacy = options.privacy ?? {};
   const telemetrySink = options.telemetrySink;
   const rateLimits = {
     ...defaultRateLimits,
@@ -1569,6 +1621,99 @@ export function buildGatewayServer(
   server.get("/admin/ledger", async () => ({
     ledger_entries: await store.listLedgerEntries(),
   }));
+
+  server.post(
+    "/admin/privacy/request-metadata/purge",
+    async (request, reply) => {
+      const body = recordFromBody(request.body) ?? {};
+      let retentionDays: number | undefined;
+
+      try {
+        retentionDays =
+          parseRetentionDays(body["retentionDays"]) ??
+          privacy.requestMetadataRetentionDays;
+      } catch (error) {
+        return jsonError(
+          reply,
+          400,
+          "invalid_retention_policy",
+          "Request metadata retention policy is invalid.",
+          error instanceof Error ? error.message : undefined,
+        );
+      }
+
+      if (retentionDays === undefined) {
+        return jsonError(
+          reply,
+          400,
+          "retention_policy_not_configured",
+          "Provide retentionDays or configure request metadata retention on the Gateway.",
+        );
+      }
+
+      try {
+        const result = await store.purgeExpiredRequestMetadata({
+          retentionDays,
+        });
+
+        return {
+          request_metadata_retention: {
+            cutoff: result.cutoff,
+            ledger_entries_updated: result.ledgerEntriesUpdated,
+            retention_days: result.retentionDays,
+          },
+        };
+      } catch (error) {
+        return jsonError(
+          reply,
+          500,
+          "store_error",
+          "Gateway store failed while purging request metadata.",
+          error instanceof Error ? error.message : undefined,
+        );
+      }
+    },
+  );
+
+  server.post("/admin/privacy/end-users/anonymize", async (request, reply) => {
+    const parsed = parsePrivacyEndUserAnonymizeBody(request.body);
+
+    if (!parsed) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_end_user_privacy_request",
+        "End-user anonymization requires appId and endUserId.",
+      );
+    }
+
+    try {
+      const result = await store.anonymizeEndUser(parsed);
+
+      return {
+        end_user_privacy: {
+          app_id: result.appId,
+          end_user_records_deleted: result.endUserRecordsDeleted,
+          faucet_grants_anonymized: result.faucetGrantsAnonymized,
+          faucet_grants_revoked: result.faucetGrantsRevoked,
+          ledger_entries_scrubbed: result.ledgerEntriesScrubbed,
+          provider_credentials_revoked: result.providerCredentialsRevoked,
+          sessions_revoked: result.sessionsRevoked,
+          tombstone_end_user_id: result.tombstoneEndUserId,
+          usage_events_anonymized: result.usageEventsAnonymized,
+          wallets_anonymized: result.walletsAnonymized,
+        },
+      };
+    } catch (error) {
+      return jsonError(
+        reply,
+        500,
+        "store_error",
+        "Gateway store failed while anonymizing end-user records.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+  });
 
   return server;
 }

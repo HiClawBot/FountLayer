@@ -5,6 +5,10 @@ import {
 } from "@fountlayer/faucet";
 import type { FountLayerSql, FountLayerTransactionSql } from "@fountlayer/db";
 import type { LedgerEntryRecord, UsageEventRecord } from "@fountlayer/ledger";
+import {
+  createDeletedEndUserId,
+  createRequestMetadataRetentionWindow,
+} from "@fountlayer/privacy";
 import type { AttributionContext } from "@fountlayer/protocol";
 
 export type GatewayAppRecord = {
@@ -183,6 +187,25 @@ export type WalletBillableCallRecordResult = {
   updatedWallet: GatewayWalletRecord;
 };
 
+export type RequestMetadataPurgeResult = {
+  cutoff: string;
+  ledgerEntriesUpdated: number;
+  retentionDays: number;
+};
+
+export type EndUserAnonymizationResult = {
+  appId: string;
+  endUserRecordsDeleted: number;
+  faucetGrantsAnonymized: number;
+  faucetGrantsRevoked: number;
+  ledgerEntriesScrubbed: number;
+  providerCredentialsRevoked: number;
+  sessionsRevoked: number;
+  tombstoneEndUserId: string;
+  usageEventsAnonymized: number;
+  walletsAnonymized: number;
+};
+
 export type GatewayStore = {
   createSession(input: {
     id: string;
@@ -239,6 +262,15 @@ export type GatewayStore = {
   listPricingPolicies(): Promise<GatewayAdminPricingPolicyRecord[]>;
   listUsageEvents(): Promise<UsageEventRecord[]>;
   listLedgerEntries(): Promise<LedgerEntryRecord[]>;
+  purgeExpiredRequestMetadata(input: {
+    now?: Date;
+    retentionDays: number;
+  }): Promise<RequestMetadataPurgeResult>;
+  anonymizeEndUser(input: {
+    appId: string;
+    endUserId: string;
+    now?: Date;
+  }): Promise<EndUserAnonymizationResult>;
 };
 
 export type InMemoryGatewayState = {
@@ -779,6 +811,40 @@ function memoryDailyUsageByGrantId(
   return usage;
 }
 
+function scrubLedgerMetadataEndUser(
+  metadata: Record<string, unknown>,
+  input: {
+    appId: string;
+    endUserId: string;
+    tombstoneEndUserId: string;
+  },
+): {
+  changed: boolean;
+  metadata: Record<string, unknown>;
+} {
+  if (
+    metadata["appId"] !== input.appId ||
+    metadata["endUserId"] !== input.endUserId
+  ) {
+    return {
+      changed: false,
+      metadata,
+    };
+  }
+
+  return {
+    changed: true,
+    metadata: {
+      ...metadata,
+      endUserId: input.tombstoneEndUserId,
+    },
+  };
+}
+
+function countRows(rows: unknown[]): number {
+  return rows.length;
+}
+
 export function createInMemoryGatewayStore(
   state: InMemoryGatewayState = createDefaultInMemoryGatewayState(),
 ): GatewayStore {
@@ -1039,6 +1105,159 @@ export function createInMemoryGatewayStore(
 
     async listLedgerEntries() {
       return state.ledgerEntries;
+    },
+
+    async purgeExpiredRequestMetadata(input) {
+      const retention = createRequestMetadataRetentionWindow(input);
+      let ledgerEntriesUpdated = 0;
+
+      state.ledgerEntries = state.ledgerEntries.map((entry) => {
+        if (
+          Date.parse(entry.createdAt) >= retention.cutoff.getTime() ||
+          Object.keys(entry.metadata).length === 0
+        ) {
+          return entry;
+        }
+
+        ledgerEntriesUpdated += 1;
+        return {
+          ...entry,
+          metadata: {},
+        };
+      });
+
+      return {
+        cutoff: retention.cutoffIso,
+        ledgerEntriesUpdated,
+        retentionDays: retention.retentionDays,
+      };
+    },
+
+    async anonymizeEndUser(input) {
+      const tombstoneEndUserId = createDeletedEndUserId(input);
+      const nowIso = (input.now ?? new Date()).toISOString();
+      let sessionsRevoked = 0;
+      let faucetGrantsAnonymized = 0;
+      let faucetGrantsRevoked = 0;
+      let usageEventsAnonymized = 0;
+      let ledgerEntriesScrubbed = 0;
+      let walletsAnonymized = 0;
+      let providerCredentialsRevoked = 0;
+
+      state.sessions = state.sessions.map((session) => {
+        if (
+          session.attribution.appId !== input.appId ||
+          session.attribution.endUserId !== input.endUserId
+        ) {
+          return session;
+        }
+
+        sessionsRevoked += session.revokedAt ? 0 : 1;
+        return {
+          ...session,
+          attribution: {
+            ...session.attribution,
+            endUserId: tombstoneEndUserId,
+          },
+          revokedAt: session.revokedAt ?? nowIso,
+        };
+      });
+
+      state.faucetGrants = state.faucetGrants.map((grant) => {
+        if (
+          grant.appId !== input.appId ||
+          grant.endUserId !== input.endUserId
+        ) {
+          return grant;
+        }
+
+        faucetGrantsAnonymized += 1;
+        faucetGrantsRevoked += grant.status === "active" ? 1 : 0;
+        return {
+          ...grant,
+          endUserId: tombstoneEndUserId,
+          status: grant.status === "active" ? "revoked" : grant.status,
+        };
+      });
+
+      state.usageEvents = state.usageEvents.map((event) => {
+        if (
+          event.appId !== input.appId ||
+          event.endUserId !== input.endUserId
+        ) {
+          return event;
+        }
+
+        usageEventsAnonymized += 1;
+        return {
+          ...event,
+          endUserId: tombstoneEndUserId,
+        };
+      });
+
+      state.ledgerEntries = state.ledgerEntries.map((entry) => {
+        const scrubbed = scrubLedgerMetadataEndUser(entry.metadata, {
+          appId: input.appId,
+          endUserId: input.endUserId,
+          tombstoneEndUserId,
+        });
+
+        if (!scrubbed.changed) {
+          return entry;
+        }
+
+        ledgerEntriesScrubbed += 1;
+        return {
+          ...entry,
+          metadata: scrubbed.metadata,
+        };
+      });
+
+      for (const [id, wallet] of state.wallets) {
+        if (
+          wallet.ownerType !== "end_user" ||
+          wallet.ownerId !== input.endUserId
+        ) {
+          continue;
+        }
+
+        walletsAnonymized += 1;
+        state.wallets.set(id, {
+          ...wallet,
+          ownerId: tombstoneEndUserId,
+        });
+      }
+
+      state.providerCredentials = state.providerCredentials.map(
+        (credential) => {
+          if (
+            credential.ownerType !== "end_user" ||
+            credential.ownerId !== input.endUserId
+          ) {
+            return credential;
+          }
+
+          providerCredentialsRevoked += 1;
+          return {
+            ...credential,
+            ownerId: tombstoneEndUserId,
+            status: "revoked",
+          };
+        },
+      );
+
+      return {
+        appId: input.appId,
+        endUserRecordsDeleted: 0,
+        faucetGrantsAnonymized,
+        faucetGrantsRevoked,
+        ledgerEntriesScrubbed,
+        providerCredentialsRevoked,
+        sessionsRevoked,
+        tombstoneEndUserId,
+        usageEventsAnonymized,
+        walletsAnonymized,
+      };
     },
   };
 }
@@ -1832,6 +2051,132 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
       `;
 
       return rows.map(mapLedgerEntryRow);
+    },
+
+    async purgeExpiredRequestMetadata(input) {
+      const retention = createRequestMetadataRetentionWindow(input);
+      const rows = await sql<Array<{ id: string }>>`
+        update ledger_entries
+        set metadata = '{}'::jsonb
+        where created_at < ${retention.cutoffIso}
+          and metadata is not null
+          and metadata <> '{}'::jsonb
+        returning id
+      `;
+
+      return {
+        cutoff: retention.cutoffIso,
+        ledgerEntriesUpdated: countRows(rows),
+        retentionDays: retention.retentionDays,
+      };
+    },
+
+    async anonymizeEndUser(input) {
+      const tombstoneEndUserId = createDeletedEndUserId(input);
+      const nowIso = (input.now ?? new Date()).toISOString();
+
+      return sql.begin(async (transaction) => {
+        await transaction`
+          insert into end_users (
+            id,
+            app_id,
+            external_user_hash
+          )
+          values (
+            ${tombstoneEndUserId},
+            ${input.appId},
+            ${tombstoneEndUserId}
+          )
+          on conflict (id) do update set
+            external_user_hash = excluded.external_user_hash
+        `;
+
+        const sessions = await transaction<Array<{ id: string }>>`
+          update sessions
+          set
+            end_user_id = ${tombstoneEndUserId},
+            revoked_at = coalesce(revoked_at, ${nowIso})
+          where app_id = ${input.appId}
+            and end_user_id = ${input.endUserId}
+          returning id
+        `;
+        const grantStats = await transaction<
+          Array<{ anonymized: number | string; revoked: number | string }>
+        >`
+          with target as (
+            select id, status
+            from faucet_grants
+            where app_id = ${input.appId}
+              and end_user_id = ${input.endUserId}
+          ),
+          updated as (
+            update faucet_grants
+            set
+              end_user_id = ${tombstoneEndUserId},
+              status = case
+                when faucet_grants.status = 'active' then 'revoked'
+                else faucet_grants.status
+              end
+            from target
+            where faucet_grants.id = target.id
+            returning target.status as previous_status
+          )
+          select
+            count(*)::int as anonymized,
+            count(*) filter (where previous_status = 'active')::int as revoked
+          from updated
+        `;
+        const usageEvents = await transaction<Array<{ id: string }>>`
+          update usage_events
+          set end_user_id = ${tombstoneEndUserId}
+          where app_id = ${input.appId}
+            and end_user_id = ${input.endUserId}
+          returning id
+        `;
+        const ledgerEntries = await transaction<Array<{ id: string }>>`
+          update ledger_entries
+          set metadata = metadata || jsonb_build_object('endUserId', ${tombstoneEndUserId})
+          where metadata ->> 'appId' = ${input.appId}
+            and metadata ->> 'endUserId' = ${input.endUserId}
+          returning id
+        `;
+        const wallets = await transaction<Array<{ id: string }>>`
+          update wallets
+          set owner_id = ${tombstoneEndUserId}
+          where owner_type = 'end_user'
+            and owner_id = ${input.endUserId}
+          returning id
+        `;
+        const providerCredentials = await transaction<Array<{ id: string }>>`
+          update provider_credentials
+          set
+            owner_id = ${tombstoneEndUserId},
+            status = 'revoked'
+          where owner_type = 'end_user'
+            and owner_id = ${input.endUserId}
+          returning id
+        `;
+        const endUsers = await transaction<Array<{ id: string }>>`
+          delete from end_users
+          where id = ${input.endUserId}
+            and app_id = ${input.appId}
+          returning id
+        `;
+        const stats = grantStats[0];
+
+        return {
+          appId: input.appId,
+          endUserRecordsDeleted: countRows(endUsers),
+          faucetGrantsAnonymized: Number(stats?.anonymized ?? 0),
+          faucetGrantsRevoked: Number(stats?.revoked ?? 0),
+          ledgerEntriesScrubbed: countRows(ledgerEntries),
+          providerCredentialsRevoked: countRows(providerCredentials),
+          sessionsRevoked: countRows(sessions),
+          tombstoneEndUserId,
+          usageEventsAnonymized: countRows(usageEvents),
+          walletsAnonymized: countRows(wallets),
+        };
+      });
     },
   };
 }

@@ -856,6 +856,174 @@ describe("gateway minimum API", () => {
     expect(ledger.json().ledger_entries).toHaveLength(0);
   });
 
+  it("purges expired request metadata without deleting usage or ledger records", async () => {
+    const state = createDefaultInMemoryGatewayState();
+    const server = buildGatewayServer(createInMemoryGatewayStore(state), {
+      adminTokenHashes: [hashTestToken(adminToken)],
+    });
+    const headers = await createSessionHeaders(server);
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/chat/completions",
+      headers,
+      payload: {
+        model: "vertical/paper-summary",
+        messages: [{ role: "user", content: "Summarize this paper." }],
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    state.ledgerEntries = state.ledgerEntries.map((entry) => ({
+      ...entry,
+      createdAt: "2000-01-01T00:00:00.000Z",
+    }));
+    expect(state.ledgerEntries[0]?.metadata).toMatchObject({
+      endUserId: "user_hash_123",
+      requestId: expect.stringMatching(/^req_/),
+    });
+
+    const purge = await server.inject({
+      method: "POST",
+      url: "/admin/privacy/request-metadata/purge",
+      headers: adminHeaders,
+      payload: {
+        retentionDays: 1,
+      },
+    });
+    const usageEvents = await server.inject({
+      method: "GET",
+      url: "/admin/usage-events",
+      headers: adminHeaders,
+    });
+    const ledger = await server.inject({
+      method: "GET",
+      url: "/admin/ledger",
+      headers: adminHeaders,
+    });
+
+    expect(purge.statusCode).toBe(200);
+    expect(purge.json().request_metadata_retention.ledger_entries_updated).toBe(
+      4,
+    );
+    expect(usageEvents.json().usage_events).toHaveLength(1);
+    expect(ledger.json().ledger_entries).toHaveLength(4);
+    expect(
+      ledger
+        .json()
+        .ledger_entries.every(
+          (entry: { metadata: Record<string, unknown> }) =>
+            Object.keys(entry.metadata).length === 0,
+        ),
+    ).toBe(true);
+  });
+
+  it("anonymizes app-owned end-user identifiers without deleting billable records", async () => {
+    const state = createDefaultInMemoryGatewayState();
+    const cipher = createCredentialCipher({
+      keyVersion: "test-v1",
+      masterKey: credentialMasterKey,
+    });
+    const server = buildGatewayServer(createInMemoryGatewayStore(state), {
+      adminTokenHashes: [hashTestToken(adminToken)],
+      allowHostedByokCredentials: true,
+      credentialCipher: cipher,
+    });
+    const headers = await createSessionHeaders(server);
+    const credential = await server.inject({
+      method: "POST",
+      url: "/admin/provider-credentials",
+      headers: adminHeaders,
+      payload: {
+        apiKey: "provider-secret-placeholder",
+        ownerId: "user_hash_123",
+        ownerType: "end_user",
+        provider: "demo",
+      },
+    });
+    const chat = await server.inject({
+      method: "POST",
+      url: "/v1/chat/completions",
+      headers,
+      payload: {
+        model: "vertical/paper-summary",
+        messages: [{ role: "user", content: "Summarize this paper." }],
+      },
+    });
+
+    expect(credential.statusCode).toBe(201);
+    expect(chat.statusCode).toBe(200);
+
+    const anonymized = await server.inject({
+      method: "POST",
+      url: "/admin/privacy/end-users/anonymize",
+      headers: adminHeaders,
+      payload: {
+        appId: "app_pdf_reader",
+        endUserId: "user_hash_123",
+      },
+    });
+    const privacy = anonymized.json().end_user_privacy;
+    const tombstone = privacy.tombstone_end_user_id as string;
+    const usageEvents = await server.inject({
+      method: "GET",
+      url: "/admin/usage-events",
+      headers: adminHeaders,
+    });
+    const ledger = await server.inject({
+      method: "GET",
+      url: "/admin/ledger",
+      headers: adminHeaders,
+    });
+    const grants = await server.inject({
+      method: "GET",
+      url: "/admin/faucet-grants",
+      headers: adminHeaders,
+    });
+    const credentials = await server.inject({
+      method: "GET",
+      url: "/admin/provider-credentials",
+      headers: adminHeaders,
+    });
+    const oldSession = await server.inject({
+      method: "GET",
+      url: "/v1/balance",
+      headers,
+    });
+
+    expect(anonymized.statusCode).toBe(200);
+    expect(anonymized.body).not.toContain("user_hash_123");
+    expect(tombstone).toMatch(/^deleted_user_[a-f0-9]{24}$/);
+    expect(privacy.sessions_revoked).toBe(1);
+    expect(privacy.faucet_grants_anonymized).toBe(1);
+    expect(privacy.faucet_grants_revoked).toBe(1);
+    expect(privacy.usage_events_anonymized).toBe(1);
+    expect(privacy.ledger_entries_scrubbed).toBe(4);
+    expect(privacy.provider_credentials_revoked).toBe(1);
+    expect(privacy.wallets_anonymized).toBe(1);
+    expect(usageEvents.json().usage_events).toHaveLength(1);
+    expect(usageEvents.json().usage_events[0].endUserId).toBe(tombstone);
+    expect(ledger.json().ledger_entries).toHaveLength(4);
+    expect(ledger.body).not.toContain("user_hash_123");
+    expect(
+      ledger
+        .json()
+        .ledger_entries.every(
+          (entry: { metadata: { endUserId?: string } }) =>
+            entry.metadata.endUserId === tombstone,
+        ),
+    ).toBe(true);
+    expect(grants.json().faucet_grants[0]).toMatchObject({
+      endUserId: tombstone,
+      status: "revoked",
+    });
+    expect(credentials.json().credentials[0]).toMatchObject({
+      owner: `end_user:${tombstone}`,
+      status: "revoked",
+    });
+    expect(state.wallets.get("wallet_user_demo")?.ownerId).toBe(tombstone);
+    expect(oldSession.statusCode).toBe(401);
+  });
+
   it("falls back to wallet-funded calls when no faucet grant can pay", async () => {
     const state = createDefaultInMemoryGatewayState();
 

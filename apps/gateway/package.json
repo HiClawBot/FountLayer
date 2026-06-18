@@ -17,6 +17,7 @@
     "@fountlayer/ledger": "workspace:*",
     "@fountlayer/observability": "workspace:*",
     "@fountlayer/pricing": "workspace:*",
+    "@fountlayer/privacy": "workspace:*",
     "@fountlayer/protocol": "workspace:*",
     "@fountlayer/reliability": "workspace:*",
     "fastify": "^5.8.5"
