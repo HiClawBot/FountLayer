@@ -23,6 +23,8 @@
   across Gateway, Admin API readback, and Console live pages.
 - Gateway startup now validates runtime configuration and rejects unsafe
   production settings.
+- Gateway billable chat calls now have configurable per-session and per-end-user
+  windowed rate limits before adapter execution or ledger writes.
 - Root database scripts: `pnpm db:migrate`, `pnpm db:seed`, and `pnpm db:test:setup`.
 
 ## 0.1.0 - 2026-06-17

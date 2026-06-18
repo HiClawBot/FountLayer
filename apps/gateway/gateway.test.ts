@@ -335,4 +335,68 @@ describe("gateway minimum API", () => {
       ]),
     );
   });
+
+  it("rate limits billable chat calls before creating usage or ledger records", async () => {
+    const server = buildGatewayServer(undefined, {
+      adminTokenHashes: [hashTestToken(adminToken)],
+      rateLimits: {
+        billableWindowMs: 60_000,
+        endUserBillableRequestsPerWindow: 100,
+        sessionBillableRequestsPerWindow: 1,
+      },
+    });
+    const sdk = createFountLayer({
+      appId: "app_pdf_reader",
+      channelId: "channel_desktop",
+      endpoint: "http://gateway.test",
+      fetchImpl: async (url, init) => {
+        const injected = await server.inject({
+          method: init?.method ?? "GET",
+          url: String(url).replace("http://gateway.test", ""),
+          headers: init?.headers as Record<string, string>,
+          payload: init?.body ? JSON.parse(String(init.body)) : undefined,
+        });
+
+        return new Response(injected.body, {
+          status: injected.statusCode,
+          headers: {
+            "content-type":
+              injected.headers["content-type"]?.toString() ??
+              "application/json",
+          },
+        });
+      },
+    });
+    const session = await sdk.startSession({
+      endUserId: "user_hash_123",
+      useCase: "paper_summary",
+      mode: "managed",
+    });
+
+    await session.chat({
+      model: "vertical/paper-summary",
+      messages: [{ role: "user", content: "Summarize this paper." }],
+    });
+
+    await expect(
+      session.chat({
+        model: "vertical/paper-summary",
+        messages: [{ role: "user", content: "Summarize this paper again." }],
+      }),
+    ).rejects.toThrow("Session billable request limit exceeded.");
+
+    const usageEvents = await server.inject({
+      method: "GET",
+      url: "/admin/usage-events",
+      headers: adminHeaders,
+    });
+    const ledger = await server.inject({
+      method: "GET",
+      url: "/admin/ledger",
+      headers: adminHeaders,
+    });
+
+    expect(usageEvents.json().usage_events).toHaveLength(1);
+    expect(ledger.json().ledger_entries).toHaveLength(4);
+  });
 });

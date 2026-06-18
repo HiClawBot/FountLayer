@@ -16,7 +16,11 @@ if (isDirectRun(import.meta.url)) {
   const sql = config.storeMode === "postgres" ? createDatabaseSql() : undefined;
   const server = buildGatewayServer(
     sql ? createPostgresGatewayStore(sql) : undefined,
-    { adminTokenHashes: config.adminTokenHashes, logger: true },
+    {
+      adminTokenHashes: config.adminTokenHashes,
+      logger: true,
+      rateLimits: config.rateLimits,
+    },
   );
 
   if (sql) {

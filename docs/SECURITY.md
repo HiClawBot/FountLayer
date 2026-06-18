@@ -29,6 +29,9 @@ Provider API keys must never appear in SDK source code, frontend bundles, mobile
   reads. Do not expose admin tokens through `NEXT_PUBLIC_*` variables.
 - Production Gateway startup must use `FOUNTLAYER_GATEWAY_STORE=postgres`, an
   explicit non-local `DATABASE_URL`, and hashed admin token configuration.
+- Billable Gateway chat calls have configurable per-session and per-end-user
+  windowed caps. Rate-limited calls do not execute adapters and do not create
+  usage events or ledger entries.
 - App tokens, API key rotation UI, and production-grade tenant authentication are
   still planned work.
 

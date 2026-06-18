@@ -163,6 +163,13 @@ The Gateway then fails fast unless it uses `FOUNTLAYER_GATEWAY_STORE=postgres`,
 an explicit non-local `DATABASE_URL`, and hashed admin tokens through
 `FOUNTLAYER_ADMIN_TOKEN_SHA256` or `FOUNTLAYER_ADMIN_TOKEN_HASHES`.
 
+Gateway billable chat calls are protected by simple windowed caps. Tune
+`FOUNTLAYER_BILLABLE_RATE_WINDOW_MS`,
+`FOUNTLAYER_SESSION_BILLABLE_REQUESTS_PER_WINDOW`, and
+`FOUNTLAYER_END_USER_BILLABLE_REQUESTS_PER_WINDOW` for self-hosted deployments.
+Rate-limited calls return `429` before adapter execution, usage event creation,
+or ledger entry creation.
+
 ## SDK Example
 
 ```ts

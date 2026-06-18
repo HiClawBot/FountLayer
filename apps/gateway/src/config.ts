@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 
 import { defaultDatabaseUrl } from "@fountlayer/db";
 
+import type { GatewayRateLimitOptions } from "./server.js";
+
 export type GatewayStoreMode = "memory" | "postgres";
 
 export type GatewayRuntimeConfig = {
@@ -10,6 +12,7 @@ export type GatewayRuntimeConfig = {
   host: string;
   isProduction: boolean;
   port: number;
+  rateLimits: GatewayRateLimitOptions;
   storeMode: GatewayStoreMode;
 };
 
@@ -56,6 +59,26 @@ function parseStoreMode(env: GatewayEnv): GatewayStoreMode {
   }
 
   return storeMode;
+}
+
+function parsePositiveInteger(
+  env: GatewayEnv,
+  key: string,
+  defaultValue: number,
+): number {
+  const rawValue = env[key];
+
+  if (rawValue === undefined || rawValue === "") {
+    return defaultValue;
+  }
+
+  const value = Number(rawValue);
+
+  if (!Number.isInteger(value) || value < 1) {
+    throw new Error(`${key} must be a positive integer.`);
+  }
+
+  return value;
 }
 
 function adminTokenHashesFromEnv(env: GatewayEnv): string[] {
@@ -124,6 +147,23 @@ export function loadGatewayRuntimeConfig(
     host: env.GATEWAY_HOST ?? "0.0.0.0",
     isProduction: deploymentEnv === "production",
     port: parsePort(env),
+    rateLimits: {
+      billableWindowMs: parsePositiveInteger(
+        env,
+        "FOUNTLAYER_BILLABLE_RATE_WINDOW_MS",
+        60 * 60 * 1000,
+      ),
+      endUserBillableRequestsPerWindow: parsePositiveInteger(
+        env,
+        "FOUNTLAYER_END_USER_BILLABLE_REQUESTS_PER_WINDOW",
+        120,
+      ),
+      sessionBillableRequestsPerWindow: parsePositiveInteger(
+        env,
+        "FOUNTLAYER_SESSION_BILLABLE_REQUESTS_PER_WINDOW",
+        60,
+      ),
+    },
     storeMode: parseStoreMode(env),
   };
 

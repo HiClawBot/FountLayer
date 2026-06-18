@@ -53,6 +53,13 @@ type GatewayServerOptions = {
   logger?: boolean;
   adapter?: LLMAdapter;
   adminTokenHashes?: readonly string[];
+  rateLimits?: GatewayRateLimitOptions;
+};
+
+export type GatewayRateLimitOptions = {
+  billableWindowMs?: number;
+  endUserBillableRequestsPerWindow?: number;
+  sessionBillableRequestsPerWindow?: number;
 };
 
 declare module "fastify" {
@@ -69,6 +76,71 @@ const defaultWallets = {
   platformCostWalletId: "wallet_platform_cost",
   providerPayableWalletId: "wallet_provider_payable",
 };
+
+const defaultRateLimits = {
+  billableWindowMs: 60 * 60 * 1000,
+  endUserBillableRequestsPerWindow: 120,
+  sessionBillableRequestsPerWindow: 60,
+};
+
+type RateLimitScope = "session" | "end_user";
+
+type RateLimitDecision =
+  | {
+      allowed: true;
+    }
+  | {
+      allowed: false;
+      limit: number;
+      remaining: number;
+      resetAt: number;
+      scope: RateLimitScope;
+    };
+
+type RateLimitCounter = {
+  count: number;
+  resetAt: number;
+};
+
+function createRateLimiter(now = () => Date.now()) {
+  const counters = new Map<string, RateLimitCounter>();
+
+  return {
+    consume(input: {
+      key: string;
+      limit: number;
+      scope: RateLimitScope;
+      windowMs: number;
+    }): RateLimitDecision {
+      if (input.limit <= 0) {
+        return { allowed: true };
+      }
+
+      const currentTime = now();
+      const existing = counters.get(input.key);
+      const counter =
+        existing && existing.resetAt > currentTime
+          ? existing
+          : { count: 0, resetAt: currentTime + input.windowMs };
+
+      if (counter.count >= input.limit) {
+        counters.set(input.key, counter);
+        return {
+          allowed: false,
+          limit: input.limit,
+          remaining: 0,
+          resetAt: counter.resetAt,
+          scope: input.scope,
+        };
+      }
+
+      counter.count += 1;
+      counters.set(input.key, counter);
+
+      return { allowed: true };
+    },
+  };
+}
 
 class DemoLocalAdapter implements LLMAdapter {
   async chat(
@@ -371,6 +443,14 @@ function requireRequestAttribution(
   return request.attribution;
 }
 
+function requireRequestAuth(request: FastifyRequest): AuthContext {
+  if (!request.auth) {
+    throw new Error("Auth middleware did not run.");
+  }
+
+  return request.auth;
+}
+
 function resolvePricedModel(model: string): {
   provider: string;
   model: string;
@@ -423,6 +503,11 @@ export function buildGatewayServer(
 ): FastifyInstance {
   const adapter = options.adapter ?? new DemoLocalAdapter();
   const adminTokenHashes = options.adminTokenHashes ?? [];
+  const rateLimits = {
+    ...defaultRateLimits,
+    ...options.rateLimits,
+  };
+  const rateLimiter = createRateLimiter();
   const server = Fastify({
     logger: options.logger
       ? {
@@ -620,6 +705,7 @@ export function buildGatewayServer(
 
   server.post("/v1/chat/completions", async (request, reply) => {
     const attribution = requireRequestAttribution(request);
+    const auth = requireRequestAuth(request);
     const parsed = chatRequestSchema.safeParse(request.body);
 
     if (!parsed.success) {
@@ -640,6 +726,50 @@ export function buildGatewayServer(
         400,
         "unknown_model",
         "No model price is configured for this route.",
+      );
+    }
+
+    const sessionRateLimit = rateLimiter.consume({
+      key: `session:${auth.sessionId}`,
+      limit: rateLimits.sessionBillableRequestsPerWindow,
+      scope: "session",
+      windowMs: rateLimits.billableWindowMs,
+    });
+
+    if (!sessionRateLimit.allowed) {
+      return jsonError(
+        reply,
+        429,
+        "rate_limited",
+        "Session billable request limit exceeded.",
+        {
+          limit: sessionRateLimit.limit,
+          remaining: sessionRateLimit.remaining,
+          reset_at: new Date(sessionRateLimit.resetAt).toISOString(),
+          scope: sessionRateLimit.scope,
+        },
+      );
+    }
+
+    const endUserRateLimit = rateLimiter.consume({
+      key: `end_user:${attribution.appId}:${attribution.endUserId}`,
+      limit: rateLimits.endUserBillableRequestsPerWindow,
+      scope: "end_user",
+      windowMs: rateLimits.billableWindowMs,
+    });
+
+    if (!endUserRateLimit.allowed) {
+      return jsonError(
+        reply,
+        429,
+        "rate_limited",
+        "End-user billable request limit exceeded.",
+        {
+          limit: endUserRateLimit.limit,
+          remaining: endUserRateLimit.remaining,
+          reset_at: new Date(endUserRateLimit.resetAt).toISOString(),
+          scope: endUserRateLimit.scope,
+        },
       );
     }
 

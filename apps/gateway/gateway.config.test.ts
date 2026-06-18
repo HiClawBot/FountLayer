@@ -19,6 +19,11 @@ describe("gateway runtime config", () => {
       host: "0.0.0.0",
       isProduction: false,
       port: 8787,
+      rateLimits: {
+        billableWindowMs: 3600000,
+        endUserBillableRequestsPerWindow: 120,
+        sessionBillableRequestsPerWindow: 60,
+      },
       storeMode: "memory",
     });
     expect(config.adminTokenHashes).toHaveLength(1);
@@ -49,6 +54,14 @@ describe("gateway runtime config", () => {
         FOUNTLAYER_GATEWAY_STORE: "sqlite",
       }),
     ).toThrow("Invalid FOUNTLAYER_GATEWAY_STORE");
+  });
+
+  it("rejects invalid rate limit values", () => {
+    expect(() =>
+      loadGatewayRuntimeConfig({
+        FOUNTLAYER_SESSION_BILLABLE_REQUESTS_PER_WINDOW: "0",
+      }),
+    ).toThrow("must be a positive integer");
   });
 
   it("rejects non-hash admin token values in hash variables", () => {
