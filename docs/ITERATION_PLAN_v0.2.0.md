@@ -42,9 +42,10 @@ PostgreSQL-backed attribution, faucet, usage, and ledger state.
       with static fallback.
 - [x] Added optional Postgres integration test.
 - [x] Added root DB scripts and README instructions.
+- [x] Added GitHub Actions PostgreSQL service for migration, seed, and
+      Postgres-backed Gateway tests.
 - [ ] Docker Compose runtime validation is still blocked on machines without
       Docker CLI.
-- [ ] CI Postgres service is not yet enabled.
 - [ ] App/channel/faucet/route/credential Console pages still read static
       seed-shaped data.
 - [ ] App tokens and production tenant auth beyond alpha admin tokens are not

@@ -13,6 +13,8 @@
   with static fallback for offline builds.
 - Gateway Admin APIs now require configured admin bearer token authentication.
 - Optional Postgres integration test gated by `FOUNTLAYER_RUN_DB_TESTS=1`.
+- CI now runs migration, seed, and Postgres-backed Gateway tests with a
+  PostgreSQL service.
 - Root database scripts: `pnpm db:migrate`, `pnpm db:seed`, and `pnpm db:test:setup`.
 
 ## 0.1.0 - 2026-06-17
