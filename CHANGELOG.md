@@ -12,6 +12,10 @@
 - Console Overview and Usage/Ledger pages can read live Gateway Admin API data
   with static fallback for offline builds.
 - Gateway Admin APIs now require configured admin bearer token authentication.
+- Gateway Admin APIs expose live read endpoints for apps, channels, faucet
+  grants, routes, provider credential metadata, and pricing policies.
+- Console core registry pages can read live Gateway Admin API data with static
+  fallback for offline builds.
 - Optional Postgres integration test gated by `FOUNTLAYER_RUN_DB_TESTS=1`.
 - CI now runs migration, seed, and Postgres-backed Gateway tests with a
   PostgreSQL service.

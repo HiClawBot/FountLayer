@@ -1,11 +1,11 @@
 import { Metric, PageHeader, Panel, Status } from "../../components/ui";
-import { channels, faucetGrants } from "../../lib/console-data";
 import { getConsoleRuntimeData } from "../../lib/gateway-admin";
 
 export const dynamic = "force-dynamic";
 
 export default async function OverviewPage() {
-  const { ledgerEntries, source, usageEvents } = await getConsoleRuntimeData();
+  const { apps, channels, faucetGrants, ledgerEntries, source, usageEvents } =
+    await getConsoleRuntimeData();
   const debitTotal = ledgerEntries
     .filter((entry) => entry.direction === "debit")
     .reduce((sum, entry) => sum + Number(entry.amount), 0);
@@ -23,7 +23,7 @@ export default async function OverviewPage() {
   const overviewMetrics = [
     {
       label: "Apps",
-      value: "1",
+      value: String(apps.length),
       detail: `${channels.length} active channel`,
     },
     {

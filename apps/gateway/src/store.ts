@@ -19,6 +19,51 @@ export type GatewayChannelRecord = {
   status: "active" | "disabled";
 };
 
+export type GatewayAdminAppRecord = {
+  id: string;
+  name: string;
+  developer: string;
+  status: string;
+  defaultRoute: string;
+};
+
+export type GatewayAdminChannelRecord = {
+  id: string;
+  appId: string;
+  name: string;
+  type: string;
+  status: string;
+};
+
+export type GatewayAdminRouteRecord = {
+  id: string;
+  alias: string;
+  provider: string;
+  model: string;
+  adapter: string;
+  status: string;
+};
+
+export type GatewayAdminCredentialRecord = {
+  id: string;
+  owner: string;
+  provider: string;
+  storage: string;
+  status: string;
+  display: string;
+};
+
+export type GatewayAdminPricingPolicyRecord = {
+  id: string;
+  appId: string;
+  platformFeeRate: string;
+  paymentFeeReserveRate: string;
+  riskReserveRate: string;
+  developerMarkupRate: string;
+  channelMarkupRate: string;
+  maxTotalMarkupRate: string;
+};
+
 export type GatewayGrantRecord = {
   id: string;
   appId: string;
@@ -96,6 +141,12 @@ export type GatewayStore = {
   recordBillableCall(
     input: BillableCallRecord,
   ): Promise<BillableCallRecordResult>;
+  listApps(): Promise<GatewayAdminAppRecord[]>;
+  listChannels(): Promise<GatewayAdminChannelRecord[]>;
+  listFaucetGrants(): Promise<GatewayGrantRecord[]>;
+  listRoutes(): Promise<GatewayAdminRouteRecord[]>;
+  listProviderCredentials(): Promise<GatewayAdminCredentialRecord[]>;
+  listPricingPolicies(): Promise<GatewayAdminPricingPolicyRecord[]>;
   listUsageEvents(): Promise<UsageEventRecord[]>;
   listLedgerEntries(): Promise<LedgerEntryRecord[]>;
 };
@@ -170,6 +221,48 @@ type SessionRow = {
   created_at: string | Date;
 };
 
+type AdminAppRow = {
+  id: string;
+  name: string;
+  developer: string;
+  status: string;
+  default_route: string | null;
+};
+
+type AdminChannelRow = {
+  id: string;
+  app_id: string;
+  name: string;
+  type: string;
+  status: string;
+};
+
+type AdminRouteRow = {
+  id: string;
+  alias: string;
+  config: Record<string, unknown>;
+  status: string;
+};
+
+type AdminCredentialRow = {
+  id: string;
+  owner_type: string;
+  owner_id: string;
+  provider: string;
+  status: string;
+};
+
+type AdminPricingPolicyRow = {
+  id: string;
+  app_id: string | null;
+  platform_fee_rate: string;
+  payment_fee_reserve_rate: string;
+  risk_reserve_rate: string;
+  developer_markup_rate: string;
+  channel_markup_rate: string;
+  max_total_markup_rate: string;
+};
+
 type JsonValue =
   | null
   | string
@@ -189,6 +282,51 @@ const defaultChannel: GatewayChannelRecord = {
   id: "channel_desktop",
   appId: "app_pdf_reader",
   status: "active",
+};
+
+const defaultAdminApp: GatewayAdminAppRecord = {
+  id: "app_pdf_reader",
+  name: "PDF Reader Demo",
+  developer: "Demo Developer",
+  status: "active",
+  defaultRoute: "vertical/paper-summary",
+};
+
+const defaultAdminChannel: GatewayAdminChannelRecord = {
+  id: "channel_desktop",
+  appId: "app_pdf_reader",
+  name: "Desktop App",
+  type: "direct",
+  status: "active",
+};
+
+const defaultRoute: GatewayAdminRouteRecord = {
+  id: "route_paper_summary",
+  alias: "vertical/paper-summary",
+  provider: "demo",
+  model: "demo-local-model",
+  adapter: "local",
+  status: "active",
+};
+
+const defaultCredential: GatewayAdminCredentialRecord = {
+  id: "cred_local_placeholder",
+  owner: "self-hosted gateway",
+  provider: "demo",
+  storage: "server-side encrypted",
+  status: "placeholder",
+  display: "not configured",
+};
+
+const defaultPricingPolicy: GatewayAdminPricingPolicyRecord = {
+  id: "policy_default",
+  appId: "app_pdf_reader",
+  platformFeeRate: "25%",
+  paymentFeeReserveRate: "3%",
+  riskReserveRate: "5%",
+  developerMarkupRate: "0%",
+  channelMarkupRate: "0%",
+  maxTotalMarkupRate: "100%",
 };
 
 const defaultGrant: GatewayGrantRecord = {
@@ -315,6 +453,45 @@ function mapSessionRow(row: SessionRow): GatewaySessionRecord {
     expiresAt: toIso(row.expires_at),
     revokedAt: row.revoked_at ? toIso(row.revoked_at) : undefined,
     createdAt: toIso(row.created_at),
+  };
+}
+
+function percent(value: string): string {
+  return `${Number(value) * 100}%`;
+}
+
+function stringFromConfig(
+  config: Record<string, unknown>,
+  key: string,
+  fallback: string,
+): string {
+  const value = config[key];
+  return typeof value === "string" && value.length > 0 ? value : fallback;
+}
+
+function mapAdminRouteRow(row: AdminRouteRow): GatewayAdminRouteRecord {
+  return {
+    id: row.id,
+    alias: row.alias,
+    provider: stringFromConfig(row.config, "provider", "unknown"),
+    model: stringFromConfig(row.config, "model", "unknown"),
+    adapter: stringFromConfig(row.config, "adapter", "unknown"),
+    status: row.status,
+  };
+}
+
+function mapAdminPricingPolicyRow(
+  row: AdminPricingPolicyRow,
+): GatewayAdminPricingPolicyRecord {
+  return {
+    id: row.id,
+    appId: row.app_id ?? "platform",
+    platformFeeRate: percent(row.platform_fee_rate),
+    paymentFeeReserveRate: percent(row.payment_fee_reserve_rate),
+    riskReserveRate: percent(row.risk_reserve_rate),
+    developerMarkupRate: percent(row.developer_markup_rate),
+    channelMarkupRate: percent(row.channel_markup_rate),
+    maxTotalMarkupRate: percent(row.max_total_markup_rate),
   };
 }
 
@@ -504,6 +681,30 @@ export function createInMemoryGatewayStore(
         ledgerEntries: input.ledgerEntries,
         updatedGrant,
       };
+    },
+
+    async listApps() {
+      return [{ ...defaultAdminApp }];
+    },
+
+    async listChannels() {
+      return [{ ...defaultAdminChannel }];
+    },
+
+    async listFaucetGrants() {
+      return state.faucetGrants;
+    },
+
+    async listRoutes() {
+      return [{ ...defaultRoute }];
+    },
+
+    async listProviderCredentials() {
+      return [{ ...defaultCredential }];
+    },
+
+    async listPricingPolicies() {
+      return [{ ...defaultPricingPolicy }];
     },
 
     async listUsageEvents() {
@@ -916,6 +1117,115 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
           updatedGrant,
         };
       });
+    },
+
+    async listApps() {
+      const rows = await sql<AdminAppRow[]>`
+        select
+          apps.id,
+          apps.name,
+          developers.name as developer,
+          apps.status,
+          routes.alias as default_route
+        from apps
+        join developers on developers.id = apps.developer_id
+        left join routes on routes.id = apps.default_route_id
+        order by apps.created_at desc, apps.id asc
+      `;
+
+      return rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        developer: row.developer,
+        status: row.status,
+        defaultRoute: row.default_route ?? "not configured",
+      }));
+    },
+
+    async listChannels() {
+      const rows = await sql<AdminChannelRow[]>`
+        select id, app_id, name, type, status
+        from channels
+        order by created_at desc, id asc
+      `;
+
+      return rows.map((row) => ({
+        id: row.id,
+        appId: row.app_id,
+        name: row.name,
+        type: row.type,
+        status: row.status,
+      }));
+    },
+
+    async listFaucetGrants() {
+      const rows = await sql<GrantRow[]>`
+        select
+          id,
+          app_id,
+          channel_id,
+          end_user_id,
+          wallet_id,
+          remaining_numeric::text as remaining,
+          allowed_models,
+          allowed_use_cases,
+          daily_cap_numeric::text as daily_cap,
+          expires_at,
+          status
+        from faucet_grants
+        order by created_at desc, id asc
+      `;
+
+      return rows.map(mapGrantRow);
+    },
+
+    async listRoutes() {
+      const rows = await sql<AdminRouteRow[]>`
+        select id, alias, config, status
+        from routes
+        order by created_at desc, id asc
+      `;
+
+      return rows.map(mapAdminRouteRow);
+    },
+
+    async listProviderCredentials() {
+      const rows = await sql<AdminCredentialRow[]>`
+        select id, owner_type, owner_id, provider, status
+        from provider_credentials
+        order by created_at desc, id asc
+      `;
+
+      if (rows.length === 0) {
+        return [{ ...defaultCredential }];
+      }
+
+      return rows.map((row) => ({
+        id: row.id,
+        owner: `${row.owner_type}:${row.owner_id}`,
+        provider: row.provider,
+        storage: "server-side encrypted",
+        status: row.status,
+        display: "configured",
+      }));
+    },
+
+    async listPricingPolicies() {
+      const rows = await sql<AdminPricingPolicyRow[]>`
+        select
+          id,
+          app_id,
+          platform_fee_rate::text as platform_fee_rate,
+          payment_fee_reserve_rate::text as payment_fee_reserve_rate,
+          risk_reserve_rate::text as risk_reserve_rate,
+          developer_markup_rate::text as developer_markup_rate,
+          channel_markup_rate::text as channel_markup_rate,
+          max_total_markup_rate::text as max_total_markup_rate
+        from pricing_policies
+        order by created_at desc, id asc
+      `;
+
+      return rows.map(mapAdminPricingPolicyRow);
     },
 
     async listUsageEvents() {

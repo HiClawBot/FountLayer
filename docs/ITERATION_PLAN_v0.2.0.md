@@ -14,8 +14,7 @@ PostgreSQL-backed attribution, faucet, usage, and ledger state.
 - Session auth persistence with stored token hashes only.
 - Session attribution matching for authenticated `/v1` requests.
 - Admin API bearer token authentication with configured token hashes.
-- Console Usage/Ledger and Overview pages backed by Gateway Admin API data with
-  static fallback.
+- Console core pages backed by Gateway Admin API data with static fallback.
 - Optional Postgres integration test gated by `FOUNTLAYER_RUN_DB_TESTS=1`.
 - Documentation for enabling `FOUNTLAYER_GATEWAY_STORE=postgres`.
 
@@ -40,14 +39,15 @@ PostgreSQL-backed attribution, faucet, usage, and ledger state.
 - [x] Protected `/admin/*` with configured admin bearer token hashes.
 - [x] Wired Console Overview and Usage/Ledger pages to Gateway Admin API data
       with static fallback.
+- [x] Added live Admin read endpoints and Console data wiring for apps,
+      channels, faucet grants, routes, provider credential metadata, and pricing
+      policies.
 - [x] Added optional Postgres integration test.
 - [x] Added root DB scripts and README instructions.
 - [x] Added GitHub Actions PostgreSQL service for migration, seed, and
       Postgres-backed Gateway tests.
 - [ ] Docker Compose runtime validation is still blocked on machines without
       Docker CLI.
-- [ ] App/channel/faucet/route/credential Console pages still read static
-      seed-shaped data.
 - [ ] App tokens and production tenant auth beyond alpha admin tokens are not
       yet implemented.
 

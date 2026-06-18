@@ -1,12 +1,16 @@
 import { PageHeader, Panel } from "../../components/ui";
-import { pricingPolicies } from "../../lib/console-data";
+import { getConsoleRuntimeData } from "../../lib/gateway-admin";
 
-export default function PricingPage() {
+export const dynamic = "force-dynamic";
+
+export default async function PricingPage() {
+  const { pricingPolicies, source } = await getConsoleRuntimeData();
+
   return (
     <div className="page">
       <PageHeader
         title="Pricing"
-        eyebrow="Managed mode pricing policy and markup controls."
+        eyebrow={`Managed mode pricing policy and markup controls. Source: ${source}.`}
       />
       <Panel title="Pricing Policies">
         <div className="table-wrap">

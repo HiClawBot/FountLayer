@@ -1,12 +1,16 @@
 import { PageHeader, Panel, Status } from "../../components/ui";
-import { apps } from "../../lib/console-data";
+import { getConsoleRuntimeData } from "../../lib/gateway-admin";
 
-export default function AppsPage() {
+export const dynamic = "force-dynamic";
+
+export default async function AppsPage() {
+  const { apps, source } = await getConsoleRuntimeData();
+
   return (
     <div className="page">
       <PageHeader
         title="Apps"
-        eyebrow="Registered software products using FountLayer."
+        eyebrow={`Registered software products using FountLayer. Source: ${source}.`}
       />
       <Panel title="App Registry">
         <div className="table-wrap">

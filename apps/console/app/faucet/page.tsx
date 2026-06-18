@@ -1,12 +1,16 @@
 import { PageHeader, Panel, Status } from "../../components/ui";
-import { faucetGrants } from "../../lib/console-data";
+import { getConsoleRuntimeData } from "../../lib/gateway-admin";
 
-export default function FaucetPage() {
+export const dynamic = "force-dynamic";
+
+export default async function FaucetPage() {
+  const { faucetGrants, source } = await getConsoleRuntimeData();
+
   return (
     <div className="page">
       <PageHeader
         title="Faucet"
-        eyebrow="Bounded credits for app-native AI trials."
+        eyebrow={`Bounded credits for app-native AI trials. Source: ${source}.`}
       />
       <Panel title="Active Grants">
         <div className="table-wrap">

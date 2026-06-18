@@ -166,6 +166,31 @@ describe("gateway minimum API", () => {
     });
   });
 
+  it("serves admin console registry data with valid admin auth", async () => {
+    const server = buildGatewayServer(undefined, {
+      adminTokenHashes: [hashTestToken(adminToken)],
+    });
+    const endpoints = [
+      ["/admin/apps", "apps"],
+      ["/admin/channels", "channels"],
+      ["/admin/faucet-grants", "faucet_grants"],
+      ["/admin/routes", "routes"],
+      ["/admin/provider-credentials", "credentials"],
+      ["/admin/pricing-policies", "pricing_policies"],
+    ] as const;
+
+    for (const [url, key] of endpoints) {
+      const response = await server.inject({
+        method: "GET",
+        url,
+        headers: adminHeaders,
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()[key]).toHaveLength(1);
+    }
+  });
+
   it("creates a session only when body attribution matches headers", async () => {
     const server = buildGatewayServer();
 

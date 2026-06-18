@@ -763,6 +763,30 @@ export function buildGatewayServer(
     };
   });
 
+  server.get("/admin/apps", async () => ({
+    apps: await store.listApps(),
+  }));
+
+  server.get("/admin/channels", async () => ({
+    channels: await store.listChannels(),
+  }));
+
+  server.get("/admin/faucet-grants", async () => ({
+    faucet_grants: await store.listFaucetGrants(),
+  }));
+
+  server.get("/admin/routes", async () => ({
+    routes: await store.listRoutes(),
+  }));
+
+  server.get("/admin/provider-credentials", async () => ({
+    credentials: await store.listProviderCredentials(),
+  }));
+
+  server.get("/admin/pricing-policies", async () => ({
+    pricing_policies: await store.listPricingPolicies(),
+  }));
+
   server.get("/admin/usage-events", async () => ({
     usage_events: await store.listUsageEvents(),
   }));

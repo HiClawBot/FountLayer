@@ -1,12 +1,16 @@
 import { PageHeader, Panel, Status } from "../../components/ui";
-import { credentials } from "../../lib/console-data";
+import { getConsoleRuntimeData } from "../../lib/gateway-admin";
 
-export default function CredentialsPage() {
+export const dynamic = "force-dynamic";
+
+export default async function CredentialsPage() {
+  const { credentials, source } = await getConsoleRuntimeData();
+
   return (
     <div className="page">
       <PageHeader
         title="Credentials"
-        eyebrow="Provider credentials are server-side or local-only."
+        eyebrow={`Provider credentials are server-side or local-only. Source: ${source}.`}
       />
       <Panel title="Credential Inventory">
         <div className="table-wrap">

@@ -1,10 +1,17 @@
 import { PageHeader, Panel, Status } from "../../components/ui";
-import { routes } from "../../lib/console-data";
+import { getConsoleRuntimeData } from "../../lib/gateway-admin";
 
-export default function RoutesPage() {
+export const dynamic = "force-dynamic";
+
+export default async function RoutesPage() {
+  const { routes, source } = await getConsoleRuntimeData();
+
   return (
     <div className="page">
-      <PageHeader title="Routes" eyebrow="Model aliases and adapter targets." />
+      <PageHeader
+        title="Routes"
+        eyebrow={`Model aliases and adapter targets. Source: ${source}.`}
+      />
       <Panel title="Route Table">
         <div className="table-wrap">
           <table>

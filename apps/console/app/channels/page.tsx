@@ -1,12 +1,16 @@
 import { PageHeader, Panel, Status } from "../../components/ui";
-import { channels } from "../../lib/console-data";
+import { getConsoleRuntimeData } from "../../lib/gateway-admin";
 
-export default function ChannelsPage() {
+export const dynamic = "force-dynamic";
+
+export default async function ChannelsPage() {
+  const { channels, source } = await getConsoleRuntimeData();
+
   return (
     <div className="page">
       <PageHeader
         title="Channels"
-        eyebrow="Distribution sources attached to apps."
+        eyebrow={`Distribution sources attached to apps. Source: ${source}.`}
       />
       <Panel title="Channel Registry">
         <div className="table-wrap">

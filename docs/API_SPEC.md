@@ -150,25 +150,28 @@ startup. Console live-data reads use `CONSOLE_GATEWAY_ADMIN_TOKEN` server-side.
 Implemented:
 
 ```txt
+GET    /admin/apps
+GET    /admin/channels
+GET    /admin/faucet-grants
+GET    /admin/routes
+GET    /admin/provider-credentials
+GET    /admin/pricing-policies
 GET    /admin/usage-events
 GET    /admin/ledger
 ```
 
 The v0.2.0-alpha Console can read these endpoints directly for live usage and
-ledger views when its server-side admin token is configured.
+ledger, registry, faucet, route, pricing, and credential-metadata views when
+its server-side admin token is configured.
 
 Planned:
 
 ```txt
 POST   /admin/apps
-GET    /admin/apps
 PATCH  /admin/apps/:id
 POST   /admin/apps/:appId/channels
-GET    /admin/apps/:appId/channels
 POST   /admin/faucet-grants
-GET    /admin/faucet-grants
 POST   /admin/routes
-GET    /admin/routes
 POST   /admin/pricing-policies
 GET    /admin/revenue
 ```
