@@ -97,6 +97,9 @@ importers:
       '@fountlayer/ledger':
         specifier: workspace:*
         version: link:../../packages/ledger
+      '@fountlayer/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
       '@fountlayer/pricing':
         specifier: workspace:*
         version: link:../../packages/pricing
@@ -156,6 +159,8 @@ importers:
       '@fountlayer/protocol':
         specifier: workspace:*
         version: link:../protocol
+
+  packages/observability: {}
 
   packages/pricing:
     dependencies:

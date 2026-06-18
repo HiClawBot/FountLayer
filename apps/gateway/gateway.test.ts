@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 import { createCredentialCipher } from "@fountlayer/credentials";
+import { createInMemoryTelemetrySink } from "@fountlayer/observability";
 import { createFountLayer } from "@fountlayer/sdk-js";
 
 import { buildGatewayServer } from "./src/server";
@@ -543,6 +544,7 @@ describe("gateway minimum API", () => {
   it("rejects route spend caps before adapter, usage, or ledger writes", async () => {
     const state = createDefaultInMemoryGatewayState();
     const baseRoute = state.routePolicies[0]!;
+    const telemetry = createInMemoryTelemetrySink();
 
     state.routePolicies.push({
       ...baseRoute,
@@ -554,6 +556,7 @@ describe("gateway minimum API", () => {
 
     const server = buildGatewayServer(createInMemoryGatewayStore(state), {
       adminTokenHashes: [hashTestToken(adminToken)],
+      telemetrySink: telemetry,
     });
     const headers = await createSessionHeaders(server);
     const response = await server.inject({
@@ -578,6 +581,20 @@ describe("gateway minimum API", () => {
 
     expect(response.statusCode).toBe(402);
     expect(response.json().error.code).toBe("route_spend_cap_exceeded");
+    expect(telemetry.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          attributes: expect.objectContaining({
+            reason: "route_spend_cap_exceeded",
+            routeAlias: "cheap/fast",
+          }),
+          name: "gateway.chat.denied",
+        }),
+      ]),
+    );
+    expect(JSON.stringify(telemetry.events)).not.toContain(
+      "Summarize this paper.",
+    );
     expect(usageEvents.json().usage_events).toHaveLength(0);
     expect(ledger.json().ledger_entries).toHaveLength(0);
   });
@@ -682,6 +699,43 @@ describe("gateway minimum API", () => {
         }),
       ]),
     );
+  });
+
+  it("records metadata-only telemetry for successful chat calls", async () => {
+    const telemetry = createInMemoryTelemetrySink();
+    const server = buildGatewayServer(undefined, {
+      adminTokenHashes: [hashTestToken(adminToken)],
+      telemetrySink: telemetry,
+    });
+    const headers = await createSessionHeaders(server);
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/chat/completions",
+      headers,
+      payload: {
+        model: "vertical/paper-summary",
+        messages: [
+          {
+            role: "user",
+            content: "Sensitive prompt that must not enter telemetry.",
+          },
+        ],
+      },
+    });
+    const successEvent = telemetry.events.find(
+      (event) => event.name === "gateway.chat.success",
+    );
+    const serializedEvents = JSON.stringify(telemetry.events);
+
+    expect(response.statusCode).toBe(200);
+    expect(successEvent?.attributes).toMatchObject({
+      appId: "app_pdf_reader",
+      channelId: "channel_desktop",
+      paidBy: "faucet_grant",
+      routeId: "route_paper_summary",
+    });
+    expect(serializedEvents).not.toContain("Sensitive prompt");
+    expect(serializedEvents).not.toContain("Demo summary");
   });
 
   it("falls back to wallet-funded calls when no faucet grant can pay", async () => {

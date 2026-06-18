@@ -29,6 +29,10 @@ export default defineConfig({
         "./packages/ledger/src/index.ts",
         import.meta.url,
       ).pathname,
+      "@fountlayer/observability": new URL(
+        "./packages/observability/src/index.ts",
+        import.meta.url,
+      ).pathname,
       "@fountlayer/pricing": new URL(
         "./packages/pricing/src/index.ts",
         import.meta.url,

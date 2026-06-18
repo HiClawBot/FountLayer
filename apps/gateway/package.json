@@ -15,6 +15,7 @@
     "@fountlayer/db": "workspace:*",
     "@fountlayer/faucet": "workspace:*",
     "@fountlayer/ledger": "workspace:*",
+    "@fountlayer/observability": "workspace:*",
     "@fountlayer/pricing": "workspace:*",
     "@fountlayer/protocol": "workspace:*",
     "fastify": "^5.8.5"

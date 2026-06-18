@@ -40,6 +40,9 @@ Provider API keys must never appear in SDK source code, frontend bundles, mobile
   execution, usage event creation, or ledger entry creation.
 - Wallet-funded calls must atomically prevent negative balances. Calls rejected
   for insufficient wallet balance do not create usage events or ledger entries.
+- Gateway telemetry is metadata-only. Prompt text, assistant output, provider
+  keys, authorization headers, session tokens, and raw adapter payloads must not
+  be emitted.
 - App tokens, API key rotation UI, and production-grade tenant authentication are
   still planned work.
 

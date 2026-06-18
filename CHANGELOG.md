@@ -41,6 +41,8 @@
   faucet grants cannot pay, with negative-balance prevention and ledger writes.
 - Added `@fountlayer/settlement` for deterministic ledger-period
   reconciliation reports and CSV export hashes.
+- Added `@fountlayer/observability` and Gateway metadata-only success/denial
+  telemetry hooks that exclude prompts, outputs, tokens, and provider keys.
 - Root database scripts: `pnpm db:migrate`, `pnpm db:seed`, and `pnpm db:test:setup`.
 
 ## 0.1.0 - 2026-06-17

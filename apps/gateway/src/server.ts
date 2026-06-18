@@ -17,6 +17,10 @@ import {
   createUsageEvent,
 } from "@fountlayer/ledger";
 import {
+  createTelemetryEvent,
+  type TelemetrySink,
+} from "@fountlayer/observability";
+import {
   demoModelPrices,
   estimateChatTokens,
   findModelPrice,
@@ -63,6 +67,7 @@ type GatewayServerOptions = {
   adminTokenHashes?: readonly string[];
   credentialCipher?: CredentialCipher;
   rateLimits?: GatewayRateLimitOptions;
+  telemetrySink?: TelemetrySink;
 };
 
 export type GatewayRateLimitOptions = {
@@ -642,6 +647,7 @@ async function resolveRoutePolicy(
   attribution: AttributionContext,
   requestedAlias: string,
   reply: FastifyReply,
+  telemetrySink?: TelemetrySink,
 ): Promise<GatewayRoutePolicyRecord | undefined> {
   const routePolicy = await store.getRoutePolicy(
     attribution.appId,
@@ -649,6 +655,15 @@ async function resolveRoutePolicy(
   );
 
   if (!routePolicy) {
+    await recordTelemetry(telemetrySink, "gateway.chat.denied", {
+      appId: attribution.appId,
+      channelId: attribution.channelId,
+      endUserId: attribution.endUserId,
+      mode: attribution.mode,
+      reason: "unknown_route",
+      routeAlias: requestedAlias,
+      useCase: attribution.useCase,
+    });
     jsonError(
       reply,
       400,
@@ -659,6 +674,17 @@ async function resolveRoutePolicy(
   }
 
   if (!routePolicy.modelAllowlist.includes(routePolicy.model)) {
+    await recordTelemetry(telemetrySink, "gateway.chat.denied", {
+      appId: attribution.appId,
+      channelId: attribution.channelId,
+      endUserId: attribution.endUserId,
+      mode: attribution.mode,
+      reason: "route_policy_rejected",
+      routeAlias: routePolicy.alias,
+      routeId: routePolicy.id,
+      routedModel: routePolicy.model,
+      useCase: attribution.useCase,
+    });
     jsonError(
       reply,
       403,
@@ -675,11 +701,13 @@ async function resolveRoutePolicy(
   return routePolicy;
 }
 
-function rejectRouteSpendCap(
+async function rejectRouteSpendCap(
+  attribution: AttributionContext,
   routePolicy: GatewayRoutePolicyRecord,
   retailPrice: string,
   reply: FastifyReply,
-): boolean {
+  telemetrySink?: TelemetrySink,
+): Promise<boolean> {
   if (
     routePolicy.maxRetailPrice === undefined ||
     Number(retailPrice) <= Number(routePolicy.maxRetailPrice)
@@ -687,6 +715,17 @@ function rejectRouteSpendCap(
     return false;
   }
 
+  await recordTelemetry(telemetrySink, "gateway.chat.denied", {
+    appId: attribution.appId,
+    channelId: attribution.channelId,
+    endUserId: attribution.endUserId,
+    mode: attribution.mode,
+    reason: "route_spend_cap_exceeded",
+    retailPrice,
+    routeAlias: routePolicy.alias,
+    routeId: routePolicy.id,
+    useCase: attribution.useCase,
+  });
   jsonError(
     reply,
     402,
@@ -701,6 +740,14 @@ function rejectRouteSpendCap(
   return true;
 }
 
+async function recordTelemetry(
+  sink: TelemetrySink | undefined,
+  name: string,
+  attributes: Record<string, unknown>,
+) {
+  await sink?.record(createTelemetryEvent(name, attributes));
+}
+
 export function buildGatewayServer(
   store: GatewayStore = createInMemoryGatewayStore(),
   options: GatewayServerOptions = {},
@@ -710,6 +757,7 @@ export function buildGatewayServer(
     options.allowHostedByokCredentials ?? false;
   const adminTokenHashes = options.adminTokenHashes ?? [];
   const credentialCipher = options.credentialCipher;
+  const telemetrySink = options.telemetrySink;
   const rateLimits = {
     ...defaultRateLimits,
     ...options.rateLimits,
@@ -894,6 +942,7 @@ export function buildGatewayServer(
       attribution,
       parsed.data.model,
       reply,
+      telemetrySink,
     );
 
     if (!routePolicy) {
@@ -915,7 +964,15 @@ export function buildGatewayServer(
       );
     }
 
-    if (rejectRouteSpendCap(routePolicy, estimate.retailPrice, reply)) {
+    if (
+      await rejectRouteSpendCap(
+        attribution,
+        routePolicy,
+        estimate.retailPrice,
+        reply,
+        telemetrySink,
+      )
+    ) {
       return reply;
     }
 
@@ -950,6 +1007,7 @@ export function buildGatewayServer(
   });
 
   server.post("/v1/chat/completions", async (request, reply) => {
+    const startedAt = Date.now();
     const attribution = requireRequestAttribution(request);
     const auth = requireRequestAuth(request);
     const idempotencyKey = parseIdempotencyKey(
@@ -983,6 +1041,7 @@ export function buildGatewayServer(
       attribution,
       parsed.data.model,
       reply,
+      telemetrySink,
     );
 
     if (!routePolicy) {
@@ -1004,7 +1063,15 @@ export function buildGatewayServer(
       );
     }
 
-    if (rejectRouteSpendCap(routePolicy, estimate.retailPrice, reply)) {
+    if (
+      await rejectRouteSpendCap(
+        attribution,
+        routePolicy,
+        estimate.retailPrice,
+        reply,
+        telemetrySink,
+      )
+    ) {
       return reply;
     }
 
@@ -1076,6 +1143,17 @@ export function buildGatewayServer(
         : undefined;
 
     if (!paymentSource) {
+      await recordTelemetry(telemetrySink, "gateway.chat.denied", {
+        appId: attribution.appId,
+        channelId: attribution.channelId,
+        endUserId: attribution.endUserId,
+        mode: attribution.mode,
+        reason: "insufficient_balance",
+        retailPrice: estimate.retailPrice,
+        routeAlias: routePolicy.alias,
+        routeId: routePolicy.id,
+        useCase: attribution.useCase,
+      });
       return jsonError(
         reply,
         402,
@@ -1101,6 +1179,18 @@ export function buildGatewayServer(
         attribution,
       });
     } catch (error) {
+      await recordTelemetry(telemetrySink, "gateway.adapter.error", {
+        appId: attribution.appId,
+        channelId: attribution.channelId,
+        endUserId: attribution.endUserId,
+        mode: attribution.mode,
+        provider: routePolicy.provider,
+        reason: "adapter_error",
+        routeAlias: routePolicy.alias,
+        routeId: routePolicy.id,
+        routedModel: routePolicy.model,
+        useCase: attribution.useCase,
+      });
       return jsonError(
         reply,
         502,
@@ -1172,6 +1262,26 @@ export function buildGatewayServer(
                 })
               ).updatedWallet.balance,
             };
+
+      await recordTelemetry(telemetrySink, "gateway.chat.success", {
+        appId: attribution.appId,
+        cachedInputTokens: usageEvent.cachedInputTokens,
+        channelId: attribution.channelId,
+        endUserId: attribution.endUserId,
+        inputTokens: usageEvent.inputTokens,
+        latencyMs: Date.now() - startedAt,
+        mode: attribution.mode,
+        outputTokens: usageEvent.outputTokens,
+        paidBy: paymentSource.type,
+        provider: routePolicy.provider,
+        retailPrice: usageEvent.retailPrice,
+        routeAlias: routePolicy.alias,
+        routeId: routePolicy.id,
+        routedModel: routePolicy.model,
+        upstreamCost: usageEvent.upstreamCost,
+        usageEventId: usageEvent.id,
+        useCase: attribution.useCase,
+      });
 
       const response: ChatCompletionResponse = {
         id: requestId,

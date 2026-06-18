@@ -85,6 +85,14 @@ routes:
 
 Developer runs Gateway, Postgres, Redis, LiteLLM sidecar, and Console.
 
+## Observability
+
+Gateway telemetry is metadata-only. Events may include app, channel, end-user
+hash, use case, mode, route, provider, token counts, cost, latency, payment
+source, and denial reason. Events must not include raw prompts, assistant
+outputs, provider keys, session tokens, authorization headers, or raw adapter
+payloads.
+
 ### Managed cloud
 
 FountLayer Cloud hosts Gateway, key pool, anti-abuse, billing, and settlement. SDK points to managed endpoint.
