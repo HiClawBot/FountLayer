@@ -18,6 +18,8 @@ import {
 } from "@fountlayer/ledger";
 import {
   createTelemetryEvent,
+  createTelemetryMetric,
+  createTelemetrySpan,
   type TelemetrySink,
 } from "@fountlayer/observability";
 import {
@@ -817,6 +819,34 @@ async function recordTelemetry(
   await sink?.record(createTelemetryEvent(name, attributes));
 }
 
+async function recordMetric(
+  sink: TelemetrySink | undefined,
+  name: string,
+  value: number,
+  attributes: Record<string, unknown>,
+  unit?: string,
+) {
+  await sink?.recordMetric?.(
+    createTelemetryMetric(name, value, attributes, { unit }),
+  );
+}
+
+async function recordSpan(
+  sink: TelemetrySink | undefined,
+  name: string,
+  startedAt: number,
+  status: "error" | "ok",
+  attributes: Record<string, unknown>,
+) {
+  await sink?.recordSpan?.(
+    createTelemetrySpan(name, {
+      attributes,
+      durationMs: Date.now() - startedAt,
+      status,
+    }),
+  );
+}
+
 async function runDependencyHealthChecks(
   store: GatewayStore,
   dependencyHealthChecks: Record<string, GatewayDependencyHealthCheck>,
@@ -974,6 +1004,7 @@ export function buildGatewayServer(
   });
 
   server.post("/v1/sessions", async (request, reply) => {
+    const startedAt = Date.now();
     const headers = requireRequestAttribution(request);
     const parsed = sessionRequestSchema.safeParse(request.body);
 
@@ -1003,6 +1034,19 @@ export function buildGatewayServer(
         expiresAt,
       });
     } catch (error) {
+      await recordSpan(
+        telemetrySink,
+        "gateway.session.create",
+        startedAt,
+        "error",
+        {
+          appId: parsed.data.appId,
+          channelId: parsed.data.channelId,
+          endUserId: parsed.data.endUserId,
+          mode: parsed.data.mode,
+          useCase: parsed.data.useCase,
+        },
+      );
       return jsonError(
         reply,
         500,
@@ -1011,6 +1055,14 @@ export function buildGatewayServer(
         error instanceof Error ? error.message : undefined,
       );
     }
+
+    await recordSpan(telemetrySink, "gateway.session.create", startedAt, "ok", {
+      appId: parsed.data.appId,
+      channelId: parsed.data.channelId,
+      endUserId: parsed.data.endUserId,
+      mode: parsed.data.mode,
+      useCase: parsed.data.useCase,
+    });
 
     return reply.code(201).send({
       session_id: sessionId,
@@ -1050,6 +1102,7 @@ export function buildGatewayServer(
   });
 
   server.post("/v1/estimate", async (request, reply) => {
+    const startedAt = Date.now();
     const attribution = requireRequestAttribution(request);
     const parsed = chatRequestSchema.safeParse(request.body);
 
@@ -1113,6 +1166,47 @@ export function buildGatewayServer(
           attribution,
           requestedAmount: estimate.retailPrice,
         });
+    const paymentSource = grantMatch.matched
+      ? "faucet_grant"
+      : walletMatch?.matched
+        ? "wallet"
+        : "none";
+
+    await recordSpan(telemetrySink, "gateway.estimate", startedAt, "ok", {
+      appId: attribution.appId,
+      channelId: attribution.channelId,
+      endUserId: attribution.endUserId,
+      mode: attribution.mode,
+      paymentSource,
+      retailPrice: estimate.retailPrice,
+      routeAlias: routePolicy.alias,
+      routeId: routePolicy.id,
+      useCase: attribution.useCase,
+    });
+    await recordMetric(
+      telemetrySink,
+      "gateway.estimate.tokens",
+      estimate.inputTokens + estimate.outputTokens,
+      {
+        appId: attribution.appId,
+        channelId: attribution.channelId,
+        mode: attribution.mode,
+        routeId: routePolicy.id,
+      },
+      "tokens",
+    );
+    await recordMetric(
+      telemetrySink,
+      "gateway.estimate.retail_price",
+      Number(estimate.retailPrice),
+      {
+        appId: attribution.appId,
+        channelId: attribution.channelId,
+        mode: attribution.mode,
+        routeId: routePolicy.id,
+      },
+      "USD",
+    );
 
     return {
       currency: "USD",
@@ -1124,11 +1218,7 @@ export function buildGatewayServer(
       upstream_cost: estimate.upstreamCost,
       wholesale_price: estimate.wholesalePrice,
       retail_price: estimate.retailPrice,
-      payment_source: grantMatch.matched
-        ? "faucet_grant"
-        : walletMatch?.matched
-          ? "wallet"
-          : "none",
+      payment_source: paymentSource,
     };
   });
 
@@ -1280,6 +1370,28 @@ export function buildGatewayServer(
         routeId: routePolicy.id,
         useCase: attribution.useCase,
       });
+      await recordMetric(
+        telemetrySink,
+        "gateway.chat.denied",
+        1,
+        {
+          appId: attribution.appId,
+          channelId: attribution.channelId,
+          mode: attribution.mode,
+          reason: "insufficient_balance",
+          routeId: routePolicy.id,
+        },
+        "requests",
+      );
+      await recordSpan(telemetrySink, "gateway.chat", startedAt, "error", {
+        appId: attribution.appId,
+        channelId: attribution.channelId,
+        endUserId: attribution.endUserId,
+        mode: attribution.mode,
+        reason: "insufficient_balance",
+        routeId: routePolicy.id,
+        useCase: attribution.useCase,
+      });
       return jsonError(
         reply,
         402,
@@ -1294,6 +1406,7 @@ export function buildGatewayServer(
 
     const requestId = `req_${randomUUID()}`;
     let output: AdapterChatOutput;
+    const adapterStartedAt = Date.now();
 
     try {
       output = await executeWithCircuitBreaker(
@@ -1312,6 +1425,20 @@ export function buildGatewayServer(
           ),
         adapterCircuitBreaker,
       );
+      await recordSpan(
+        telemetrySink,
+        "gateway.adapter.call",
+        adapterStartedAt,
+        "ok",
+        {
+          appId: attribution.appId,
+          channelId: attribution.channelId,
+          mode: attribution.mode,
+          provider: routePolicy.provider,
+          routeId: routePolicy.id,
+          routedModel: routePolicy.model,
+        },
+      );
     } catch (error) {
       await recordTelemetry(telemetrySink, "gateway.adapter.error", {
         appId: attribution.appId,
@@ -1323,6 +1450,42 @@ export function buildGatewayServer(
         routeAlias: routePolicy.alias,
         routeId: routePolicy.id,
         routedModel: routePolicy.model,
+        useCase: attribution.useCase,
+      });
+      await recordMetric(
+        telemetrySink,
+        "gateway.adapter.errors",
+        1,
+        {
+          appId: attribution.appId,
+          channelId: attribution.channelId,
+          mode: attribution.mode,
+          provider: routePolicy.provider,
+          routeId: routePolicy.id,
+        },
+        "errors",
+      );
+      await recordSpan(
+        telemetrySink,
+        "gateway.adapter.call",
+        adapterStartedAt,
+        "error",
+        {
+          appId: attribution.appId,
+          channelId: attribution.channelId,
+          mode: attribution.mode,
+          provider: routePolicy.provider,
+          routeId: routePolicy.id,
+          routedModel: routePolicy.model,
+        },
+      );
+      await recordSpan(telemetrySink, "gateway.chat", startedAt, "error", {
+        appId: attribution.appId,
+        channelId: attribution.channelId,
+        endUserId: attribution.endUserId,
+        mode: attribution.mode,
+        reason: "adapter_error",
+        routeId: routePolicy.id,
         useCase: attribution.useCase,
       });
       if (error instanceof CircuitOpenError) {
@@ -1382,6 +1545,8 @@ export function buildGatewayServer(
       },
     });
 
+    const billingStartedAt = Date.now();
+
     try {
       const paymentBillingFields =
         paymentSource.type === "faucet_grant"
@@ -1406,6 +1571,20 @@ export function buildGatewayServer(
               ).updatedWallet.balance,
             };
 
+      await recordSpan(
+        telemetrySink,
+        "gateway.billing.write",
+        billingStartedAt,
+        "ok",
+        {
+          appId: attribution.appId,
+          channelId: attribution.channelId,
+          ledgerEntryCount: ledgerEntries.length,
+          mode: attribution.mode,
+          paidBy: paymentSource.type,
+          usageEventId: usageEvent.id,
+        },
+      );
       await recordTelemetry(telemetrySink, "gateway.chat.success", {
         appId: attribution.appId,
         cachedInputTokens: usageEvent.cachedInputTokens,
@@ -1422,6 +1601,54 @@ export function buildGatewayServer(
         routeId: routePolicy.id,
         routedModel: routePolicy.model,
         upstreamCost: usageEvent.upstreamCost,
+        usageEventId: usageEvent.id,
+        useCase: attribution.useCase,
+      });
+      await recordMetric(
+        telemetrySink,
+        "gateway.chat.tokens",
+        output.usage.totalTokens,
+        {
+          appId: attribution.appId,
+          channelId: attribution.channelId,
+          mode: attribution.mode,
+          provider: routePolicy.provider,
+          routeId: routePolicy.id,
+        },
+        "tokens",
+      );
+      await recordMetric(
+        telemetrySink,
+        "gateway.chat.retail_price",
+        Number(usageEvent.retailPrice),
+        {
+          appId: attribution.appId,
+          channelId: attribution.channelId,
+          mode: attribution.mode,
+          paidBy: paymentSource.type,
+          routeId: routePolicy.id,
+        },
+        "USD",
+      );
+      await recordMetric(
+        telemetrySink,
+        "gateway.chat.latency",
+        Date.now() - startedAt,
+        {
+          appId: attribution.appId,
+          channelId: attribution.channelId,
+          mode: attribution.mode,
+          routeId: routePolicy.id,
+        },
+        "ms",
+      );
+      await recordSpan(telemetrySink, "gateway.chat", startedAt, "ok", {
+        appId: attribution.appId,
+        channelId: attribution.channelId,
+        endUserId: attribution.endUserId,
+        mode: attribution.mode,
+        paidBy: paymentSource.type,
+        routeId: routePolicy.id,
         usageEventId: usageEvent.id,
         useCase: attribution.useCase,
       });
@@ -1462,6 +1689,29 @@ export function buildGatewayServer(
 
       return response;
     } catch (error) {
+      await recordSpan(
+        telemetrySink,
+        "gateway.billing.write",
+        billingStartedAt,
+        "error",
+        {
+          appId: attribution.appId,
+          channelId: attribution.channelId,
+          ledgerEntryCount: ledgerEntries.length,
+          mode: attribution.mode,
+          paidBy: paymentSource.type,
+          usageEventId: usageEvent.id,
+        },
+      );
+      await recordSpan(telemetrySink, "gateway.chat", startedAt, "error", {
+        appId: attribution.appId,
+        channelId: attribution.channelId,
+        endUserId: attribution.endUserId,
+        mode: attribution.mode,
+        reason: "billing_write_failed",
+        routeId: routePolicy.id,
+        useCase: attribution.useCase,
+      });
       return jsonError(
         reply,
         402,

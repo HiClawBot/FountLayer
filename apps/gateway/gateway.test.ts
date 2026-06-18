@@ -800,7 +800,11 @@ describe("gateway minimum API", () => {
     const successEvent = telemetry.events.find(
       (event) => event.name === "gateway.chat.success",
     );
-    const serializedEvents = JSON.stringify(telemetry.events);
+    const serializedTelemetry = JSON.stringify({
+      events: telemetry.events,
+      metrics: telemetry.metrics,
+      spans: telemetry.spans,
+    });
 
     expect(response.statusCode).toBe(200);
     expect(successEvent?.attributes).toMatchObject({
@@ -809,8 +813,41 @@ describe("gateway minimum API", () => {
       paidBy: "faucet_grant",
       routeId: "route_paper_summary",
     });
-    expect(serializedEvents).not.toContain("Sensitive prompt");
-    expect(serializedEvents).not.toContain("Demo summary");
+    expect(telemetry.spans).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "gateway.adapter.call",
+          status: "ok",
+        }),
+        expect.objectContaining({
+          name: "gateway.billing.write",
+          status: "ok",
+        }),
+        expect.objectContaining({
+          name: "gateway.chat",
+          status: "ok",
+        }),
+      ]),
+    );
+    expect(telemetry.metrics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "gateway.chat.tokens",
+          unit: "tokens",
+          value: expect.any(Number),
+        }),
+        expect.objectContaining({
+          name: "gateway.chat.retail_price",
+          unit: "USD",
+        }),
+        expect.objectContaining({
+          name: "gateway.chat.latency",
+          unit: "ms",
+        }),
+      ]),
+    );
+    expect(serializedTelemetry).not.toContain("Sensitive prompt");
+    expect(serializedTelemetry).not.toContain("Demo summary");
   });
 
   it("retries adapter failures without duplicating usage or ledger records", async () => {

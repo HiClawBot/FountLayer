@@ -93,6 +93,11 @@ source, and denial reason. Events must not include raw prompts, assistant
 outputs, provider keys, session tokens, authorization headers, or raw adapter
 payloads.
 
+The observability package also provides metadata-only span and metric records.
+Gateway emits spans for session creation, estimates, adapter calls, billing
+writes, and chat requests, plus metrics for estimated tokens, chat tokens,
+retail price, latency, denied requests, and adapter errors.
+
 ## Reliability
 
 Gateway adapter calls may be wrapped with bounded retries and a circuit breaker.

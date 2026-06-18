@@ -12,6 +12,7 @@ coverage/
 *.sqlite
 *.db
 secrets/
+downloads/
 fountlayer_project_docs.zip
 task_plan.md
 findings.md

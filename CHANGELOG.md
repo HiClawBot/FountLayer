@@ -43,6 +43,8 @@
   reconciliation reports and CSV export hashes.
 - Added `@fountlayer/observability` and Gateway metadata-only success/denial
   telemetry hooks that exclude prompts, outputs, tokens, and provider keys.
+- Added metadata-only observability spans and metrics for Gateway session,
+  estimate, adapter, billing write, and chat paths.
 - Added `@fountlayer/reliability` and optional Gateway adapter retry/circuit
   breaker controls before usage or ledger writes.
 - Added `@fountlayer/privacy` and Admin privacy endpoints for request metadata
