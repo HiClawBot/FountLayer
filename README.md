@@ -302,6 +302,7 @@ Never embed real provider API keys in the SDK, frontend code, mobile app, deskto
 - [Codex Tasks](./docs/CODEX_TASKS.md)
 - [Release Checklist](./docs/RELEASE_CHECKLIST.md)
 - [Release Notes v0.1.0](./docs/RELEASE_NOTES_v0.1.0.md)
+- [Release Notes v0.5.0](./docs/RELEASE_NOTES_v0.5.0.md)
 - [Roadmap](./docs/ROADMAP.md)
 - [Changelog](./CHANGELOG.md)
 
