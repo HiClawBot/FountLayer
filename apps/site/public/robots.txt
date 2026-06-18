@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://hiclawbot.github.io/FountLayer/sitemap.xml

@@ -18,6 +18,7 @@
     "format:write": "prettier --write .",
     "lint": "eslint .",
     "smoke:runtime": "node scripts/smoke-runtime.mjs",
+    "smoke:site": "node scripts/smoke-site.mjs",
     "test": "vitest run --passWithNoTests",
     "typecheck": "pnpm build && pnpm -r --if-present typecheck"
   },

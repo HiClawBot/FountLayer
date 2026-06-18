@@ -39,6 +39,9 @@ jobs:
           SITE_BASE_PATH: /FountLayer/
         run: pnpm --filter @fountlayer/site build
 
+      - name: Smoke test site artifact
+        run: pnpm smoke:site
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
