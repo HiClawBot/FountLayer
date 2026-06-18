@@ -110,6 +110,24 @@ Run the optional Postgres integration test with:
 FOUNTLAYER_RUN_DB_TESTS=1 pnpm test
 ```
 
+Run the runtime smoke test after starting Gateway and Console with the same
+admin token:
+
+```bash
+FOUNTLAYER_ADMIN_TOKEN=change_me_admin_token \
+FOUNTLAYER_GATEWAY_STORE=postgres \
+pnpm --filter @fountlayer/gateway dev
+
+GATEWAY_BASE_URL=http://localhost:8787 \
+CONSOLE_GATEWAY_ADMIN_TOKEN=change_me_admin_token \
+pnpm --filter @fountlayer/console dev
+
+GATEWAY_BASE_URL=http://localhost:8787 \
+CONSOLE_BASE_URL=http://localhost:3000 \
+CONSOLE_GATEWAY_ADMIN_TOKEN=change_me_admin_token \
+pnpm smoke:runtime
+```
+
 If another service already uses port `8787`, start the gateway on another port and point the demo at it:
 
 ```bash

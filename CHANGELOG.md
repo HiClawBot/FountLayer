@@ -19,6 +19,8 @@
 - Optional Postgres integration test gated by `FOUNTLAYER_RUN_DB_TESTS=1`.
 - CI now runs migration, seed, and Postgres-backed Gateway tests with a
   PostgreSQL service.
+- Added `pnpm smoke:runtime` for Docker/Postgres-enabled runtime validation
+  across Gateway, Admin API readback, and Console live pages.
 - Root database scripts: `pnpm db:migrate`, `pnpm db:seed`, and `pnpm db:test:setup`.
 
 ## 0.1.0 - 2026-06-17

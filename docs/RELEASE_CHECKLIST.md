@@ -39,8 +39,11 @@
 ## Documentation
 
 - [x] Node/pnpm quickstart commands tested locally.
-- [ ] Docker Compose self-hosting runtime test blocked locally because Docker CLI is unavailable.
-- [ ] Optional Postgres integration test requires `FOUNTLAYER_RUN_DB_TESTS=1` on a Docker/Postgres-enabled machine.
+- [ ] Docker Compose self-hosting runtime test is scripted with
+      `pnpm smoke:runtime`, but remains blocked locally because Docker CLI is
+      unavailable.
+- [x] Optional Postgres integration test runs in CI with
+      `FOUNTLAYER_RUN_DB_TESTS=1`.
 - [x] Security warning visible.
 - [x] Pricing formula documented.
 - [x] API spec documented.

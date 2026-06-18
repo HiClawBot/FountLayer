@@ -17,6 +17,7 @@ PostgreSQL-backed attribution, faucet, usage, and ledger state.
 - Console core pages backed by Gateway Admin API data with static fallback.
 - Optional Postgres integration test gated by `FOUNTLAYER_RUN_DB_TESTS=1`.
 - Documentation for enabling `FOUNTLAYER_GATEWAY_STORE=postgres`.
+- Runtime smoke script for Gateway, Admin API readback, and Console live pages.
 
 ## Non-Goals
 
@@ -46,6 +47,7 @@ PostgreSQL-backed attribution, faucet, usage, and ledger state.
 - [x] Added root DB scripts and README instructions.
 - [x] Added GitHub Actions PostgreSQL service for migration, seed, and
       Postgres-backed Gateway tests.
+- [x] Added `pnpm smoke:runtime` for Docker/Postgres-enabled runtime validation.
 - [ ] Docker Compose runtime validation is still blocked on machines without
       Docker CLI.
 - [ ] App tokens and production tenant auth beyond alpha admin tokens are not

@@ -17,6 +17,7 @@
     "format": "prettier --check .",
     "format:write": "prettier --write .",
     "lint": "eslint .",
+    "smoke:runtime": "node scripts/smoke-runtime.mjs",
     "test": "vitest run --passWithNoTests",
     "typecheck": "pnpm build && pnpm -r --if-present typecheck"
   },
