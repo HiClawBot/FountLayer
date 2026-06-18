@@ -68,6 +68,27 @@ SITE_BASE_PATH=/FountLayer/
 
 This keeps asset paths correct for GitHub project Pages.
 
+## First-Time Repository Settings
+
+Before the first successful deployment, enable GitHub Pages for the repository:
+
+1. Open repository settings, then Pages.
+2. Set the Pages source to GitHub Actions.
+3. Open the `github-pages` environment deployment settings.
+4. Allow the branch that runs the Pages workflow.
+
+Current allowed deployment branches:
+
+```txt
+main
+v0.2.0-alpha
+```
+
+If the workflow fails with `Ensure GitHub Pages has been enabled`, the Pages
+source is not enabled yet. If it fails with `Branch "..." is not allowed to
+deploy to github-pages`, add that branch to the `github-pages` environment
+deployment branch policy or deploy from `main`.
+
 ## Custom Domain
 
 Recommended subdomain:
