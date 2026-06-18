@@ -78,6 +78,13 @@ Credit provider_payable_wallet      0.0021   reason=provider_payable
 - Full commission on paid user consumption.
 - Developer-funded grant commission is configurable.
 
+## Settlement Exports
+
+`@fountlayer/settlement` builds period reports from immutable ledger entries.
+Each report computes debit totals, credit totals, wallet net movement, reason
+totals, a balanced/unbalanced flag, deterministic CSV output, and a SHA-256
+content hash for reconciliation archives.
+
 ## User-facing Price Display
 
 Show at least:

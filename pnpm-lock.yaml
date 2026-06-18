@@ -175,6 +175,8 @@ importers:
         specifier: workspace:*
         version: link:../protocol
 
+  packages/settlement: {}
+
 packages:
 
   '@drizzle-team/brocli@0.10.2':

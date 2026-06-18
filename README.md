@@ -235,6 +235,7 @@ fountlayer/
 │   ├── pricing/           # Model price registry and estimator
 │   ├── faucet/            # Faucet grant matching and deduction
 │   ├── ledger/            # Double-entry ledger helpers
+│   ├── settlement/        # Ledger reconciliation and export helpers
 │   ├── adapter-core/      # Shared adapter interface
 │   ├── adapter-litellm/   # LiteLLM adapter
 │   └── adapter-local/     # OpenAI-compatible local endpoint adapter

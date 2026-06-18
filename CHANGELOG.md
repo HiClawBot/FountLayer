@@ -39,6 +39,8 @@
   opt-in.
 - Gateway billable chat calls now fall back to end-user wallet balances when
   faucet grants cannot pay, with negative-balance prevention and ledger writes.
+- Added `@fountlayer/settlement` for deterministic ledger-period
+  reconciliation reports and CSV export hashes.
 - Root database scripts: `pnpm db:migrate`, `pnpm db:seed`, and `pnpm db:test:setup`.
 
 ## 0.1.0 - 2026-06-17
