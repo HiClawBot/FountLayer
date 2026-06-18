@@ -206,7 +206,13 @@ export type EndUserAnonymizationResult = {
   walletsAnonymized: number;
 };
 
+export type GatewayStoreHealth = {
+  component: "memory" | "postgres";
+  status: "ok";
+};
+
 export type GatewayStore = {
+  healthCheck(): Promise<GatewayStoreHealth>;
   createSession(input: {
     id: string;
     tokenHash: string;
@@ -849,6 +855,13 @@ export function createInMemoryGatewayStore(
   state: InMemoryGatewayState = createDefaultInMemoryGatewayState(),
 ): GatewayStore {
   return {
+    async healthCheck() {
+      return {
+        component: "memory",
+        status: "ok",
+      };
+    },
+
     async createSession(input) {
       const session: GatewaySessionRecord = {
         id: input.id,
@@ -1431,6 +1444,15 @@ async function insertLedgerEntries(
 
 export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
   return {
+    async healthCheck() {
+      await sql`select 1 as ok`;
+
+      return {
+        component: "postgres",
+        status: "ok",
+      };
+    },
+
     async createSession(input) {
       const rows = await sql<SessionRow[]>`
         with upsert_end_user as (

@@ -100,6 +100,10 @@ Retries happen before usage events or ledger entries are written. When a circuit
 is open, the Gateway rejects the request before adapter execution and before any
 usage or ledger write.
 
+`/health/dependencies` provides readiness checks for the active Store and any
+deployment-injected dependencies such as Redis or adapter-side probes. Failed
+checks return component status only and do not echo exception messages.
+
 ## Privacy And Retention
 
 FountLayer does not persist raw prompts or assistant outputs in the Gateway

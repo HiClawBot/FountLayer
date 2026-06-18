@@ -47,6 +47,8 @@
   breaker controls before usage or ledger writes.
 - Added `@fountlayer/privacy` and Admin privacy endpoints for request metadata
   retention purge and app-owned end-user identifier anonymization.
+- Added dependency health checks for Gateway Store plus injected adapter/Redis
+  checks without returning thrown error details.
 - Root database scripts: `pnpm db:migrate`, `pnpm db:seed`, and `pnpm db:test:setup`.
 
 ## 0.1.0 - 2026-06-17

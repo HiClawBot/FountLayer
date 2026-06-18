@@ -57,6 +57,23 @@ Response:
 }
 ```
 
+## GET /health/dependencies
+
+Returns readiness-style dependency checks without attribution or Admin auth.
+The default Store check reports `memory` or `postgres`; deployments can inject
+additional checks such as `adapter` and `redis`. Failed checks return
+`503 degraded` and component status only, not thrown exception messages.
+
+Response:
+
+```json
+{
+  "service": "fountlayer-gateway",
+  "status": "ok",
+  "checks": [{ "name": "store", "component": "postgres", "status": "ok" }]
+}
+```
+
 ## GET /v1/balance
 
 Returns wallet and faucet balances.

@@ -45,6 +45,8 @@ Provider API keys must never appear in SDK source code, frontend bundles, mobile
   be emitted.
 - Adapter retries and circuit breakers run before usage event or ledger writes,
   so failed retries and open circuits do not create billable records.
+- Dependency health checks must not return thrown error messages because those
+  messages may contain connection strings, tokens, or provider details.
 - Privacy retention purge clears request metadata from ledger entries without
   deleting usage events or money-movement ledger entries.
 - App-owned end-user anonymization replaces end-user identifiers with tombstone

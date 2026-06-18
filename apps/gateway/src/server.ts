@@ -75,6 +75,7 @@ type GatewayServerOptions = {
   adapterRetry?: RetryOptions;
   adminTokenHashes?: readonly string[];
   credentialCipher?: CredentialCipher;
+  dependencyHealthChecks?: Record<string, GatewayDependencyHealthCheck>;
   privacy?: GatewayPrivacyOptions;
   rateLimits?: GatewayRateLimitOptions;
   telemetrySink?: TelemetrySink;
@@ -88,6 +89,14 @@ export type GatewayRateLimitOptions = {
 
 export type GatewayPrivacyOptions = {
   requestMetadataRetentionDays?: number;
+};
+
+export type GatewayDependencyHealthCheck = () => Promise<void>;
+
+type GatewayDependencyHealthResult = {
+  component?: string;
+  name: string;
+  status: "error" | "ok";
 };
 
 declare module "fastify" {
@@ -808,6 +817,44 @@ async function recordTelemetry(
   await sink?.record(createTelemetryEvent(name, attributes));
 }
 
+async function runDependencyHealthChecks(
+  store: GatewayStore,
+  dependencyHealthChecks: Record<string, GatewayDependencyHealthCheck>,
+): Promise<GatewayDependencyHealthResult[]> {
+  const checks: GatewayDependencyHealthResult[] = [];
+
+  try {
+    const storeHealth = await store.healthCheck();
+    checks.push({
+      component: storeHealth.component,
+      name: "store",
+      status: storeHealth.status,
+    });
+  } catch {
+    checks.push({
+      name: "store",
+      status: "error",
+    });
+  }
+
+  for (const [name, check] of Object.entries(dependencyHealthChecks)) {
+    try {
+      await check();
+      checks.push({
+        name,
+        status: "ok",
+      });
+    } catch {
+      checks.push({
+        name,
+        status: "error",
+      });
+    }
+  }
+
+  return checks;
+}
+
 export function buildGatewayServer(
   store: GatewayStore = createInMemoryGatewayStore(),
   options: GatewayServerOptions = {},
@@ -819,6 +866,7 @@ export function buildGatewayServer(
     options.allowHostedByokCredentials ?? false;
   const adminTokenHashes = options.adminTokenHashes ?? [];
   const credentialCipher = options.credentialCipher;
+  const dependencyHealthChecks = options.dependencyHealthChecks ?? {};
   const privacy = options.privacy ?? {};
   const telemetrySink = options.telemetrySink;
   const rateLimits = {
@@ -875,6 +923,21 @@ export function buildGatewayServer(
     status: "ok",
     service: "fountlayer-gateway",
   }));
+
+  server.get("/health/dependencies", async (_request, reply) => {
+    const checks = await runDependencyHealthChecks(
+      store,
+      dependencyHealthChecks,
+    );
+    const healthy = checks.every((check) => check.status === "ok");
+    const payload = {
+      checks,
+      service: "fountlayer-gateway",
+      status: healthy ? "ok" : "degraded",
+    };
+
+    return healthy ? payload : reply.code(503).send(payload);
+  });
 
   server.addHook("preHandler", async (request, reply) => {
     if (request.url.startsWith("/admin/")) {

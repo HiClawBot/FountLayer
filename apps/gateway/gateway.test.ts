@@ -70,6 +70,80 @@ describe("gateway minimum API", () => {
     expect(response.headers["x-fl-request-id"]).toBeTruthy();
   });
 
+  it("reports dependency health without attribution", async () => {
+    const server = buildGatewayServer(undefined, {
+      dependencyHealthChecks: {
+        adapter: async () => {},
+        redis: async () => {},
+      },
+    });
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/health/dependencies",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      checks: [
+        {
+          component: "memory",
+          name: "store",
+          status: "ok",
+        },
+        {
+          name: "adapter",
+          status: "ok",
+        },
+        {
+          name: "redis",
+          status: "ok",
+        },
+      ],
+      service: "fountlayer-gateway",
+      status: "ok",
+    });
+  });
+
+  it("reports degraded dependencies without leaking failure details", async () => {
+    const server = buildGatewayServer(undefined, {
+      dependencyHealthChecks: {
+        adapter: async () => {
+          throw new Error("provider token provider-secret-placeholder leaked");
+        },
+        redis: async () => {},
+      },
+    });
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/health/dependencies",
+    });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({
+      checks: [
+        {
+          component: "memory",
+          name: "store",
+          status: "ok",
+        },
+        {
+          name: "adapter",
+          status: "error",
+        },
+        {
+          name: "redis",
+          status: "ok",
+        },
+      ],
+      service: "fountlayer-gateway",
+      status: "degraded",
+    });
+    expect(response.body).not.toContain("provider-secret-placeholder");
+    expect(response.body).not.toContain("provider token");
+  });
+
   it("rejects v1 requests missing attribution headers", async () => {
     const server = buildGatewayServer();
 
