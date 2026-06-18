@@ -49,6 +49,11 @@ Provider API keys must never appear in SDK source code, frontend bundles, mobile
 | BYOK hosted           | Encrypted server-side storage with explicit opt-in.             |
 | Local endpoint key    | User device or enterprise local environment.                    |
 
+`@fountlayer/credentials` provides the server-side AES-256-GCM encryption helper
+used as the local development foundation for encrypted credential storage. A
+production managed service should back the master key with KMS, Vault, or an
+equivalent envelope-encryption system.
+
 ## Required Controls
 
 - KMS/Vault or equivalent envelope encryption.

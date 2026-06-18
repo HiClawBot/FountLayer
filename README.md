@@ -218,6 +218,7 @@ fountlayer/
 │   ├── sdk-js/            # Browser/Node SDK
 │   ├── protocol/          # Shared OpenAPI schema and types
 │   ├── db/                # Drizzle schema, migration, and seed data
+│   ├── credentials/       # Server-side credential encryption helpers
 │   ├── pricing/           # Model price registry and estimator
 │   ├── faucet/            # Faucet grant matching and deduction
 │   ├── ledger/            # Double-entry ledger helpers
