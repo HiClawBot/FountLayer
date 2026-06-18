@@ -21,6 +21,8 @@
   PostgreSQL service.
 - Added `pnpm smoke:runtime` for Docker/Postgres-enabled runtime validation
   across Gateway, Admin API readback, and Console live pages.
+- Gateway startup now validates runtime configuration and rejects unsafe
+  production settings.
 - Root database scripts: `pnpm db:migrate`, `pnpm db:seed`, and `pnpm db:test:setup`.
 
 ## 0.1.0 - 2026-06-17

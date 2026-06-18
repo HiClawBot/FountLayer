@@ -27,6 +27,8 @@ Provider API keys must never appear in SDK source code, frontend bundles, mobile
   `FOUNTLAYER_ADMIN_TOKEN`, which is hashed at Gateway startup and never stored.
 - The Console may use `CONSOLE_GATEWAY_ADMIN_TOKEN` server-side for Admin API
   reads. Do not expose admin tokens through `NEXT_PUBLIC_*` variables.
+- Production Gateway startup must use `FOUNTLAYER_GATEWAY_STORE=postgres`, an
+  explicit non-local `DATABASE_URL`, and hashed admin token configuration.
 - App tokens, API key rotation UI, and production-grade tenant authentication are
   still planned work.
 

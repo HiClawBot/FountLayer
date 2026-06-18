@@ -158,6 +158,11 @@ Configure the Gateway with `FOUNTLAYER_ADMIN_TOKEN_SHA256` or
 `CONSOLE_GATEWAY_ADMIN_TOKEN`. Do not expose this token through `NEXT_PUBLIC_*`
 environment variables.
 
+For production-like Gateway startup, set `FOUNTLAYER_DEPLOYMENT_ENV=production`.
+The Gateway then fails fast unless it uses `FOUNTLAYER_GATEWAY_STORE=postgres`,
+an explicit non-local `DATABASE_URL`, and hashed admin tokens through
+`FOUNTLAYER_ADMIN_TOKEN_SHA256` or `FOUNTLAYER_ADMIN_TOKEN_HASHES`.
+
 ## SDK Example
 
 ```ts

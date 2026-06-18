@@ -1,35 +1,10 @@
-import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
 
 import { createDatabaseSql } from "@fountlayer/db";
 
+import { loadGatewayRuntimeConfig } from "./config.js";
 import { buildGatewayServer } from "./server.js";
 import { createPostgresGatewayStore } from "./store.js";
-
-const port = Number(process.env.PORT ?? process.env.GATEWAY_PORT ?? 8787);
-const host = process.env.GATEWAY_HOST ?? "0.0.0.0";
-const storeMode = process.env.FOUNTLAYER_GATEWAY_STORE ?? "memory";
-
-function hashToken(token: string): string {
-  return createHash("sha256").update(token).digest("hex");
-}
-
-function parseCsv(value: string | undefined): string[] {
-  return (
-    value
-      ?.split(",")
-      .map((item) => item.trim())
-      .filter(Boolean) ?? []
-  );
-}
-
-function adminTokenHashesFromEnv(): string[] {
-  return [
-    ...parseCsv(process.env.FOUNTLAYER_ADMIN_TOKEN_SHA256),
-    ...parseCsv(process.env.FOUNTLAYER_ADMIN_TOKEN_HASHES),
-    ...parseCsv(process.env.FOUNTLAYER_ADMIN_TOKEN).map(hashToken),
-  ];
-}
 
 function isDirectRun(metaUrl: string): boolean {
   const entrypoint = process.argv[1];
@@ -37,10 +12,11 @@ function isDirectRun(metaUrl: string): boolean {
 }
 
 if (isDirectRun(import.meta.url)) {
-  const sql = storeMode === "postgres" ? createDatabaseSql() : undefined;
+  const config = loadGatewayRuntimeConfig();
+  const sql = config.storeMode === "postgres" ? createDatabaseSql() : undefined;
   const server = buildGatewayServer(
     sql ? createPostgresGatewayStore(sql) : undefined,
-    { adminTokenHashes: adminTokenHashesFromEnv(), logger: true },
+    { adminTokenHashes: config.adminTokenHashes, logger: true },
   );
 
   if (sql) {
@@ -49,7 +25,7 @@ if (isDirectRun(import.meta.url)) {
     });
   }
 
-  await server.listen({ host, port });
+  await server.listen({ host: config.host, port: config.port });
 }
 
 export { buildGatewayServer };
