@@ -102,6 +102,34 @@ type RateLimitCounter = {
   resetAt: number;
 };
 
+type ChatCompletionResponse = {
+  billing: {
+    currency: string;
+    faucet_remaining: string;
+    ledger_entry_count: number;
+    paid_by: "faucet_grant";
+    retail_price: string;
+    upstream_cost: string;
+    usage_event_id: string;
+  };
+  choices: Array<{
+    finish_reason: string;
+    index: number;
+    message: {
+      content: string;
+      role: "assistant";
+    };
+  }>;
+  id: string;
+  model: string;
+  object: "chat.completion";
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+    total_tokens: number;
+  };
+};
+
 function createRateLimiter(now = () => Date.now()) {
   const counters = new Map<string, RateLimitCounter>();
 
@@ -140,6 +168,14 @@ function createRateLimiter(now = () => Date.now()) {
       return { allowed: true };
     },
   };
+}
+
+function parseIdempotencyKey(value: string | string[] | undefined) {
+  const key = Array.isArray(value) ? value[0] : value;
+
+  return typeof key === "string" && key.trim().length > 0
+    ? key.trim()
+    : undefined;
 }
 
 class DemoLocalAdapter implements LLMAdapter {
@@ -508,6 +544,7 @@ export function buildGatewayServer(
     ...options.rateLimits,
   };
   const rateLimiter = createRateLimiter();
+  const idempotencyCache = new Map<string, ChatCompletionResponse>();
   const server = Fastify({
     logger: options.logger
       ? {
@@ -533,6 +570,7 @@ export function buildGatewayServer(
       [
         "authorization",
         "content-type",
+        "idempotency-key",
         "x-fl-app-id",
         "x-fl-channel-id",
         "x-fl-end-user-id",
@@ -708,6 +746,20 @@ export function buildGatewayServer(
   server.post("/v1/chat/completions", async (request, reply) => {
     const attribution = requireRequestAttribution(request);
     const auth = requireRequestAuth(request);
+    const idempotencyKey = parseIdempotencyKey(
+      request.headers["idempotency-key"],
+    );
+    const idempotencyCacheKey = idempotencyKey
+      ? `${auth.sessionId}:${idempotencyKey}`
+      : undefined;
+    const cachedResponse = idempotencyCacheKey
+      ? idempotencyCache.get(idempotencyCacheKey)
+      : undefined;
+
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+
     const parsed = chatRequestSchema.safeParse(request.body);
 
     if (!parsed.success) {
@@ -864,7 +916,7 @@ export function buildGatewayServer(
       );
     }
 
-    return {
+    const response: ChatCompletionResponse = {
       id: requestId,
       object: "chat.completion",
       model: output.model,
@@ -893,6 +945,12 @@ export function buildGatewayServer(
         ledger_entry_count: ledgerEntries.length,
       },
     };
+
+    if (idempotencyCacheKey) {
+      idempotencyCache.set(idempotencyCacheKey, response);
+    }
+
+    return response;
   });
 
   server.get("/admin/apps", async () => ({

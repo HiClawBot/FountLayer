@@ -23,6 +23,11 @@ x-fl-mode: managed
 All Gateway responses include an `x-fl-request-id` response header for support,
 tracing, and reconciliation without logging raw prompts or outputs.
 
+`POST /v1/chat/completions` accepts an optional `idempotency-key` header. When a
+successful billable chat response has already been recorded for the same
+session/key pair, the Gateway returns the original response and does not create
+another usage event or ledger entry set.
+
 ## POST /v1/sessions
 
 Creates a session for an end user.

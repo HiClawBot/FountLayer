@@ -34,6 +34,8 @@ Provider API keys must never appear in SDK source code, frontend bundles, mobile
   usage events or ledger entries.
 - Gateway responses include `x-fl-request-id` so operators can correlate
   metadata-only logs without exposing raw prompts, outputs, or secrets.
+- Billable chat requests may use `idempotency-key` to make client retries return
+  the first successful response without duplicate usage or ledger records.
 - App tokens, API key rotation UI, and production-grade tenant authentication are
   still planned work.
 

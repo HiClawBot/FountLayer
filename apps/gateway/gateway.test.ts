@@ -401,4 +401,52 @@ describe("gateway minimum API", () => {
     expect(usageEvents.json().usage_events).toHaveLength(1);
     expect(ledger.json().ledger_entries).toHaveLength(4);
   });
+
+  it("replays idempotent billable chat responses without new usage or ledger records", async () => {
+    const server = buildGatewayServer(undefined, {
+      adminTokenHashes: [hashTestToken(adminToken)],
+    });
+    const headers = await createSessionHeaders(server);
+    const payload = {
+      model: "vertical/paper-summary",
+      messages: [{ role: "user", content: "Summarize this paper." }],
+    };
+    const first = await server.inject({
+      method: "POST",
+      url: "/v1/chat/completions",
+      headers: {
+        ...headers,
+        "idempotency-key": "idem_test_1",
+      },
+      payload,
+    });
+    const second = await server.inject({
+      method: "POST",
+      url: "/v1/chat/completions",
+      headers: {
+        ...headers,
+        "idempotency-key": "idem_test_1",
+      },
+      payload,
+    });
+    const usageEvents = await server.inject({
+      method: "GET",
+      url: "/admin/usage-events",
+      headers: adminHeaders,
+    });
+    const ledger = await server.inject({
+      method: "GET",
+      url: "/admin/ledger",
+      headers: adminHeaders,
+    });
+
+    expect(first.statusCode).toBe(200);
+    expect(second.statusCode).toBe(200);
+    expect(second.json().id).toBe(first.json().id);
+    expect(second.json().billing.usage_event_id).toBe(
+      first.json().billing.usage_event_id,
+    );
+    expect(usageEvents.json().usage_events).toHaveLength(1);
+    expect(ledger.json().ledger_entries).toHaveLength(4);
+  });
 });
