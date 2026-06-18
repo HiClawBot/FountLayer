@@ -299,6 +299,7 @@ Never embed real provider API keys in the SDK, frontend code, mobile app, deskto
 - [Data Model](./docs/DATA_MODEL.sql)
 - [Pricing and Ledger](./docs/PRICING_LEDGER.md)
 - [Security](./docs/SECURITY.md)
+- [Website](./docs/WEBSITE.md)
 - [Codex Tasks](./docs/CODEX_TASKS.md)
 - [Release Checklist](./docs/RELEASE_CHECKLIST.md)
 - [Release Notes v0.1.0](./docs/RELEASE_NOTES_v0.1.0.md)
