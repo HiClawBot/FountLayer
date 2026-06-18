@@ -85,6 +85,11 @@ Each report computes debit totals, credit totals, wallet net movement, reason
 totals, a balanced/unbalanced flag, deterministic CSV output, and a SHA-256
 content hash for reconciliation archives.
 
+The Worker registers a `settlement.export` job handler that accepts ledger
+entries plus a period and returns the same report, CSV, and content hash through
+the queue result. Job failures store a generic error code rather than raw
+exception text.
+
 ## User-facing Price Display
 
 Show at least:

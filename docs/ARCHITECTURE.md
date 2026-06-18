@@ -104,6 +104,10 @@ usage or ledger write.
 deployment-injected dependencies such as Redis or adapter-side probes. Failed
 checks return component status only and do not echo exception messages.
 
+The Worker includes an in-memory queue abstraction and a `settlement.export`
+handler that builds ledger-period reports and deterministic CSV exports. This is
+the local foundation for later Redis- or database-backed async job execution.
+
 ## Privacy And Retention
 
 FountLayer does not persist raw prompts or assistant outputs in the Gateway

@@ -116,7 +116,11 @@ importers:
         specifier: ^5.8.5
         version: 5.8.5
 
-  apps/worker: {}
+  apps/worker:
+    dependencies:
+      '@fountlayer/settlement':
+        specifier: workspace:*
+        version: link:../../packages/settlement
 
   packages/adapter-core:
     dependencies:

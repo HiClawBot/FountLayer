@@ -49,6 +49,8 @@
   retention purge and app-owned end-user identifier anonymization.
 - Added dependency health checks for Gateway Store plus injected adapter/Redis
   checks without returning thrown error details.
+- Added Worker in-memory job queue and `settlement.export` handler for
+  queue-backed settlement report and CSV export generation.
 - Root database scripts: `pnpm db:migrate`, `pnpm db:seed`, and `pnpm db:test:setup`.
 
 ## 0.1.0 - 2026-06-17

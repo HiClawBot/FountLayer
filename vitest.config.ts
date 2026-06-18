@@ -53,6 +53,10 @@ export default defineConfig({
         "./packages/sdk-js/src/index.ts",
         import.meta.url,
       ).pathname,
+      "@fountlayer/settlement": new URL(
+        "./packages/settlement/src/index.ts",
+        import.meta.url,
+      ).pathname,
     },
   },
   test: {

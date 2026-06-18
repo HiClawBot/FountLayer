@@ -8,5 +8,8 @@
     "clean": "rm -rf dist",
     "dev": "tsx src/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@fountlayer/settlement": "workspace:*"
   }
 }
