@@ -53,6 +53,40 @@ export type GatewayAdminCredentialRecord = {
   display: string;
 };
 
+export type GatewayProviderCredentialRecord = {
+  id: string;
+  ownerType: string;
+  ownerId: string;
+  provider: string;
+  encryptedApiKey: string;
+  keyVersion: string;
+  display: string;
+  status: "active" | "revoked";
+  budgetDaily?: string;
+  budgetMonthly?: string;
+  createdAt: string;
+  updatedAt?: string;
+};
+
+export type GatewayProviderCredentialWriteInput = {
+  budgetDaily?: string;
+  budgetMonthly?: string;
+  display: string;
+  encryptedApiKey: string;
+  id: string;
+  keyVersion: string;
+  ownerId: string;
+  ownerType: string;
+  provider: string;
+};
+
+export type GatewayProviderCredentialRotateInput = {
+  display: string;
+  encryptedApiKey: string;
+  id: string;
+  keyVersion: string;
+};
+
 export type GatewayAdminPricingPolicyRecord = {
   id: string;
   appId: string;
@@ -146,6 +180,13 @@ export type GatewayStore = {
   listFaucetGrants(): Promise<GatewayGrantRecord[]>;
   listRoutes(): Promise<GatewayAdminRouteRecord[]>;
   listProviderCredentials(): Promise<GatewayAdminCredentialRecord[]>;
+  createProviderCredential(
+    input: GatewayProviderCredentialWriteInput,
+  ): Promise<GatewayAdminCredentialRecord>;
+  rotateProviderCredential(
+    input: GatewayProviderCredentialRotateInput,
+  ): Promise<GatewayAdminCredentialRecord | undefined>;
+  deleteProviderCredential(id: string): Promise<boolean>;
   listPricingPolicies(): Promise<GatewayAdminPricingPolicyRecord[]>;
   listUsageEvents(): Promise<UsageEventRecord[]>;
   listLedgerEntries(): Promise<LedgerEntryRecord[]>;
@@ -155,6 +196,7 @@ export type InMemoryGatewayState = {
   apps: Map<string, GatewayAppRecord>;
   channels: Map<string, GatewayChannelRecord>;
   faucetGrants: GatewayGrantRecord[];
+  providerCredentials: GatewayProviderCredentialRecord[];
   usageEvents: UsageEventRecord[];
   ledgerEntries: LedgerEntryRecord[];
   sessions: GatewaySessionRecord[];
@@ -245,10 +287,15 @@ type AdminRouteRow = {
 };
 
 type AdminCredentialRow = {
+  display: string;
+  encrypted_api_key: string;
   id: string;
+  key_version: string;
   owner_type: string;
   owner_id: string;
   provider: string;
+  budget_daily: string | null;
+  budget_monthly: string | null;
   status: string;
 };
 
@@ -348,6 +395,7 @@ export function createDefaultInMemoryGatewayState(): InMemoryGatewayState {
     apps: new Map([[defaultApp.id, { ...defaultApp }]]),
     channels: new Map([[defaultChannel.id, { ...defaultChannel }]]),
     faucetGrants: [{ ...defaultGrant }],
+    providerCredentials: [],
     usageEvents: [],
     ledgerEntries: [],
     sessions: [],
@@ -492,6 +540,19 @@ function mapAdminPricingPolicyRow(
     developerMarkupRate: percent(row.developer_markup_rate),
     channelMarkupRate: percent(row.channel_markup_rate),
     maxTotalMarkupRate: percent(row.max_total_markup_rate),
+  };
+}
+
+function mapProviderCredentialRecord(
+  credential: GatewayProviderCredentialRecord,
+): GatewayAdminCredentialRecord {
+  return {
+    id: credential.id,
+    owner: `${credential.ownerType}:${credential.ownerId}`,
+    provider: credential.provider,
+    storage: `server-side encrypted:${credential.keyVersion}`,
+    status: credential.status,
+    display: credential.display,
   };
 }
 
@@ -700,7 +761,60 @@ export function createInMemoryGatewayStore(
     },
 
     async listProviderCredentials() {
-      return [{ ...defaultCredential }];
+      return state.providerCredentials.length > 0
+        ? state.providerCredentials.map(mapProviderCredentialRecord)
+        : [{ ...defaultCredential }];
+    },
+
+    async createProviderCredential(input) {
+      const now = new Date().toISOString();
+      const credential: GatewayProviderCredentialRecord = {
+        ...input,
+        status: "active",
+        createdAt: now,
+      };
+
+      state.providerCredentials.push(credential);
+
+      return mapProviderCredentialRecord(credential);
+    },
+
+    async rotateProviderCredential(input) {
+      const index = state.providerCredentials.findIndex(
+        (candidate) => candidate.id === input.id,
+      );
+
+      if (index === -1) {
+        return undefined;
+      }
+
+      const credential = state.providerCredentials[index];
+
+      if (!credential) {
+        return undefined;
+      }
+
+      const updatedCredential: GatewayProviderCredentialRecord = {
+        ...credential,
+        display: input.display,
+        encryptedApiKey: input.encryptedApiKey,
+        keyVersion: input.keyVersion,
+        status: "active",
+        updatedAt: new Date().toISOString(),
+      };
+
+      state.providerCredentials[index] = updatedCredential;
+
+      return mapProviderCredentialRecord(updatedCredential);
+    },
+
+    async deleteProviderCredential(id) {
+      const originalLength = state.providerCredentials.length;
+      state.providerCredentials = state.providerCredentials.filter(
+        (credential) => credential.id !== id,
+      );
+
+      return state.providerCredentials.length !== originalLength;
     },
 
     async listPricingPolicies() {
@@ -1191,7 +1305,17 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
 
     async listProviderCredentials() {
       const rows = await sql<AdminCredentialRow[]>`
-        select id, owner_type, owner_id, provider, status
+        select
+          id,
+          owner_type,
+          owner_id,
+          provider,
+          encrypted_api_key,
+          key_version,
+          display,
+          budget_daily_numeric::text as budget_daily,
+          budget_monthly_numeric::text as budget_monthly,
+          status
         from provider_credentials
         order by created_at desc, id asc
       `;
@@ -1200,14 +1324,133 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
         return [{ ...defaultCredential }];
       }
 
-      return rows.map((row) => ({
+      return rows.map((row) =>
+        mapProviderCredentialRecord({
+          id: row.id,
+          ownerType: row.owner_type,
+          ownerId: row.owner_id,
+          provider: row.provider,
+          encryptedApiKey: row.encrypted_api_key,
+          keyVersion: row.key_version,
+          display: row.display,
+          status:
+            row.status === "revoked" || row.status === "active"
+              ? row.status
+              : "revoked",
+          budgetDaily: row.budget_daily ?? undefined,
+          budgetMonthly: row.budget_monthly ?? undefined,
+          createdAt: new Date().toISOString(),
+        }),
+      );
+    },
+
+    async createProviderCredential(input) {
+      const rows = await sql<AdminCredentialRow[]>`
+        insert into provider_credentials (
+          id,
+          owner_type,
+          owner_id,
+          provider,
+          encrypted_api_key,
+          key_version,
+          display,
+          budget_daily_numeric,
+          budget_monthly_numeric,
+          status
+        )
+        values (
+          ${input.id},
+          ${input.ownerType},
+          ${input.ownerId},
+          ${input.provider},
+          ${input.encryptedApiKey},
+          ${input.keyVersion},
+          ${input.display},
+          ${input.budgetDaily ?? null},
+          ${input.budgetMonthly ?? null},
+          'active'
+        )
+        returning
+          id,
+          owner_type,
+          owner_id,
+          provider,
+          encrypted_api_key,
+          key_version,
+          display,
+          budget_daily_numeric::text as budget_daily,
+          budget_monthly_numeric::text as budget_monthly,
+          status
+      `;
+      const row = rows[0];
+
+      if (!row) {
+        throw new Error("Provider credential was not created.");
+      }
+
+      return mapProviderCredentialRecord({
         id: row.id,
-        owner: `${row.owner_type}:${row.owner_id}`,
+        ownerType: row.owner_type,
+        ownerId: row.owner_id,
         provider: row.provider,
-        storage: "server-side encrypted",
-        status: row.status,
-        display: "configured",
-      }));
+        encryptedApiKey: row.encrypted_api_key,
+        keyVersion: row.key_version,
+        display: row.display,
+        status: row.status === "active" ? "active" : "revoked",
+        budgetDaily: row.budget_daily ?? undefined,
+        budgetMonthly: row.budget_monthly ?? undefined,
+        createdAt: new Date().toISOString(),
+      });
+    },
+
+    async rotateProviderCredential(input) {
+      const rows = await sql<AdminCredentialRow[]>`
+        update provider_credentials
+        set
+          encrypted_api_key = ${input.encryptedApiKey},
+          key_version = ${input.keyVersion},
+          display = ${input.display},
+          status = 'active'
+        where id = ${input.id}
+        returning
+          id,
+          owner_type,
+          owner_id,
+          provider,
+          encrypted_api_key,
+          key_version,
+          display,
+          budget_daily_numeric::text as budget_daily,
+          budget_monthly_numeric::text as budget_monthly,
+          status
+      `;
+      const row = rows[0];
+
+      return row
+        ? mapProviderCredentialRecord({
+            id: row.id,
+            ownerType: row.owner_type,
+            ownerId: row.owner_id,
+            provider: row.provider,
+            encryptedApiKey: row.encrypted_api_key,
+            keyVersion: row.key_version,
+            display: row.display,
+            status: row.status === "active" ? "active" : "revoked",
+            budgetDaily: row.budget_daily ?? undefined,
+            budgetMonthly: row.budget_monthly ?? undefined,
+            createdAt: new Date().toISOString(),
+          })
+        : undefined;
+    },
+
+    async deleteProviderCredential(id) {
+      const rows = await sql<Array<{ id: string }>>`
+        delete from provider_credentials
+        where id = ${id}
+        returning id
+      `;
+
+      return rows.length > 0;
     },
 
     async listPricingPolicies() {

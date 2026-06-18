@@ -85,6 +85,9 @@ importers:
       '@fountlayer/adapter-core':
         specifier: workspace:*
         version: link:../../packages/adapter-core
+      '@fountlayer/credentials':
+        specifier: workspace:*
+        version: link:../../packages/credentials
       '@fountlayer/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -126,6 +129,8 @@ importers:
       '@fountlayer/adapter-litellm':
         specifier: workspace:*
         version: link:../adapter-litellm
+
+  packages/credentials: {}
 
   packages/db:
     dependencies:

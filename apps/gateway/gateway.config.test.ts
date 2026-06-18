@@ -8,13 +8,22 @@ function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
+function credentialMasterKeyEnv(): string {
+  return `base64:${Buffer.alloc(32, 9).toString("base64")}`;
+}
+
 describe("gateway runtime config", () => {
   it("loads development defaults with a local admin token", () => {
     const config = loadGatewayRuntimeConfig({
       FOUNTLAYER_ADMIN_TOKEN: "fl_admin_local",
+      FOUNTLAYER_CREDENTIAL_MASTER_KEY: credentialMasterKeyEnv(),
+      FOUNTLAYER_CREDENTIAL_KEY_VERSION: "test-v1",
     });
 
     expect(config).toMatchObject({
+      credentialEncryption: {
+        keyVersion: "test-v1",
+      },
       deploymentEnv: "development",
       host: "0.0.0.0",
       isProduction: false,
@@ -28,6 +37,9 @@ describe("gateway runtime config", () => {
     });
     expect(config.adminTokenHashes).toHaveLength(1);
     expect(config.adminTokenHashes[0]).toHaveLength(64);
+    expect(config.credentialEncryption?.masterKey).toBe(
+      credentialMasterKeyEnv(),
+    );
   });
 
   it("supports comma-separated admin token hashes", () => {
@@ -64,6 +76,14 @@ describe("gateway runtime config", () => {
     ).toThrow("must be a positive integer");
   });
 
+  it("rejects invalid credential master keys", () => {
+    expect(() =>
+      loadGatewayRuntimeConfig({
+        FOUNTLAYER_CREDENTIAL_MASTER_KEY: "too-short",
+      }),
+    ).toThrow("Invalid FOUNTLAYER_CREDENTIAL_MASTER_KEY");
+  });
+
   it("rejects non-hash admin token values in hash variables", () => {
     expect(() =>
       loadGatewayRuntimeConfig({
@@ -87,6 +107,7 @@ describe("gateway runtime config", () => {
       loadGatewayRuntimeConfig({
         DATABASE_URL: "postgres://user:pass@db.example/fountlayer",
         FOUNTLAYER_ADMIN_TOKEN: "fl_admin_prod",
+        FOUNTLAYER_CREDENTIAL_MASTER_KEY: credentialMasterKeyEnv(),
         FOUNTLAYER_DEPLOYMENT_ENV: "production",
         FOUNTLAYER_GATEWAY_STORE: "postgres",
       }),
@@ -98,6 +119,7 @@ describe("gateway runtime config", () => {
       loadGatewayRuntimeConfig({
         DATABASE_URL: "postgres://user:pass@db.example/fountlayer",
         FOUNTLAYER_ADMIN_TOKEN_SHA256: hashToken("change_me_admin_token"),
+        FOUNTLAYER_CREDENTIAL_MASTER_KEY: credentialMasterKeyEnv(),
         FOUNTLAYER_DEPLOYMENT_ENV: "production",
         FOUNTLAYER_GATEWAY_STORE: "postgres",
       }),
@@ -109,10 +131,22 @@ describe("gateway runtime config", () => {
       loadGatewayRuntimeConfig({
         DATABASE_URL: "postgres://postgres:postgres@localhost:5432/fountlayer",
         FOUNTLAYER_ADMIN_TOKEN_SHA256: hashToken("fl_admin_prod"),
+        FOUNTLAYER_CREDENTIAL_MASTER_KEY: credentialMasterKeyEnv(),
         FOUNTLAYER_DEPLOYMENT_ENV: "production",
         FOUNTLAYER_GATEWAY_STORE: "postgres",
       }),
     ).toThrow("requires an explicit non-local DATABASE_URL");
+  });
+
+  it("requires credential encryption in production", () => {
+    expect(() =>
+      loadGatewayRuntimeConfig({
+        DATABASE_URL: "postgres://user:pass@db.example/fountlayer",
+        FOUNTLAYER_ADMIN_TOKEN_SHA256: hashToken("fl_admin_prod"),
+        FOUNTLAYER_DEPLOYMENT_ENV: "production",
+        FOUNTLAYER_GATEWAY_STORE: "postgres",
+      }),
+    ).toThrow("requires FOUNTLAYER_CREDENTIAL_MASTER_KEY");
   });
 
   it("loads production config when required controls are set", () => {
@@ -120,6 +154,7 @@ describe("gateway runtime config", () => {
     const config = loadGatewayRuntimeConfig({
       DATABASE_URL: "postgres://user:pass@db.example/fountlayer",
       FOUNTLAYER_ADMIN_TOKEN_SHA256: adminHash,
+      FOUNTLAYER_CREDENTIAL_MASTER_KEY: credentialMasterKeyEnv(),
       FOUNTLAYER_DEPLOYMENT_ENV: "production",
       FOUNTLAYER_GATEWAY_STORE: "postgres",
       GATEWAY_HOST: "127.0.0.1",
@@ -128,6 +163,9 @@ describe("gateway runtime config", () => {
 
     expect(config).toMatchObject({
       adminTokenHashes: [adminHash],
+      credentialEncryption: {
+        keyVersion: "local-v1",
+      },
       deploymentEnv: "production",
       host: "127.0.0.1",
       isProduction: true,

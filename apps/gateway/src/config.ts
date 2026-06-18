@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import { createCredentialCipher } from "@fountlayer/credentials";
 import { defaultDatabaseUrl } from "@fountlayer/db";
 
 import type { GatewayRateLimitOptions } from "./server.js";
@@ -8,6 +9,10 @@ export type GatewayStoreMode = "memory" | "postgres";
 
 export type GatewayRuntimeConfig = {
   adminTokenHashes: string[];
+  credentialEncryption?: {
+    keyVersion: string;
+    masterKey: string;
+  };
   deploymentEnv: string;
   host: string;
   isProduction: boolean;
@@ -81,6 +86,34 @@ function parsePositiveInteger(
   return value;
 }
 
+function parseCredentialEncryption(
+  env: GatewayEnv,
+): GatewayRuntimeConfig["credentialEncryption"] {
+  const masterKey = env.FOUNTLAYER_CREDENTIAL_MASTER_KEY?.trim();
+
+  if (!masterKey) {
+    return undefined;
+  }
+
+  const keyVersion =
+    env.FOUNTLAYER_CREDENTIAL_KEY_VERSION?.trim() || "local-v1";
+
+  try {
+    createCredentialCipher({ keyVersion, masterKey });
+  } catch (error) {
+    throw new Error(
+      `Invalid FOUNTLAYER_CREDENTIAL_MASTER_KEY: ${
+        error instanceof Error ? error.message : "credential key rejected"
+      }`,
+    );
+  }
+
+  return {
+    keyVersion,
+    masterKey,
+  };
+}
+
 function adminTokenHashesFromEnv(env: GatewayEnv): string[] {
   const configuredHashes = [
     ...parseCsv(env.FOUNTLAYER_ADMIN_TOKEN_SHA256),
@@ -134,6 +167,12 @@ function assertProductionSafe(env: GatewayEnv, config: GatewayRuntimeConfig) {
       "Production Gateway runtime requires an explicit non-local DATABASE_URL.",
     );
   }
+
+  if (!config.credentialEncryption) {
+    throw new Error(
+      "Production Gateway runtime requires FOUNTLAYER_CREDENTIAL_MASTER_KEY for encrypted credential storage.",
+    );
+  }
 }
 
 export function loadGatewayRuntimeConfig(
@@ -143,6 +182,7 @@ export function loadGatewayRuntimeConfig(
     env.FOUNTLAYER_DEPLOYMENT_ENV ?? env.NODE_ENV ?? "development";
   const config: GatewayRuntimeConfig = {
     adminTokenHashes: adminTokenHashesFromEnv(env),
+    credentialEncryption: parseCredentialEncryption(env),
     deploymentEnv,
     host: env.GATEWAY_HOST ?? "0.0.0.0",
     isProduction: deploymentEnv === "production",

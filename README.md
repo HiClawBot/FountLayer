@@ -161,7 +161,10 @@ environment variables.
 For production-like Gateway startup, set `FOUNTLAYER_DEPLOYMENT_ENV=production`.
 The Gateway then fails fast unless it uses `FOUNTLAYER_GATEWAY_STORE=postgres`,
 an explicit non-local `DATABASE_URL`, and hashed admin tokens through
-`FOUNTLAYER_ADMIN_TOKEN_SHA256` or `FOUNTLAYER_ADMIN_TOKEN_HASHES`.
+`FOUNTLAYER_ADMIN_TOKEN_SHA256` or `FOUNTLAYER_ADMIN_TOKEN_HASHES`. Production
+startup also requires `FOUNTLAYER_CREDENTIAL_MASTER_KEY`, a 32-byte credential
+encryption master key such as `base64:<32-byte-random-key>`, plus an optional
+`FOUNTLAYER_CREDENTIAL_KEY_VERSION`.
 
 Gateway billable chat calls are protected by simple windowed caps. Tune
 `FOUNTLAYER_BILLABLE_RATE_WINDOW_MS`,
@@ -252,9 +255,9 @@ The first public version proves the full commercial loop:
 - Wallet-funded calls, hosted BYOK, settlement jobs, OpenMeter, and Lago adapters
   are planned after the faucet-funded loop.
 - This release is not production-ready for a hosted managed service. Add
-  persistent authentication, abuse controls, rate limits, encrypted provider
-  key storage, privacy/terms documents, provider terms review, and payment/tax
-  review before public managed hosting.
+  persistent authentication, managed KMS/Vault backing for credential keys,
+  broader abuse controls, privacy/terms documents, provider terms review, and
+  payment/tax review before public managed hosting.
 
 ## Security Rule Zero
 

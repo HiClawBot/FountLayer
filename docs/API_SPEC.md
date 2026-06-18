@@ -163,6 +163,9 @@ GET    /admin/channels
 GET    /admin/faucet-grants
 GET    /admin/routes
 GET    /admin/provider-credentials
+POST   /admin/provider-credentials
+PATCH  /admin/provider-credentials/:id/rotate
+DELETE /admin/provider-credentials/:id
 GET    /admin/pricing-policies
 GET    /admin/usage-events
 GET    /admin/ledger
@@ -171,6 +174,39 @@ GET    /admin/ledger
 The v0.2.0-alpha Console can read these endpoints directly for live usage and
 ledger, registry, faucet, route, pricing, and credential-metadata views when
 its server-side admin token is configured.
+
+Credential writes require `FOUNTLAYER_CREDENTIAL_MASTER_KEY` on the Gateway.
+Create and rotate requests include plaintext provider keys only in the
+authenticated Admin request body; responses return metadata only and never
+include plaintext keys or encrypted ciphertext. The `display` value is generated
+by the Gateway as a masked value, not accepted from callers.
+
+Create credential request:
+
+```json
+{
+  "ownerType": "developer",
+  "ownerId": "dev_demo",
+  "provider": "demo",
+  "apiKey": "provider-secret-placeholder",
+  "budgetDaily": "1.25000000"
+}
+```
+
+Create/rotate response:
+
+```json
+{
+  "credential": {
+    "id": "cred_123",
+    "owner": "developer:dev_demo",
+    "provider": "demo",
+    "storage": "server-side encrypted:local-v1",
+    "status": "active",
+    "display": "prov...lder"
+  }
+}
+```
 
 Planned:
 

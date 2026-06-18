@@ -30,6 +30,8 @@
   successful responses without duplicate usage or ledger records.
 - Added `@fountlayer/credentials` with server-side AES-256-GCM credential
   encryption helpers.
+- Added authenticated Admin API provider credential create, rotate, and delete
+  flows backed by server-side encrypted storage metadata.
 - Root database scripts: `pnpm db:migrate`, `pnpm db:seed`, and `pnpm db:test:setup`.
 
 ## 0.1.0 - 2026-06-17

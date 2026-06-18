@@ -17,6 +17,10 @@ export default defineConfig({
       ).pathname,
       "@fountlayer/db": new URL("./packages/db/src/index.ts", import.meta.url)
         .pathname,
+      "@fountlayer/credentials": new URL(
+        "./packages/credentials/src/index.ts",
+        import.meta.url,
+      ).pathname,
       "@fountlayer/faucet": new URL(
         "./packages/faucet/src/index.ts",
         import.meta.url,

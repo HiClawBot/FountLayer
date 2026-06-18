@@ -11,6 +11,7 @@ import {
   type LLMAdapter,
   estimateAdapterUsage,
 } from "@fountlayer/adapter-core";
+import { type CredentialCipher, maskCredential } from "@fountlayer/credentials";
 import {
   createBalancedLedgerEntries,
   createUsageEvent,
@@ -53,6 +54,7 @@ type GatewayServerOptions = {
   logger?: boolean;
   adapter?: LLMAdapter;
   adminTokenHashes?: readonly string[];
+  credentialCipher?: CredentialCipher;
   rateLimits?: GatewayRateLimitOptions;
 };
 
@@ -129,6 +131,108 @@ type ChatCompletionResponse = {
     total_tokens: number;
   };
 };
+
+type ProviderCredentialCreateBody = {
+  apiKey: string;
+  budgetDaily?: string;
+  budgetMonthly?: string;
+  ownerId: string;
+  ownerType: string;
+  provider: string;
+};
+
+type ProviderCredentialRotateBody = {
+  apiKey: string;
+};
+
+function recordFromBody(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function requiredBodyString(
+  body: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const value = body[key];
+
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim()
+    : undefined;
+}
+
+function optionalMoneyString(
+  body: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const value = body[key];
+
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+
+  if (typeof value !== "string" || !/^\d+(\.\d{1,8})?$/.test(value)) {
+    throw new Error(`${key} must be a decimal string with up to 8 places.`);
+  }
+
+  return value;
+}
+
+function parseProviderCredentialCreateBody(
+  value: unknown,
+): ProviderCredentialCreateBody | undefined {
+  const body = recordFromBody(value);
+
+  if (!body) {
+    return undefined;
+  }
+
+  const ownerType = requiredBodyString(body, "ownerType");
+  const ownerId = requiredBodyString(body, "ownerId");
+  const provider = requiredBodyString(body, "provider");
+  const apiKey = requiredBodyString(body, "apiKey");
+
+  if (!ownerType || !ownerId || !provider || !apiKey) {
+    return undefined;
+  }
+
+  return {
+    apiKey,
+    budgetDaily: optionalMoneyString(body, "budgetDaily"),
+    budgetMonthly: optionalMoneyString(body, "budgetMonthly"),
+    ownerId,
+    ownerType,
+    provider,
+  };
+}
+
+function parseProviderCredentialRotateBody(
+  value: unknown,
+): ProviderCredentialRotateBody | undefined {
+  const body = recordFromBody(value);
+
+  if (!body) {
+    return undefined;
+  }
+
+  const apiKey = requiredBodyString(body, "apiKey");
+
+  if (!apiKey) {
+    return undefined;
+  }
+
+  return {
+    apiKey,
+  };
+}
+
+function credentialIdFromParams(params: unknown): string | undefined {
+  const record = recordFromBody(params);
+  const id = record?.id;
+
+  return typeof id === "string" && id.trim().length > 0 ? id.trim() : undefined;
+}
 
 function createRateLimiter(now = () => Date.now()) {
   const counters = new Map<string, RateLimitCounter>();
@@ -539,6 +643,7 @@ export function buildGatewayServer(
 ): FastifyInstance {
   const adapter = options.adapter ?? new DemoLocalAdapter();
   const adminTokenHashes = options.adminTokenHashes ?? [];
+  const credentialCipher = options.credentialCipher;
   const rateLimits = {
     ...defaultRateLimits,
     ...options.rateLimits,
@@ -579,7 +684,10 @@ export function buildGatewayServer(
       ].join(", "),
     );
     reply.header("access-control-expose-headers", "x-fl-request-id");
-    reply.header("access-control-allow-methods", "GET, POST, PATCH, OPTIONS");
+    reply.header(
+      "access-control-allow-methods",
+      "DELETE, GET, PATCH, POST, OPTIONS",
+    );
 
     if (request.method === "OPTIONS") {
       return reply.code(204).send();
@@ -972,6 +1080,178 @@ export function buildGatewayServer(
   server.get("/admin/provider-credentials", async () => ({
     credentials: await store.listProviderCredentials(),
   }));
+
+  server.post("/admin/provider-credentials", async (request, reply) => {
+    if (!credentialCipher) {
+      return jsonError(
+        reply,
+        503,
+        "credential_encryption_not_configured",
+        "Credential encryption is not configured for this Gateway.",
+      );
+    }
+
+    let parsed: ProviderCredentialCreateBody | undefined;
+
+    try {
+      parsed = parseProviderCredentialCreateBody(request.body);
+    } catch (error) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_provider_credential",
+        "Provider credential request is invalid.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+
+    if (!parsed) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_provider_credential",
+        "Provider credential request must include ownerType, ownerId, provider, and apiKey.",
+      );
+    }
+
+    const id = `cred_${randomUUID()}`;
+    const encrypted = credentialCipher.encrypt(parsed.apiKey, id);
+
+    try {
+      const credential = await store.createProviderCredential({
+        budgetDaily: parsed.budgetDaily,
+        budgetMonthly: parsed.budgetMonthly,
+        display: maskCredential(parsed.apiKey),
+        encryptedApiKey: encrypted.ciphertext,
+        id,
+        keyVersion: encrypted.keyVersion,
+        ownerId: parsed.ownerId,
+        ownerType: parsed.ownerType,
+        provider: parsed.provider,
+      });
+
+      return reply.code(201).send({ credential });
+    } catch (error) {
+      return jsonError(
+        reply,
+        500,
+        "store_error",
+        "Gateway store failed while creating a provider credential.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+  });
+
+  server.patch<{
+    Params: { id: string };
+  }>("/admin/provider-credentials/:id/rotate", async (request, reply) => {
+    if (!credentialCipher) {
+      return jsonError(
+        reply,
+        503,
+        "credential_encryption_not_configured",
+        "Credential encryption is not configured for this Gateway.",
+      );
+    }
+
+    const id = credentialIdFromParams(request.params);
+
+    if (!id) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_provider_credential",
+        "Credential id is required.",
+      );
+    }
+
+    let parsed: ProviderCredentialRotateBody | undefined;
+
+    try {
+      parsed = parseProviderCredentialRotateBody(request.body);
+    } catch (error) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_provider_credential",
+        "Provider credential rotation request is invalid.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+
+    if (!parsed) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_provider_credential",
+        "Provider credential rotation request must include apiKey.",
+      );
+    }
+
+    const encrypted = credentialCipher.encrypt(parsed.apiKey, id);
+
+    try {
+      const credential = await store.rotateProviderCredential({
+        display: maskCredential(parsed.apiKey),
+        encryptedApiKey: encrypted.ciphertext,
+        id,
+        keyVersion: encrypted.keyVersion,
+      });
+
+      return credential
+        ? { credential }
+        : jsonError(
+            reply,
+            404,
+            "provider_credential_not_found",
+            "Provider credential was not found.",
+          );
+    } catch (error) {
+      return jsonError(
+        reply,
+        500,
+        "store_error",
+        "Gateway store failed while rotating a provider credential.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+  });
+
+  server.delete<{
+    Params: { id: string };
+  }>("/admin/provider-credentials/:id", async (request, reply) => {
+    const id = credentialIdFromParams(request.params);
+
+    if (!id) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_provider_credential",
+        "Credential id is required.",
+      );
+    }
+
+    try {
+      const deleted = await store.deleteProviderCredential(id);
+
+      return deleted
+        ? reply.code(204).send()
+        : jsonError(
+            reply,
+            404,
+            "provider_credential_not_found",
+            "Provider credential was not found.",
+          );
+    } catch (error) {
+      return jsonError(
+        reply,
+        500,
+        "store_error",
+        "Gateway store failed while deleting a provider credential.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+  });
 
   server.get("/admin/pricing-policies", async () => ({
     pricing_policies: await store.listPricingPolicies(),

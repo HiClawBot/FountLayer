@@ -91,6 +91,8 @@ create table provider_credentials (
   owner_id text not null,
   provider text not null,
   encrypted_api_key text not null,
+  key_version text not null default 'local-v1',
+  display text not null default 'configured',
   status text not null default 'active',
   budget_daily_numeric numeric(18,8),
   budget_monthly_numeric numeric(18,8),

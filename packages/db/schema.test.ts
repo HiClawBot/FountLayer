@@ -69,6 +69,17 @@ describe("database migration", () => {
       "create index idx_sessions_token_hash on sessions(token_hash)",
     );
   });
+
+  it("stores provider credentials as encrypted server-side material plus safe metadata", () => {
+    expect(migrationSql).toContain("create table provider_credentials");
+    expect(migrationSql).toContain("encrypted_api_key text not null");
+    expect(migrationSql).toContain(
+      "key_version text not null default 'local-v1'",
+    );
+    expect(migrationSql).toContain(
+      "display text not null default 'configured'",
+    );
+  });
 });
 
 describe("drizzle schema exports", () => {

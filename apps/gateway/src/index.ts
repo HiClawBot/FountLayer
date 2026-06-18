@@ -1,5 +1,6 @@
 import { pathToFileURL } from "node:url";
 
+import { createCredentialCipher } from "@fountlayer/credentials";
 import { createDatabaseSql } from "@fountlayer/db";
 
 import { loadGatewayRuntimeConfig } from "./config.js";
@@ -14,10 +15,14 @@ function isDirectRun(metaUrl: string): boolean {
 if (isDirectRun(import.meta.url)) {
   const config = loadGatewayRuntimeConfig();
   const sql = config.storeMode === "postgres" ? createDatabaseSql() : undefined;
+  const credentialCipher = config.credentialEncryption
+    ? createCredentialCipher(config.credentialEncryption)
+    : undefined;
   const server = buildGatewayServer(
     sql ? createPostgresGatewayStore(sql) : undefined,
     {
       adminTokenHashes: config.adminTokenHashes,
+      credentialCipher,
       logger: true,
       rateLimits: config.rateLimits,
     },

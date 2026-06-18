@@ -153,6 +153,8 @@ export const providerCredentials = pgTable("provider_credentials", {
   ownerId: text("owner_id").notNull(),
   provider: text("provider").notNull(),
   encryptedApiKey: text("encrypted_api_key").notNull(),
+  keyVersion: text("key_version").notNull().default("local-v1"),
+  display: text("display").notNull().default("configured"),
   status: text("status").notNull().default("active"),
   budgetDailyNumeric: numeric("budget_daily_numeric", {
     precision: 18,

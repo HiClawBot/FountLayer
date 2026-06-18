@@ -2,9 +2,14 @@ import { createHash } from "node:crypto";
 
 import { describe, expect, it } from "vitest";
 
+import { createCredentialCipher } from "@fountlayer/credentials";
 import { createFountLayer } from "@fountlayer/sdk-js";
 
 import { buildGatewayServer } from "./src/server";
+import {
+  createDefaultInMemoryGatewayState,
+  createInMemoryGatewayStore,
+} from "./src/store";
 
 const attributionHeaders = {
   authorization: "Bearer fl_test_token",
@@ -18,6 +23,7 @@ const adminToken = "fl_admin_test_token";
 const adminHeaders = {
   authorization: `Bearer ${adminToken}`,
 };
+const credentialMasterKey = Buffer.alloc(32, 7);
 
 function hashTestToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -191,6 +197,138 @@ describe("gateway minimum API", () => {
       expect(response.statusCode).toBe(200);
       expect(response.json()[key]).toHaveLength(1);
     }
+  });
+
+  it("rejects provider credential writes when encryption is not configured", async () => {
+    const server = buildGatewayServer(undefined, {
+      adminTokenHashes: [hashTestToken(adminToken)],
+    });
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/admin/provider-credentials",
+      headers: adminHeaders,
+      payload: {
+        apiKey: "provider-secret-placeholder",
+        ownerId: "dev_demo",
+        ownerType: "developer",
+        provider: "demo",
+      },
+    });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json().error.code).toBe(
+      "credential_encryption_not_configured",
+    );
+  });
+
+  it("creates encrypted provider credentials without returning secrets", async () => {
+    const state = createDefaultInMemoryGatewayState();
+    const cipher = createCredentialCipher({
+      keyVersion: "test-v1",
+      masterKey: credentialMasterKey,
+    });
+    const server = buildGatewayServer(createInMemoryGatewayStore(state), {
+      adminTokenHashes: [hashTestToken(adminToken)],
+      credentialCipher: cipher,
+    });
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/admin/provider-credentials",
+      headers: adminHeaders,
+      payload: {
+        apiKey: "provider-secret-placeholder",
+        budgetDaily: "1.25000000",
+        display: "provider-secret-placeholder",
+        ownerId: "dev_demo",
+        ownerType: "developer",
+        provider: "demo",
+      },
+    });
+    const bodyText = response.body;
+    const credential = response.json().credential;
+
+    expect(response.statusCode).toBe(201);
+    expect(credential).toMatchObject({
+      owner: "developer:dev_demo",
+      provider: "demo",
+      status: "active",
+    });
+    expect(credential.display).toBe("prov...lder");
+    expect(credential.storage).toBe("server-side encrypted:test-v1");
+    expect(bodyText).not.toContain("provider-secret-placeholder");
+    expect(bodyText).not.toContain("fl_cred_v1");
+    expect(state.providerCredentials).toHaveLength(1);
+    expect(state.providerCredentials[0]?.encryptedApiKey).toMatch(
+      /^fl_cred_v1\./,
+    );
+    expect(state.providerCredentials[0]?.encryptedApiKey).not.toContain(
+      "provider-secret-placeholder",
+    );
+    expect(
+      cipher.decrypt(
+        {
+          ciphertext: state.providerCredentials[0]!.encryptedApiKey,
+          keyVersion: state.providerCredentials[0]!.keyVersion,
+        },
+        state.providerCredentials[0]!.id,
+      ),
+    ).toBe("provider-secret-placeholder");
+  });
+
+  it("rotates and deletes provider credentials without returning secret material", async () => {
+    const state = createDefaultInMemoryGatewayState();
+    const cipher = createCredentialCipher({
+      keyVersion: "test-v1",
+      masterKey: credentialMasterKey,
+    });
+    const server = buildGatewayServer(createInMemoryGatewayStore(state), {
+      adminTokenHashes: [hashTestToken(adminToken)],
+      credentialCipher: cipher,
+    });
+    const created = await server.inject({
+      method: "POST",
+      url: "/admin/provider-credentials",
+      headers: adminHeaders,
+      payload: {
+        apiKey: "provider-secret-placeholder",
+        ownerId: "dev_demo",
+        ownerType: "developer",
+        provider: "demo",
+      },
+    });
+    const id = created.json().credential.id as string;
+
+    const rotated = await server.inject({
+      method: "PATCH",
+      url: `/admin/provider-credentials/${id}/rotate`,
+      headers: adminHeaders,
+      payload: {
+        apiKey: "provider-secret-rotated",
+      },
+    });
+    expect(rotated.statusCode).toBe(200);
+    expect(rotated.body).not.toContain("provider-secret-rotated");
+    expect(rotated.body).not.toContain("fl_cred_v1");
+    expect(
+      cipher.decrypt(
+        {
+          ciphertext: state.providerCredentials[0]!.encryptedApiKey,
+          keyVersion: state.providerCredentials[0]!.keyVersion,
+        },
+        id,
+      ),
+    ).toBe("provider-secret-rotated");
+
+    const deleted = await server.inject({
+      method: "DELETE",
+      url: `/admin/provider-credentials/${id}`,
+      headers: adminHeaders,
+    });
+
+    expect(deleted.statusCode).toBe(204);
+    expect(state.providerCredentials).toHaveLength(0);
   });
 
   it("creates a session only when body attribution matches headers", async () => {

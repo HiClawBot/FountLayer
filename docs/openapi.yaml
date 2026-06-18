@@ -105,6 +105,8 @@ paths:
   /admin/usage-events:
     get:
       summary: MVP admin usage event view
+      security:
+        - bearerAuth: []
       responses:
         "200":
           description: Usage events
@@ -112,9 +114,67 @@ paths:
   /admin/ledger:
     get:
       summary: MVP admin ledger view
+      security:
+        - bearerAuth: []
       responses:
         "200":
           description: Ledger entries
+
+  /admin/provider-credentials:
+    get:
+      summary: List provider credential metadata
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Credential metadata only
+    post:
+      summary: Create an encrypted provider credential
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProviderCredentialWrite"
+      responses:
+        "201":
+          description: Credential metadata only
+
+  /admin/provider-credentials/{id}/rotate:
+    patch:
+      summary: Rotate encrypted provider credential material
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProviderCredentialRotate"
+      responses:
+        "200":
+          description: Credential metadata only
+
+  /admin/provider-credentials/{id}:
+    delete:
+      summary: Delete provider credential material
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: Credential deleted
 
 components:
   securitySchemes:
@@ -187,3 +247,28 @@ components:
         metadata:
           type: object
           additionalProperties: true
+
+    ProviderCredentialWrite:
+      type: object
+      required: [ownerType, ownerId, provider, apiKey]
+      properties:
+        ownerType: { type: string }
+        ownerId: { type: string }
+        provider: { type: string }
+        apiKey:
+          type: string
+          description: Plaintext provider key accepted only by the authenticated server-side Admin API request body.
+        budgetDaily:
+          type: string
+          pattern: "^\\d+(\\.\\d{1,8})?$"
+        budgetMonthly:
+          type: string
+          pattern: "^\\d+(\\.\\d{1,8})?$"
+
+    ProviderCredentialRotate:
+      type: object
+      required: [apiKey]
+      properties:
+        apiKey:
+          type: string
+          description: Replacement plaintext provider key accepted only by the authenticated server-side Admin API request body.
