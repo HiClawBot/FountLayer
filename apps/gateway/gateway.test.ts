@@ -371,7 +371,155 @@ describe("gateway minimum API", () => {
       model: "vertical/paper-summary",
       payment_source: "faucet_grant",
     });
+    expect(response.json().route_id).toBe("route_paper_summary");
+    expect(response.json().routed_model).toBe("demo-local-model");
     expect(Number(response.json().retail_price)).toBeGreaterThan(0);
+  });
+
+  it("routes aliases through store policies before adapter execution", async () => {
+    const state = createDefaultInMemoryGatewayState();
+    const baseRoute = state.routePolicies[0]!;
+    let adapterModel: string | undefined;
+
+    state.routePolicies.push({
+      ...baseRoute,
+      alias: "smart/default",
+      id: "route_smart_default",
+    });
+    state.faucetGrants[0]!.allowedModels.push("smart/default");
+
+    const server = buildGatewayServer(createInMemoryGatewayStore(state), {
+      adminTokenHashes: [hashTestToken(adminToken)],
+      adapter: {
+        async chat(input) {
+          adapterModel = input.model;
+          return {
+            id: input.requestId ?? "req_route_test",
+            model: input.model,
+            content: "Routed response.",
+            finishReason: "stop",
+            usage: {
+              cachedInputTokens: 0,
+              inputTokens: 10,
+              outputTokens: 5,
+              totalTokens: 15,
+              usageEstimated: false,
+            },
+            raw: {},
+          };
+        },
+        async *streamChat() {
+          yield { done: true };
+        },
+      },
+    });
+    const headers = await createSessionHeaders(server);
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/chat/completions",
+      headers,
+      payload: {
+        model: "smart/default",
+        messages: [{ role: "user", content: "Summarize this paper." }],
+      },
+    });
+    const usageEvents = await server.inject({
+      method: "GET",
+      url: "/admin/usage-events",
+      headers: adminHeaders,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().model).toBe("demo-local-model");
+    expect(adapterModel).toBe("demo-local-model");
+    expect(usageEvents.json().usage_events[0]).toMatchObject({
+      provider: "demo",
+      routeId: "route_smart_default",
+    });
+  });
+
+  it("rejects route policies whose target model is outside the allowlist", async () => {
+    const state = createDefaultInMemoryGatewayState();
+    const baseRoute = state.routePolicies[0]!;
+
+    state.routePolicies.push({
+      ...baseRoute,
+      alias: "blocked/default",
+      id: "route_blocked_default",
+      modelAllowlist: ["other-model"],
+    });
+    state.faucetGrants[0]!.allowedModels.push("blocked/default");
+
+    const server = buildGatewayServer(createInMemoryGatewayStore(state), {
+      adminTokenHashes: [hashTestToken(adminToken)],
+    });
+    const headers = await createSessionHeaders(server);
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/chat/completions",
+      headers,
+      payload: {
+        model: "blocked/default",
+        messages: [{ role: "user", content: "Summarize this paper." }],
+      },
+    });
+    const usageEvents = await server.inject({
+      method: "GET",
+      url: "/admin/usage-events",
+      headers: adminHeaders,
+    });
+    const ledger = await server.inject({
+      method: "GET",
+      url: "/admin/ledger",
+      headers: adminHeaders,
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json().error.code).toBe("route_policy_rejected");
+    expect(usageEvents.json().usage_events).toHaveLength(0);
+    expect(ledger.json().ledger_entries).toHaveLength(0);
+  });
+
+  it("rejects route spend caps before adapter, usage, or ledger writes", async () => {
+    const state = createDefaultInMemoryGatewayState();
+    const baseRoute = state.routePolicies[0]!;
+
+    state.routePolicies.push({
+      ...baseRoute,
+      alias: "cheap/fast",
+      id: "route_cheap_fast",
+      maxRetailPrice: "0.00000001",
+    });
+    state.faucetGrants[0]!.allowedModels.push("cheap/fast");
+
+    const server = buildGatewayServer(createInMemoryGatewayStore(state), {
+      adminTokenHashes: [hashTestToken(adminToken)],
+    });
+    const headers = await createSessionHeaders(server);
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/chat/completions",
+      headers,
+      payload: {
+        model: "cheap/fast",
+        messages: [{ role: "user", content: "Summarize this paper." }],
+      },
+    });
+    const usageEvents = await server.inject({
+      method: "GET",
+      url: "/admin/usage-events",
+      headers: adminHeaders,
+    });
+    const ledger = await server.inject({
+      method: "GET",
+      url: "/admin/ledger",
+      headers: adminHeaders,
+    });
+
+    expect(response.statusCode).toBe(402);
+    expect(response.json().error.code).toBe("route_spend_cap_exceeded");
+    expect(usageEvents.json().usage_events).toHaveLength(0);
+    expect(ledger.json().ledger_entries).toHaveLength(0);
   });
 
   it("exposes active faucet grant controls", async () => {

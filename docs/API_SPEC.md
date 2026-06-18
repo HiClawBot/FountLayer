@@ -93,6 +93,8 @@ Response:
 {
   "currency": "USD",
   "model": "vertical/paper-summary",
+  "route_id": "route_paper_summary",
+  "routed_model": "demo-local-model",
   "estimated_input_tokens": 1024,
   "estimated_output_tokens": 512,
   "upstream_cost": "0.00210000",
@@ -105,6 +107,11 @@ Response:
 ## POST /v1/chat/completions
 
 OpenAI-compatible chat completion endpoint.
+The `model` field is treated as a FountLayer route alias. The Gateway resolves
+the alias to a server-side route policy, checks model allowlists and route spend
+caps, then calls the configured adapter with the target provider model. Rejected
+route policy checks happen before adapter execution, usage event creation, or
+ledger entry creation.
 
 Request:
 

@@ -154,8 +154,12 @@ export async function seedDatabase(
           'vertical/paper-summary',
           ${transaction.json({
             adapter: "local",
+            fallbackModels: ["demo-local-model"],
+            latencyPreference: "balanced",
+            maxRetailPrice: "0.25000000",
             provider: "demo",
             model: "demo-local-model",
+            modelAllowlist: ["demo-local-model"],
           })},
           'active'
         )

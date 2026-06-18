@@ -31,7 +31,11 @@ import {
   sessionRequestSchema,
 } from "@fountlayer/protocol";
 
-import { createInMemoryGatewayStore, type GatewayStore } from "./store.js";
+import {
+  createInMemoryGatewayStore,
+  type GatewayRoutePolicyRecord,
+  type GatewayStore,
+} from "./store.js";
 
 type AuthContext = {
   sessionId: string;
@@ -591,36 +595,18 @@ function requireRequestAuth(request: FastifyRequest): AuthContext {
   return request.auth;
 }
 
-function resolvePricedModel(model: string): {
-  provider: string;
-  model: string;
-} {
-  if (model === "vertical/paper-summary") {
-    return {
-      provider: "demo",
-      model: "demo-local-model",
-    };
-  }
-
-  return {
-    provider: "demo",
-    model,
-  };
-}
-
 function resolvePriceBreakdown(
   attribution: AttributionContext,
   request: {
-    model: string;
     messages: Array<{ content: string }>;
   },
+  routePolicy: GatewayRoutePolicyRecord,
   tokenEstimate = estimateChatTokens(request.messages),
 ) {
-  const pricedModel = resolvePricedModel(request.model);
   const modelPrice = findModelPrice(
     demoModelPrices,
-    pricedModel.provider,
-    pricedModel.model,
+    routePolicy.provider,
+    routePolicy.model,
   );
 
   if (!modelPrice) {
@@ -635,6 +621,70 @@ function resolvePriceBreakdown(
           modelPrice,
           tokenEstimate,
         });
+}
+
+async function resolveRoutePolicy(
+  store: GatewayStore,
+  attribution: AttributionContext,
+  requestedAlias: string,
+  reply: FastifyReply,
+): Promise<GatewayRoutePolicyRecord | undefined> {
+  const routePolicy = await store.getRoutePolicy(
+    attribution.appId,
+    requestedAlias,
+  );
+
+  if (!routePolicy) {
+    jsonError(
+      reply,
+      400,
+      "unknown_route",
+      "No active route policy is configured for this model alias.",
+    );
+    return undefined;
+  }
+
+  if (!routePolicy.modelAllowlist.includes(routePolicy.model)) {
+    jsonError(
+      reply,
+      403,
+      "route_policy_rejected",
+      "Route policy target model is not in its model allowlist.",
+      {
+        model: routePolicy.model,
+        route: routePolicy.alias,
+      },
+    );
+    return undefined;
+  }
+
+  return routePolicy;
+}
+
+function rejectRouteSpendCap(
+  routePolicy: GatewayRoutePolicyRecord,
+  retailPrice: string,
+  reply: FastifyReply,
+): boolean {
+  if (
+    routePolicy.maxRetailPrice === undefined ||
+    Number(retailPrice) <= Number(routePolicy.maxRetailPrice)
+  ) {
+    return false;
+  }
+
+  jsonError(
+    reply,
+    402,
+    "route_spend_cap_exceeded",
+    "Route policy max retail price would be exceeded.",
+    {
+      max_retail_price: routePolicy.maxRetailPrice,
+      retail_price: retailPrice,
+      route: routePolicy.alias,
+    },
+  );
+  return true;
 }
 
 export function buildGatewayServer(
@@ -823,7 +873,22 @@ export function buildGatewayServer(
       );
     }
 
-    const estimate = resolvePriceBreakdown(attribution, parsed.data);
+    const routePolicy = await resolveRoutePolicy(
+      store,
+      attribution,
+      parsed.data.model,
+      reply,
+    );
+
+    if (!routePolicy) {
+      return reply;
+    }
+
+    const estimate = resolvePriceBreakdown(
+      attribution,
+      parsed.data,
+      routePolicy,
+    );
 
     if (!estimate) {
       return jsonError(
@@ -833,6 +898,11 @@ export function buildGatewayServer(
         "No model price is configured for this route.",
       );
     }
+
+    if (rejectRouteSpendCap(routePolicy, estimate.retailPrice, reply)) {
+      return reply;
+    }
+
     const grantMatch = await store.findPayingGrant({
       attribution,
       model: parsed.data.model,
@@ -842,6 +912,8 @@ export function buildGatewayServer(
     return {
       currency: "USD",
       model: parsed.data.model,
+      route_id: routePolicy.id,
+      routed_model: routePolicy.model,
       estimated_input_tokens: estimate.inputTokens,
       estimated_output_tokens: estimate.outputTokens,
       upstream_cost: estimate.upstreamCost,
@@ -880,7 +952,22 @@ export function buildGatewayServer(
       );
     }
 
-    const estimate = resolvePriceBreakdown(attribution, parsed.data);
+    const routePolicy = await resolveRoutePolicy(
+      store,
+      attribution,
+      parsed.data.model,
+      reply,
+    );
+
+    if (!routePolicy) {
+      return reply;
+    }
+
+    const estimate = resolvePriceBreakdown(
+      attribution,
+      parsed.data,
+      routePolicy,
+    );
 
     if (!estimate) {
       return jsonError(
@@ -889,6 +976,10 @@ export function buildGatewayServer(
         "unknown_model",
         "No model price is configured for this route.",
       );
+    }
+
+    if (rejectRouteSpendCap(routePolicy, estimate.retailPrice, reply)) {
+      return reply;
     }
 
     const sessionRateLimit = rateLimiter.consume({
@@ -957,7 +1048,7 @@ export function buildGatewayServer(
     try {
       output = await adapter.chat({
         requestId,
-        model: resolvePricedModel(parsed.data.model).model,
+        model: routePolicy.model,
         messages: parsed.data.messages,
         stream: parsed.data.stream,
         metadata: parsed.data.metadata,
@@ -976,9 +1067,9 @@ export function buildGatewayServer(
       id: `ue_${randomUUID()}`,
       requestId,
       attribution,
-      provider: "demo",
+      provider: routePolicy.provider,
       model: output.model,
-      routeId: "route_paper_summary",
+      routeId: routePolicy.id,
       inputTokens: output.usage.inputTokens,
       outputTokens: output.usage.outputTokens,
       cachedInputTokens: output.usage.cachedInputTokens,

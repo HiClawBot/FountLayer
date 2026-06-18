@@ -62,21 +62,21 @@ Logical model aliases decouple app code from provider details.
 ```yaml
 routes:
   cheap/fast:
-    candidates:
-      - provider: litellm
-        model: gpt-4.1-mini
-        weight: 100
+    adapter: litellm
+    provider: litellm
+    model: gpt-4.1-mini
+    modelAllowlist: [gpt-4.1-mini]
+    fallbackModels: [demo-local-model]
+    maxRetailPrice: "0.05000000"
+    latencyPreference: low
   vertical/paper-summary:
-    candidates:
-      - provider: litellm
-        model: gpt-4.1
-        weight: 60
-      - provider: litellm
-        model: claude-sonnet
-        weight: 40
-    fallback:
-      - provider: litellm
-        model: gpt-4.1-mini
+    adapter: local
+    provider: demo
+    model: demo-local-model
+    modelAllowlist: [demo-local-model]
+    fallbackModels: [demo-local-model]
+    maxRetailPrice: "0.25000000"
+    latencyPreference: balanced
 ```
 
 ## Deployment Modes

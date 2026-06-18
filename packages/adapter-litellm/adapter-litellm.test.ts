@@ -40,12 +40,27 @@ describe("LiteLLM adapter", () => {
     const output = await adapter.chat({
       model: "demo-local-model",
       messages,
+      metadata: {
+        routeAlias: "vertical/paper-summary",
+      },
     });
+    const sentBody = JSON.parse(String(calls[0]?.init?.body)) as {
+      metadata?: Record<string, string>;
+      model?: string;
+      stream?: boolean;
+    };
 
     expect(calls[0]?.url).toBe("http://localhost:4000/v1/chat/completions");
     expect(
       (calls[0]?.init?.headers as Record<string, string>).authorization,
     ).toBe("Bearer test-placeholder");
+    expect(sentBody).toMatchObject({
+      metadata: {
+        routeAlias: "vertical/paper-summary",
+      },
+      model: "demo-local-model",
+      stream: false,
+    });
     expect(output.content).toBe("A concise summary.");
     expect(output.usage).toMatchObject({
       inputTokens: 10,

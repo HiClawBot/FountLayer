@@ -32,6 +32,8 @@
   encryption helpers.
 - Added authenticated Admin API provider credential create, rotate, and delete
   flows backed by server-side encrypted storage metadata.
+- Gateway chat and estimate paths now resolve route aliases through Store-backed
+  route policies with model allowlists and route-level spend caps.
 - Root database scripts: `pnpm db:migrate`, `pnpm db:seed`, and `pnpm db:test:setup`.
 
 ## 0.1.0 - 2026-06-17

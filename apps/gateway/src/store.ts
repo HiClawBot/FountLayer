@@ -44,6 +44,20 @@ export type GatewayAdminRouteRecord = {
   status: string;
 };
 
+export type GatewayRoutePolicyRecord = {
+  adapter: string;
+  alias: string;
+  appId: string;
+  fallbackModels: string[];
+  id: string;
+  latencyPreference?: string;
+  maxRetailPrice?: string;
+  model: string;
+  modelAllowlist: string[];
+  provider: string;
+  status: "active" | "disabled";
+};
+
 export type GatewayAdminCredentialRecord = {
   id: string;
   owner: string;
@@ -162,6 +176,10 @@ export type GatewayStore = {
     appId: string,
     channelId: string,
   ): Promise<GatewayChannelRecord | undefined>;
+  getRoutePolicy(
+    appId: string,
+    alias: string,
+  ): Promise<GatewayRoutePolicyRecord | undefined>;
   listActiveGrants(
     attribution: AttributionContext,
     model?: string,
@@ -197,6 +215,7 @@ export type InMemoryGatewayState = {
   channels: Map<string, GatewayChannelRecord>;
   faucetGrants: GatewayGrantRecord[];
   providerCredentials: GatewayProviderCredentialRecord[];
+  routePolicies: GatewayRoutePolicyRecord[];
   usageEvents: UsageEventRecord[];
   ledgerEntries: LedgerEntryRecord[];
   sessions: GatewaySessionRecord[];
@@ -280,6 +299,7 @@ type AdminChannelRow = {
 };
 
 type AdminRouteRow = {
+  app_id: string;
   id: string;
   alias: string;
   config: Record<string, unknown>;
@@ -347,12 +367,17 @@ const defaultAdminChannel: GatewayAdminChannelRecord = {
   status: "active",
 };
 
-const defaultRoute: GatewayAdminRouteRecord = {
-  id: "route_paper_summary",
-  alias: "vertical/paper-summary",
-  provider: "demo",
-  model: "demo-local-model",
+const defaultRoutePolicy: GatewayRoutePolicyRecord = {
   adapter: "local",
+  alias: "vertical/paper-summary",
+  appId: "app_pdf_reader",
+  fallbackModels: ["demo-local-model"],
+  id: "route_paper_summary",
+  latencyPreference: "balanced",
+  maxRetailPrice: "0.25000000",
+  model: "demo-local-model",
+  modelAllowlist: ["demo-local-model"],
+  provider: "demo",
   status: "active",
 };
 
@@ -394,8 +419,21 @@ export function createDefaultInMemoryGatewayState(): InMemoryGatewayState {
   return {
     apps: new Map([[defaultApp.id, { ...defaultApp }]]),
     channels: new Map([[defaultChannel.id, { ...defaultChannel }]]),
-    faucetGrants: [{ ...defaultGrant }],
+    faucetGrants: [
+      {
+        ...defaultGrant,
+        allowedModels: [...defaultGrant.allowedModels],
+        allowedUseCases: [...defaultGrant.allowedUseCases],
+      },
+    ],
     providerCredentials: [],
+    routePolicies: [
+      {
+        ...defaultRoutePolicy,
+        fallbackModels: [...defaultRoutePolicy.fallbackModels],
+        modelAllowlist: [...defaultRoutePolicy.modelAllowlist],
+      },
+    ],
     usageEvents: [],
     ledgerEntries: [],
     sessions: [],
@@ -517,6 +555,26 @@ function stringFromConfig(
   return typeof value === "string" && value.length > 0 ? value : fallback;
 }
 
+function optionalStringFromConfig(
+  config: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const value = config[key];
+
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function stringArrayFromConfig(
+  config: Record<string, unknown>,
+  key: string,
+  fallback: string[],
+): string[] {
+  const value = config[key];
+  const strings = asStringArray(value);
+
+  return strings.length > 0 ? strings : fallback;
+}
+
 function mapAdminRouteRow(row: AdminRouteRow): GatewayAdminRouteRecord {
   return {
     id: row.id,
@@ -525,6 +583,31 @@ function mapAdminRouteRow(row: AdminRouteRow): GatewayAdminRouteRecord {
     model: stringFromConfig(row.config, "model", "unknown"),
     adapter: stringFromConfig(row.config, "adapter", "unknown"),
     status: row.status,
+  };
+}
+
+function mapRoutePolicyRow(row: AdminRouteRow): GatewayRoutePolicyRecord {
+  const model = stringFromConfig(row.config, "model", "unknown");
+
+  return {
+    adapter: stringFromConfig(row.config, "adapter", "unknown"),
+    alias: row.alias,
+    appId: row.app_id,
+    fallbackModels: stringArrayFromConfig(row.config, "fallbackModels", [
+      model,
+    ]),
+    id: row.id,
+    latencyPreference: optionalStringFromConfig(
+      row.config,
+      "latencyPreference",
+    ),
+    maxRetailPrice: optionalStringFromConfig(row.config, "maxRetailPrice"),
+    model,
+    modelAllowlist: stringArrayFromConfig(row.config, "modelAllowlist", [
+      model,
+    ]),
+    provider: stringFromConfig(row.config, "provider", "unknown"),
+    status: row.status === "active" ? "active" : "disabled",
   };
 }
 
@@ -675,6 +758,15 @@ export function createInMemoryGatewayStore(
         : undefined;
     },
 
+    async getRoutePolicy(appId, alias) {
+      return state.routePolicies.find(
+        (route) =>
+          route.appId === appId &&
+          route.alias === alias &&
+          route.status === "active",
+      );
+    },
+
     async listActiveGrants(attribution, model) {
       return listMemoryCandidateGrants(state, attribution, model);
     },
@@ -757,7 +849,14 @@ export function createInMemoryGatewayStore(
     },
 
     async listRoutes() {
-      return [{ ...defaultRoute }];
+      return state.routePolicies.map((route) => ({
+        id: route.id,
+        alias: route.alias,
+        provider: route.provider,
+        model: route.model,
+        adapter: route.adapter,
+        status: route.status,
+      }));
     },
 
     async listProviderCredentials() {
@@ -1134,6 +1233,20 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
         : undefined;
     },
 
+    async getRoutePolicy(appId, alias) {
+      const rows = await sql<AdminRouteRow[]>`
+        select id, app_id, alias, config, status
+        from routes
+        where app_id = ${appId}
+          and alias = ${alias}
+          and status = 'active'
+        limit 1
+      `;
+      const row = rows[0];
+
+      return row ? mapRoutePolicyRow(row) : undefined;
+    },
+
     async listActiveGrants(attribution, model) {
       return listPostgresCandidateGrants(sql, attribution, { model });
     },
@@ -1295,7 +1408,7 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
 
     async listRoutes() {
       const rows = await sql<AdminRouteRow[]>`
-        select id, alias, config, status
+        select id, app_id, alias, config, status
         from routes
         order by created_at desc, id asc
       `;
