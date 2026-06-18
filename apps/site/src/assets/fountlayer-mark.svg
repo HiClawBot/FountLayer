@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none" role="img" aria-labelledby="title">
+  <title id="title">FountLayer mark</title>
+  <defs>
+    <mask id="mark-cutout">
+      <rect width="256" height="256" fill="white"/>
+      <path fill="black" d="M128 84c22.7 0 41.1 18.4 41.1 41.1 0 15.5-8.6 29-21.3 36v77.8h-39.6v-77.8a41.1 41.1 0 0 1-21.3-36C86.9 102.4 105.3 84 128 84Z"/>
+    </mask>
+  </defs>
+  <path fill="#111113" mask="url(#mark-cutout)" d="M128 17c60.2 0 109 48.8 109 109 0 50.8-34.8 93.5-81.9 105.5v-72.4A47.8 47.8 0 0 0 176 119.5C176 93 154.5 71.5 128 71.5S80 93 80 119.5c0 16.9 8.8 31.8 22.1 40.4v71.6C55 219.5 20 176.8 20 126 20 65.8 67.8 17 128 17Z"/>
+  <circle cx="128" cy="125" r="22" fill="#5651F0"/>
+</svg>

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="180" viewBox="0 0 760 180" fill="none" role="img" aria-labelledby="title">
+  <title id="title">FountLayer logo lockup</title>
+  <defs>
+    <mask id="lockup-cutout">
+      <rect width="180" height="180" fill="white"/>
+      <path fill="black" d="M90 67.4c15 0 27.2 12.2 27.2 27.2 0 10.2-5.7 19.2-14.1 23.8v51.4H76.9v-51.4a27.2 27.2 0 0 1-14.1-23.8c0-15 12.2-27.2 27.2-27.2Z"/>
+    </mask>
+  </defs>
+  <path fill="#111113" mask="url(#lockup-cutout)" d="M90 23c39.8 0 72 32.2 72 72 0 33.6-23 61.8-54.1 69.8V117A31.6 31.6 0 0 0 121.7 90.8c0-17.5-14.2-31.7-31.7-31.7S58.3 73.3 58.3 90.8c0 11.2 5.8 21 14.6 26.7v47.3C41.8 156.8 18 128.6 18 95c0-39.8 32.2-72 72-72Z"/>
+  <circle cx="90" cy="94.6" r="14.5" fill="#5651F0"/>
+  <text x="196" y="119" fill="#111113" font-family="Inter, Arial, Helvetica, sans-serif" font-size="72" font-weight="800" letter-spacing="0">FountLayer</text>
+</svg>

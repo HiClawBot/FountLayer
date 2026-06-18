@@ -44,10 +44,32 @@ The site ships these static publishing assets from `apps/site/public`:
 
 - `robots.txt`
 - `sitemap.xml`
-- `og-image.png`
+- `og-image.svg`
 
 The canonical URL and social preview metadata currently target the default
 project Pages URL.
+
+## Brand Asset Handling
+
+The website applies the brand identity with transparent SVG files:
+
+```txt
+apps/site/src/assets/fountlayer-mark.svg
+apps/site/src/assets/fountlayer-lockup.svg
+apps/site/public/og-image.svg
+```
+
+Do not place the visual identity inside raster boards with mismatched
+background colors. Use transparent SVG assets for page decoration and preserve
+their aspect ratio, palette, and geometry.
+
+## Languages
+
+The site has pure English and Chinese content modes. Keep each language's page
+copy internally consistent: do not mix Chinese text into the English mode or
+English marketing copy into the Chinese mode. Brand names, domains, file paths,
+and source-code identifiers may remain literal when they are the object being
+shown.
 
 ## GitHub Pages
 

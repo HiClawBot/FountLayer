@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">FountLayer</title>
+  <desc id="desc">The open LLM last-mile distribution layer for apps.</desc>
+  <defs>
+    <mask id="og-cutout">
+      <rect width="300" height="300" fill="white"/>
+      <path fill="black" d="M126 77.4c26.2 0 47.5 21.3 47.5 47.5 0 17.9-10 33.5-24.6 41.7v89.8h-45.8v-89.8a47.5 47.5 0 0 1-24.6-41.7c0-26.2 21.3-47.5 47.5-47.5Z"/>
+    </mask>
+  </defs>
+  <g transform="translate(216 148)">
+    <path fill="#111113" mask="url(#og-cutout)" d="M126 0c69.6 0 126 56.4 126 126 0 58.8-40.3 108.2-94.7 122.1v-83.6a55.3 55.3 0 0 0 24.2-45.8c0-30.6-24.9-55.5-55.5-55.5s-55.5 24.9-55.5 55.5c0 19.5 10.1 36.7 25.5 46.7v82.7C41.5 234.2 0 184.8 0 126 0 56.4 56.4 0 126 0Z"/>
+    <circle cx="126" cy="124.9" r="25.5" fill="#5651F0"/>
+  </g>
+  <text x="516" y="273" fill="#111113" font-family="Inter, Arial, Helvetica, sans-serif" font-size="92" font-weight="800" letter-spacing="0">FountLayer</text>
+  <text x="520" y="344" fill="#65666B" font-family="Inter, Arial, Helvetica, sans-serif" font-size="31" font-weight="600" letter-spacing="0">The open LLM last-mile distribution layer for apps.</text>
+</svg>

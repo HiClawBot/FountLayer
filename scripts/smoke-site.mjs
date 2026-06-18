@@ -29,11 +29,12 @@ async function fileText(path) {
 const indexPath = join(siteDistDir, "index.html");
 const robotsPath = join(siteDistDir, "robots.txt");
 const sitemapPath = join(siteDistDir, "sitemap.xml");
-const ogImagePath = join(siteDistDir, "og-image.png");
+const ogImagePath = join(siteDistDir, "og-image.svg");
 
 const indexHtml = await fileText(indexPath);
 const robots = await fileText(robotsPath);
 const sitemap = await fileText(sitemapPath);
+const ogImage = await fileText(ogImagePath);
 
 if (indexHtml.includes("FountLayer | Open LLM Last-Mile Distribution")) {
   pass("index title");
@@ -72,7 +73,7 @@ for (const { label, pattern } of [
   {
     label: "OG image",
     pattern: new RegExp(
-      `<meta\\s+property="og:image"\\s+content="${projectUrl}og-image.png"\\s*/>`,
+      `<meta\\s+property="og:image"\\s+content="${projectUrl}og-image.svg"\\s*/>`,
       "s",
     ),
   },
@@ -116,10 +117,14 @@ if (sitemap.includes(`<loc>${projectUrl}</loc>`)) {
   fail("sitemap canonical URL", "sitemap is missing project Pages URL");
 }
 
-if (existsSync(ogImagePath) && statSync(ogImagePath).size > 20_000) {
+if (
+  existsSync(ogImagePath) &&
+  statSync(ogImagePath).size > 1_000 &&
+  ogImage.includes("<svg")
+) {
   pass("OG image asset");
 } else {
-  fail("OG image asset", "og-image.png is missing or unexpectedly small");
+  fail("OG image asset", "og-image.svg is missing or unexpectedly small");
 }
 
 const failed = checks.filter((check) => !check.ok);
