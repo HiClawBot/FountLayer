@@ -38,3 +38,5 @@ Payment: faucet_grant
 - Console shows usage event.
 - Ledger entries balance.
 - Switching to local endpoint works with OpenAI-compatible server.
+- Local endpoint configuration accepts localhost, private LAN, or `.local`
+  targets only.

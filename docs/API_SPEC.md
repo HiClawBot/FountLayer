@@ -186,7 +186,9 @@ Credential writes require `FOUNTLAYER_CREDENTIAL_MASTER_KEY` on the Gateway.
 Create and rotate requests include plaintext provider keys only in the
 authenticated Admin request body; responses return metadata only and never
 include plaintext keys or encrypted ciphertext. The `display` value is generated
-by the Gateway as a masked value, not accepted from callers.
+by the Gateway as a masked value, not accepted from callers. End-user hosted
+BYOK credential writes (`ownerType: "end_user"`) are rejected unless the Gateway
+is explicitly configured with `FOUNTLAYER_ALLOW_HOSTED_BYOK=true`.
 
 Create credential request:
 

@@ -34,6 +34,9 @@
   flows backed by server-side encrypted storage metadata.
 - Gateway chat and estimate paths now resolve route aliases through Store-backed
   route policies with model allowlists and route-level spend caps.
+- SDK BYOK/local helpers now validate local endpoint URLs, support local clear
+  helpers, and Gateway hosted end-user BYOK credential writes require explicit
+  opt-in.
 - Root database scripts: `pnpm db:migrate`, `pnpm db:seed`, and `pnpm db:test:setup`.
 
 ## 0.1.0 - 2026-06-17

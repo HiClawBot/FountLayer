@@ -277,6 +277,66 @@ describe("gateway minimum API", () => {
     ).toBe("provider-secret-placeholder");
   });
 
+  it("keeps hosted end-user BYOK credential storage disabled by default", async () => {
+    const state = createDefaultInMemoryGatewayState();
+    const cipher = createCredentialCipher({
+      keyVersion: "test-v1",
+      masterKey: credentialMasterKey,
+    });
+    const server = buildGatewayServer(createInMemoryGatewayStore(state), {
+      adminTokenHashes: [hashTestToken(adminToken)],
+      credentialCipher: cipher,
+    });
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/admin/provider-credentials",
+      headers: adminHeaders,
+      payload: {
+        apiKey: "provider-secret-placeholder",
+        ownerId: "user_hash_123",
+        ownerType: "end_user",
+        provider: "demo",
+      },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json().error.code).toBe("hosted_byok_disabled");
+    expect(response.body).not.toContain("provider-secret-placeholder");
+    expect(state.providerCredentials).toHaveLength(0);
+  });
+
+  it("allows hosted end-user BYOK credential storage only after explicit opt-in", async () => {
+    const state = createDefaultInMemoryGatewayState();
+    const cipher = createCredentialCipher({
+      keyVersion: "test-v1",
+      masterKey: credentialMasterKey,
+    });
+    const server = buildGatewayServer(createInMemoryGatewayStore(state), {
+      adminTokenHashes: [hashTestToken(adminToken)],
+      allowHostedByokCredentials: true,
+      credentialCipher: cipher,
+    });
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/admin/provider-credentials",
+      headers: adminHeaders,
+      payload: {
+        apiKey: "provider-secret-placeholder",
+        ownerId: "user_hash_123",
+        ownerType: "end_user",
+        provider: "demo",
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json().credential.owner).toBe("end_user:user_hash_123");
+    expect(response.body).not.toContain("provider-secret-placeholder");
+    expect(response.body).not.toContain("fl_cred_v1");
+    expect(state.providerCredentials).toHaveLength(1);
+  });
+
   it("rotates and deletes provider credentials without returning secret material", async () => {
     const state = createDefaultInMemoryGatewayState();
     const cipher = createCredentialCipher({

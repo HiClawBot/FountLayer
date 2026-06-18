@@ -56,6 +56,7 @@ type ParsedAuthorization = {
 
 type GatewayServerOptions = {
   logger?: boolean;
+  allowHostedByokCredentials?: boolean;
   adapter?: LLMAdapter;
   adminTokenHashes?: readonly string[];
   credentialCipher?: CredentialCipher;
@@ -692,6 +693,8 @@ export function buildGatewayServer(
   options: GatewayServerOptions = {},
 ): FastifyInstance {
   const adapter = options.adapter ?? new DemoLocalAdapter();
+  const allowHostedByokCredentials =
+    options.allowHostedByokCredentials ?? false;
   const adminTokenHashes = options.adminTokenHashes ?? [];
   const credentialCipher = options.credentialCipher;
   const rateLimits = {
@@ -1202,6 +1205,15 @@ export function buildGatewayServer(
         400,
         "invalid_provider_credential",
         "Provider credential request must include ownerType, ownerId, provider, and apiKey.",
+      );
+    }
+
+    if (parsed.ownerType === "end_user" && !allowHostedByokCredentials) {
+      return jsonError(
+        reply,
+        403,
+        "hosted_byok_disabled",
+        "Hosted end-user BYOK credential storage is disabled. Keep BYOK local-only or explicitly opt in at the Gateway.",
       );
     }
 

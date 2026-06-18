@@ -166,6 +166,11 @@ startup also requires `FOUNTLAYER_CREDENTIAL_MASTER_KEY`, a 32-byte credential
 encryption master key such as `base64:<32-byte-random-key>`, plus an optional
 `FOUNTLAYER_CREDENTIAL_KEY_VERSION`.
 
+BYOK stays local-only by default. SDK local endpoint configuration accepts only
+localhost, private LAN, or `.local` URLs. Hosted end-user BYOK credential writes
+are disabled unless the Gateway is explicitly started with
+`FOUNTLAYER_ALLOW_HOSTED_BYOK=true`.
+
 Gateway billable chat calls are protected by simple windowed caps. Tune
 `FOUNTLAYER_BILLABLE_RATE_WINDOW_MS`,
 `FOUNTLAYER_SESSION_BILLABLE_REQUESTS_PER_WINDOW`, and

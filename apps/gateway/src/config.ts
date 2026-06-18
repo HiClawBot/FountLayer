@@ -9,6 +9,7 @@ export type GatewayStoreMode = "memory" | "postgres";
 
 export type GatewayRuntimeConfig = {
   adminTokenHashes: string[];
+  allowHostedByokCredentials: boolean;
   credentialEncryption?: {
     keyVersion: string;
     masterKey: string;
@@ -84,6 +85,12 @@ function parsePositiveInteger(
   }
 
   return value;
+}
+
+function parseBooleanFlag(env: GatewayEnv, key: string): boolean {
+  const rawValue = env[key]?.trim().toLowerCase();
+
+  return rawValue === "1" || rawValue === "true" || rawValue === "yes";
 }
 
 function parseCredentialEncryption(
@@ -182,6 +189,10 @@ export function loadGatewayRuntimeConfig(
     env.FOUNTLAYER_DEPLOYMENT_ENV ?? env.NODE_ENV ?? "development";
   const config: GatewayRuntimeConfig = {
     adminTokenHashes: adminTokenHashesFromEnv(env),
+    allowHostedByokCredentials: parseBooleanFlag(
+      env,
+      "FOUNTLAYER_ALLOW_HOSTED_BYOK",
+    ),
     credentialEncryption: parseCredentialEncryption(env),
     deploymentEnv,
     host: env.GATEWAY_HOST ?? "0.0.0.0",

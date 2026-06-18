@@ -28,6 +28,8 @@ export type SessionResponse = {
 export type EstimateResponse = {
   currency: string;
   model: string;
+  route_id?: string;
+  routed_model?: string;
   estimated_input_tokens: number;
   estimated_output_tokens: number;
   upstream_cost: string;
@@ -94,6 +96,66 @@ const localEndpointStorageKey = "fountlayer.local.endpoint";
 
 function trimEndpoint(endpoint: string): string {
   return endpoint.replace(/\/+$/, "");
+}
+
+function isPrivateIpv4(hostname: string): boolean {
+  const octets = hostname.split(".").map((part) => Number(part));
+
+  if (
+    octets.length !== 4 ||
+    octets.some((part) => !Number.isInteger(part) || part < 0 || part > 255)
+  ) {
+    return false;
+  }
+
+  const [first, second] = octets;
+
+  return (
+    first === 10 ||
+    first === 127 ||
+    (first === 172 && second !== undefined && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168)
+  );
+}
+
+function isLocalEndpointHostname(hostname: string): boolean {
+  const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+
+  return (
+    normalized === "localhost" ||
+    normalized === "::1" ||
+    normalized.endsWith(".local") ||
+    isPrivateIpv4(normalized)
+  );
+}
+
+function normalizeLocalEndpointConfig(
+  config: LocalEndpointConfig,
+): LocalEndpointConfig {
+  let parsed: URL;
+
+  try {
+    parsed = new URL(config.baseUrl);
+  } catch {
+    throw new Error("Local endpoint baseUrl must be a valid URL.");
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("Local endpoint baseUrl must use http or https.");
+  }
+
+  if (!isLocalEndpointHostname(parsed.hostname)) {
+    throw new Error(
+      "Local endpoint baseUrl must point to localhost, a private LAN address, or a .local host.",
+    );
+  }
+
+  const apiKey = config.apiKey?.trim();
+
+  return {
+    baseUrl: trimEndpoint(parsed.toString()),
+    ...(apiKey ? { apiKey } : {}),
+  };
 }
 
 function defaultStorage():
@@ -263,7 +325,17 @@ export class FountLayerClient {
       throw new Error("Local storage is not available for BYOK storage.");
     }
 
-    this.storage.setItem(byokStorageKey, apiKey);
+    const trimmedApiKey = apiKey.trim();
+
+    if (!trimmedApiKey) {
+      throw new Error("BYOK API key must be a non-empty string.");
+    }
+
+    this.storage.setItem(byokStorageKey, trimmedApiKey);
+  }
+
+  rotateUserApiKey(apiKey: string): void {
+    this.setUserApiKey(apiKey);
   }
 
   clearUserApiKey(): void {
@@ -281,7 +353,10 @@ export class FountLayerClient {
       );
     }
 
-    this.storage.setItem(localEndpointStorageKey, JSON.stringify(config));
+    this.storage.setItem(
+      localEndpointStorageKey,
+      JSON.stringify(normalizeLocalEndpointConfig(config)),
+    );
   }
 
   getLocalEndpoint(): LocalEndpointConfig | undefined {
@@ -292,6 +367,10 @@ export class FountLayerClient {
     }
 
     return JSON.parse(raw) as LocalEndpointConfig;
+  }
+
+  clearLocalEndpoint(): void {
+    this.storage?.removeItem(localEndpointStorageKey);
   }
 
   request<T>(

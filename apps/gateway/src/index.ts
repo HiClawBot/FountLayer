@@ -22,6 +22,7 @@ if (isDirectRun(import.meta.url)) {
     sql ? createPostgresGatewayStore(sql) : undefined,
     {
       adminTokenHashes: config.adminTokenHashes,
+      allowHostedByokCredentials: config.allowHostedByokCredentials,
       credentialCipher,
       logger: true,
       rateLimits: config.rateLimits,

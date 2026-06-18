@@ -21,6 +21,7 @@ describe("gateway runtime config", () => {
     });
 
     expect(config).toMatchObject({
+      allowHostedByokCredentials: false,
       credentialEncryption: {
         keyVersion: "test-v1",
       },
@@ -50,6 +51,14 @@ describe("gateway runtime config", () => {
     });
 
     expect(config.adminTokenHashes).toEqual([firstHash, secondHash]);
+  });
+
+  it("loads explicit hosted BYOK opt-in", () => {
+    const config = loadGatewayRuntimeConfig({
+      FOUNTLAYER_ALLOW_HOSTED_BYOK: "true",
+    });
+
+    expect(config.allowHostedByokCredentials).toBe(true);
   });
 
   it("rejects invalid ports", () => {
@@ -163,6 +172,7 @@ describe("gateway runtime config", () => {
 
     expect(config).toMatchObject({
       adminTokenHashes: [adminHash],
+      allowHostedByokCredentials: false,
       credentialEncryption: {
         keyVersion: "local-v1",
       },

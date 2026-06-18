@@ -141,17 +141,61 @@ describe("FountLayer SDK", () => {
       storage,
     });
 
-    sdk.setUserApiKey("user-key-placeholder");
+    sdk.setUserApiKey(" user-key-placeholder ");
+    sdk.rotateUserApiKey("rotated-user-key-placeholder");
     sdk.setLocalEndpoint({
-      baseUrl: "http://127.0.0.1:11434/v1",
-      apiKey: "local-placeholder",
+      baseUrl: "http://127.0.0.1:11434/v1/",
+      apiKey: " local-placeholder ",
     });
 
-    expect(sdk.getUserApiKey()).toBe("user-key-placeholder");
+    expect(sdk.getUserApiKey()).toBe("rotated-user-key-placeholder");
     expect(sdk.getLocalEndpoint()).toEqual({
       baseUrl: "http://127.0.0.1:11434/v1",
       apiKey: "local-placeholder",
     });
+
+    sdk.clearUserApiKey();
+    sdk.clearLocalEndpoint();
+
+    expect(sdk.getUserApiKey()).toBeUndefined();
+    expect(sdk.getLocalEndpoint()).toBeUndefined();
+  });
+
+  it("rejects empty BYOK keys and public local endpoint URLs", () => {
+    const storage = memoryStorage();
+    const sdk = createFountLayer({
+      appId: "app_pdf_reader",
+      channelId: "channel_desktop",
+      endpoint: "http://localhost:8787",
+      storage,
+    });
+
+    expect(() => sdk.setUserApiKey(" ")).toThrow("non-empty");
+    expect(() =>
+      sdk.setLocalEndpoint({
+        baseUrl: "https://api.openai.example/v1",
+      }),
+    ).toThrow("localhost, a private LAN address, or a .local host");
+  });
+
+  it("accepts private LAN and .local endpoints for local mode", () => {
+    const storage = memoryStorage();
+    const sdk = createFountLayer({
+      appId: "app_pdf_reader",
+      channelId: "channel_desktop",
+      endpoint: "http://localhost:8787",
+      storage,
+    });
+
+    sdk.setLocalEndpoint({ baseUrl: "http://192.168.1.10:11434/v1" });
+    expect(sdk.getLocalEndpoint()?.baseUrl).toBe(
+      "http://192.168.1.10:11434/v1",
+    );
+
+    sdk.setLocalEndpoint({ baseUrl: "http://fountlayer-gateway.local/v1" });
+    expect(sdk.getLocalEndpoint()?.baseUrl).toBe(
+      "http://fountlayer-gateway.local/v1",
+    );
   });
 
   it("streams raw SSE data from the gateway", async () => {
