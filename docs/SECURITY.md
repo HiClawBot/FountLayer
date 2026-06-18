@@ -43,6 +43,8 @@ Provider API keys must never appear in SDK source code, frontend bundles, mobile
 - Gateway telemetry is metadata-only. Prompt text, assistant output, provider
   keys, authorization headers, session tokens, and raw adapter payloads must not
   be emitted.
+- Adapter retries and circuit breakers run before usage event or ledger writes,
+  so failed retries and open circuits do not create billable records.
 - App tokens, API key rotation UI, and production-grade tenant authentication are
   still planned work.
 

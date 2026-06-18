@@ -93,6 +93,13 @@ source, and denial reason. Events must not include raw prompts, assistant
 outputs, provider keys, session tokens, authorization headers, or raw adapter
 payloads.
 
+## Reliability
+
+Gateway adapter calls may be wrapped with bounded retries and a circuit breaker.
+Retries happen before usage events or ledger entries are written. When a circuit
+is open, the Gateway rejects the request before adapter execution and before any
+usage or ledger write.
+
 ### Managed cloud
 
 FountLayer Cloud hosts Gateway, key pool, anti-abuse, billing, and settlement. SDK points to managed endpoint.

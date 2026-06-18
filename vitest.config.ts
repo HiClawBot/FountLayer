@@ -41,6 +41,10 @@ export default defineConfig({
         "./packages/protocol/src/index.ts",
         import.meta.url,
       ).pathname,
+      "@fountlayer/reliability": new URL(
+        "./packages/reliability/src/index.ts",
+        import.meta.url,
+      ).pathname,
       "@fountlayer/sdk-js": new URL(
         "./packages/sdk-js/src/index.ts",
         import.meta.url,

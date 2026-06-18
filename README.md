@@ -237,6 +237,7 @@ fountlayer/
 │   ├── ledger/            # Double-entry ledger helpers
 │   ├── settlement/        # Ledger reconciliation and export helpers
 │   ├── observability/     # Metadata-only telemetry helpers
+│   ├── reliability/       # Retry and circuit breaker helpers
 │   ├── adapter-core/      # Shared adapter interface
 │   ├── adapter-litellm/   # LiteLLM adapter
 │   └── adapter-local/     # OpenAI-compatible local endpoint adapter

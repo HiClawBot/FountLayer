@@ -43,6 +43,8 @@
   reconciliation reports and CSV export hashes.
 - Added `@fountlayer/observability` and Gateway metadata-only success/denial
   telemetry hooks that exclude prompts, outputs, tokens, and provider keys.
+- Added `@fountlayer/reliability` and optional Gateway adapter retry/circuit
+  breaker controls before usage or ledger writes.
 - Root database scripts: `pnpm db:migrate`, `pnpm db:seed`, and `pnpm db:test:setup`.
 
 ## 0.1.0 - 2026-06-17

@@ -34,6 +34,13 @@ import {
   parseAttributionHeaders,
   sessionRequestSchema,
 } from "@fountlayer/protocol";
+import {
+  CircuitOpenError,
+  type CircuitBreaker,
+  type RetryOptions,
+  executeWithCircuitBreaker,
+  executeWithRetry,
+} from "@fountlayer/reliability";
 
 import {
   createInMemoryGatewayStore,
@@ -64,6 +71,8 @@ type GatewayServerOptions = {
   logger?: boolean;
   allowHostedByokCredentials?: boolean;
   adapter?: LLMAdapter;
+  adapterCircuitBreaker?: CircuitBreaker;
+  adapterRetry?: RetryOptions;
   adminTokenHashes?: readonly string[];
   credentialCipher?: CredentialCipher;
   rateLimits?: GatewayRateLimitOptions;
@@ -753,6 +762,8 @@ export function buildGatewayServer(
   options: GatewayServerOptions = {},
 ): FastifyInstance {
   const adapter = options.adapter ?? new DemoLocalAdapter();
+  const adapterCircuitBreaker = options.adapterCircuitBreaker;
+  const adapterRetry = options.adapterRetry ?? { maxAttempts: 1 };
   const allowHostedByokCredentials =
     options.allowHostedByokCredentials ?? false;
   const adminTokenHashes = options.adminTokenHashes ?? [];
@@ -1170,14 +1181,22 @@ export function buildGatewayServer(
     let output: AdapterChatOutput;
 
     try {
-      output = await adapter.chat({
-        requestId,
-        model: routePolicy.model,
-        messages: parsed.data.messages,
-        stream: parsed.data.stream,
-        metadata: parsed.data.metadata,
-        attribution,
-      });
+      output = await executeWithCircuitBreaker(
+        () =>
+          executeWithRetry(
+            () =>
+              adapter.chat({
+                requestId,
+                model: routePolicy.model,
+                messages: parsed.data.messages,
+                stream: parsed.data.stream,
+                metadata: parsed.data.metadata,
+                attribution,
+              }),
+            adapterRetry,
+          ),
+        adapterCircuitBreaker,
+      );
     } catch (error) {
       await recordTelemetry(telemetrySink, "gateway.adapter.error", {
         appId: attribution.appId,
@@ -1191,6 +1210,15 @@ export function buildGatewayServer(
         routedModel: routePolicy.model,
         useCase: attribution.useCase,
       });
+      if (error instanceof CircuitOpenError) {
+        return jsonError(
+          reply,
+          503,
+          "adapter_circuit_open",
+          "LLM adapter circuit breaker is open.",
+        );
+      }
+
       return jsonError(
         reply,
         502,

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { createCredentialCipher } from "@fountlayer/credentials";
 import { createInMemoryTelemetrySink } from "@fountlayer/observability";
+import { CircuitBreaker } from "@fountlayer/reliability";
 import { createFountLayer } from "@fountlayer/sdk-js";
 
 import { buildGatewayServer } from "./src/server";
@@ -736,6 +737,123 @@ describe("gateway minimum API", () => {
     });
     expect(serializedEvents).not.toContain("Sensitive prompt");
     expect(serializedEvents).not.toContain("Demo summary");
+  });
+
+  it("retries adapter failures without duplicating usage or ledger records", async () => {
+    let attempts = 0;
+    const server = buildGatewayServer(undefined, {
+      adminTokenHashes: [hashTestToken(adminToken)],
+      adapterRetry: {
+        maxAttempts: 2,
+      },
+      adapter: {
+        async chat(input) {
+          attempts += 1;
+
+          if (attempts === 1) {
+            throw new Error("temporary adapter failure");
+          }
+
+          return {
+            id: input.requestId ?? "req_retry_test",
+            model: input.model,
+            content: "Retry succeeded.",
+            finishReason: "stop",
+            usage: {
+              cachedInputTokens: 0,
+              inputTokens: 10,
+              outputTokens: 5,
+              totalTokens: 15,
+              usageEstimated: false,
+            },
+            raw: {},
+          };
+        },
+        async *streamChat() {
+          yield { done: true };
+        },
+      },
+    });
+    const headers = await createSessionHeaders(server);
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/chat/completions",
+      headers,
+      payload: {
+        model: "vertical/paper-summary",
+        messages: [{ role: "user", content: "Summarize this paper." }],
+      },
+    });
+    const usageEvents = await server.inject({
+      method: "GET",
+      url: "/admin/usage-events",
+      headers: adminHeaders,
+    });
+    const ledger = await server.inject({
+      method: "GET",
+      url: "/admin/ledger",
+      headers: adminHeaders,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(attempts).toBe(2);
+    expect(usageEvents.json().usage_events).toHaveLength(1);
+    expect(ledger.json().ledger_entries).toHaveLength(4);
+  });
+
+  it("opens adapter circuits without writing usage or ledger records", async () => {
+    let attempts = 0;
+    const breaker = new CircuitBreaker({
+      failureThreshold: 1,
+      resetAfterMs: 60_000,
+    });
+    const server = buildGatewayServer(undefined, {
+      adminTokenHashes: [hashTestToken(adminToken)],
+      adapterCircuitBreaker: breaker,
+      adapter: {
+        async chat() {
+          attempts += 1;
+          throw new Error("adapter down");
+        },
+        async *streamChat() {
+          yield { done: true };
+        },
+      },
+    });
+    const headers = await createSessionHeaders(server);
+    const payload = {
+      model: "vertical/paper-summary",
+      messages: [{ role: "user", content: "Summarize this paper." }],
+    };
+    const first = await server.inject({
+      method: "POST",
+      url: "/v1/chat/completions",
+      headers,
+      payload,
+    });
+    const second = await server.inject({
+      method: "POST",
+      url: "/v1/chat/completions",
+      headers,
+      payload,
+    });
+    const usageEvents = await server.inject({
+      method: "GET",
+      url: "/admin/usage-events",
+      headers: adminHeaders,
+    });
+    const ledger = await server.inject({
+      method: "GET",
+      url: "/admin/ledger",
+      headers: adminHeaders,
+    });
+
+    expect(first.statusCode).toBe(502);
+    expect(second.statusCode).toBe(503);
+    expect(second.json().error.code).toBe("adapter_circuit_open");
+    expect(attempts).toBe(1);
+    expect(usageEvents.json().usage_events).toHaveLength(0);
+    expect(ledger.json().ledger_entries).toHaveLength(0);
   });
 
   it("falls back to wallet-funded calls when no faucet grant can pay", async () => {

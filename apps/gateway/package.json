@@ -18,6 +18,7 @@
     "@fountlayer/observability": "workspace:*",
     "@fountlayer/pricing": "workspace:*",
     "@fountlayer/protocol": "workspace:*",
+    "@fountlayer/reliability": "workspace:*",
     "fastify": "^5.8.5"
   }
 }
