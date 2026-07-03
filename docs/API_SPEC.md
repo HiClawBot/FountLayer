@@ -5,7 +5,7 @@ The public Gateway API should be OpenAI-compatible where possible while adding F
 ## Required Headers
 
 All `/v1` requests carry attribution headers. All `/v1` endpoints except
-`POST /v1/sessions` require a session bearer token in `v0.2.0-alpha`.
+`POST /v1/sessions` require a session bearer token in `v0.5.0-beta.1`.
 
 Gateway stores only a SHA-256 hash of the session token. The attribution headers
 on each authenticated request must match the attribution captured when the
@@ -181,7 +181,8 @@ Wallet-funded responses use `"paid_by": "wallet"` and return
 
 ## Admin APIs
 
-Admin APIs require `Authorization: Bearer <admin token>` in `v0.2.0-alpha`.
+Admin APIs require `Authorization: Bearer <admin token>` in
+`v0.5.0-beta.1`.
 Configure the Gateway with `FOUNTLAYER_ADMIN_TOKEN_SHA256`, or use
 `FOUNTLAYER_ADMIN_TOKEN` for local development so the Gateway hashes it at
 startup. Console live-data reads use `CONSOLE_GATEWAY_ADMIN_TOKEN` server-side.
@@ -204,7 +205,7 @@ POST   /admin/privacy/request-metadata/purge
 POST   /admin/privacy/end-users/anonymize
 ```
 
-The v0.2.0-alpha Console can read these endpoints directly for live usage and
+The `v0.5.0-beta.1` Console can read these endpoints directly for live usage and
 ledger, registry, faucet, route, pricing, and credential-metadata views when
 its server-side admin token is configured.
 

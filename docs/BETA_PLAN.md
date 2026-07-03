@@ -2,9 +2,9 @@
 
 Target: `v0.5.0-beta.1`
 
-FountLayer is ready to move from an alpha branch into a self-hosted beta track.
-The beta should be positioned as an operator build for developers who want to
-run their own Gateway. It is not a hosted managed-service launch.
+FountLayer is ready to move into a self-hosted beta track. The beta should be
+positioned as an operator build for developers who want to run their own
+Gateway. It is not a hosted managed-service launch.
 
 ## Current Assessment
 
@@ -37,14 +37,8 @@ Verified locally:
 - `pnpm typecheck`
 - Static scan for old local service ports outside `3300-3399`
 
-Current blockers before beta:
+Current blockers before tagging beta:
 
-- Version and documentation drift: branch name and some docs still describe
-  `v0.2.0-alpha` while the implementation is closer to the `v0.5.0`
-  foundation scope.
-- Current local changes need to be committed before beta work continues:
-  port-range consolidation and the safe removal of an unused Console
-  placeholder file.
 - Docker Compose runtime validation is still not proven in a Docker-enabled
   environment.
 - Admin list endpoints need beta-grade pagination and filters for operator use.
@@ -74,13 +68,14 @@ Current blockers before beta:
 
 ### Phase 0: Seal Current Workspace
 
-Goal: stabilize the current alpha branch before starting beta changes.
+Goal: stabilize the current beta branch before continuing beta changes.
 
-- Commit the `3300-3399` port consolidation.
-- Commit the SAFE cleanup removal of the unused Console placeholder file.
-- Re-run `pnpm test`, `pnpm lint`, `pnpm format`, and `pnpm typecheck`.
-- Run the strict key scan.
-- Record this as the baseline for beta.
+- [x] Commit the `3300-3399` port consolidation.
+- [x] Commit the SAFE cleanup removal of the unused Console placeholder file.
+- [x] Re-run `pnpm test`, `pnpm lint`, `pnpm format`, and `pnpm typecheck`.
+- [x] Confirm no old local service port settings outside `3300-3399`.
+- [ ] Add the strict key scan script in Phase 5.
+- [x] Record this as the baseline for beta.
 
 Exit gate:
 
@@ -89,16 +84,16 @@ Exit gate:
 
 ### Phase 1: Version and Documentation Alignment
 
-Goal: remove alpha-era drift and make the repository read like a beta track.
+Goal: make the repository read like a beta track.
 
-- Add `docs/RELEASE_NOTES_v0.5.0-beta.1.md`.
-- Update README, API spec, SECURITY, ROADMAP, and RELEASE_CHECKLIST wording
-  from `v0.2.0-alpha` where the current implementation is beta-scope.
-- Add a concise self-hosted beta quickstart.
-- Document the `3300-3399` port policy in one canonical place and link to it
-  from README and website docs.
-- Add a beta known-limits section that clearly excludes hosted managed-service
-  claims.
+- [x] Add `docs/RELEASE_NOTES_v0.5.0-beta.1.md`.
+- [x] Update README, API spec, SECURITY, ROADMAP, and RELEASE_CHECKLIST wording
+      where the current implementation is beta-scope.
+- [x] Add a concise self-hosted beta quickstart.
+- [x] Document the `3300-3399` port policy in one canonical place and link to it
+      from README and website docs.
+- [x] Add a beta known-limits section that clearly excludes hosted
+      managed-service claims.
 
 Exit gate:
 
@@ -212,8 +207,10 @@ Exit gate:
 
 ## Suggested Branching
 
-- Finish current cleanup on `v0.2.0-alpha` or a short-lived branch.
-- Create `v0.5.0-beta` for beta construction.
+- Finish current cleanup on the previous baseline branch or a short-lived
+  branch.
+  Completed in baseline commit `2817e88`.
+- Continue beta construction on `codex/v0.5.0-beta`.
 - Tag the first beta as `v0.5.0-beta.1`.
 
 ## Verification Matrix

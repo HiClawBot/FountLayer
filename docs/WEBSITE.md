@@ -106,7 +106,7 @@ Current allowed deployment branches:
 
 ```txt
 main
-v0.2.0-alpha
+codex/v0.5.0-beta
 ```
 
 If the workflow fails with `Ensure GitHub Pages has been enabled`, the Pages

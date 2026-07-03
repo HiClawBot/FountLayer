@@ -1,14 +1,16 @@
 # FountLayer Roadmap
 
-This roadmap starts from the current `v0.2.0-alpha` branch. The direct beta
-execution plan is tracked in [Beta Plan](./BETA_PLAN.md) with target
-`v0.5.0-beta.1`.
+This roadmap now tracks the path from the beta construction branch to
+`v0.5.0-beta.1`. The direct beta execution checklist is in
+[Beta Plan](./BETA_PLAN.md).
 
 - PostgreSQL-backed Gateway Store exists.
 - Gateway sessions are persisted as token hashes.
 - Authenticated `/v1` requests enforce session attribution matching.
-- Console Overview and Usage/Ledger can read live Gateway Admin API data with
-  static fallback.
+- Console can read live Gateway Admin API data with static fallback.
+- Admin auth, credential encryption, route policies, wallet-funded calls,
+  settlement exports, metadata-only observability, reliability controls,
+  privacy retention, and dependency health checks exist as beta foundations.
 - The public MVP loop remains: SDK -> Gateway -> attribution -> faucet check ->
   adapter -> usage event -> ledger entries -> console view.
 
@@ -25,75 +27,39 @@ execution plan is tracked in [Beta Plan](./BETA_PLAN.md) with target
 - Faucet grants must keep balance, model allowlist, use-case allowlist, daily
   cap, and expiration controls.
 
-## Next Sprint: Finish `v0.2.0-alpha`
-
-Goal: make the current alpha self-hostable and safe enough for public testers.
-
-1. Add Admin API authentication.
-   - Add app or admin tokens with stored hashes.
-   - Require admin auth on `/admin/*`.
-   - Keep session bearer tokens scoped to `/v1` app traffic.
-   - Add tests for missing, invalid, expired, and revoked admin tokens.
-
-2. Enable PostgreSQL CI coverage.
-   - Add a GitHub Actions Postgres service.
-   - Run migrations and seed data in CI.
-   - Run `FOUNTLAYER_RUN_DB_TESTS=1 pnpm test` in CI.
-   - Keep memory-store tests as the fast default path.
-
-3. Complete live Console read views.
-   - Add Admin API read endpoints for apps, channels, faucet grants, routes,
-     pricing policies, and provider credentials metadata.
-   - Wire Console pages to those endpoints with static fallback.
-   - Show credential metadata only, never secret values.
-
-4. Validate Docker Compose runtime.
-   - Verify Postgres, Redis, Gateway, Console, and LiteLLM sidecar startup.
-   - Add a smoke-test script for health, session creation, estimate, chat,
-     usage event, ledger entries, and Console readback.
-   - Document ports and required environment variables.
-
-Done when:
-
-- `pnpm test`, `pnpm lint`, `pnpm format`, and `pnpm typecheck` pass.
-- CI runs Postgres-backed tests.
-- `/admin/*` is authenticated.
-- Console no longer depends on static data for core read pages when Gateway is
-  available.
-- Docker Compose smoke testing is documented and repeatable.
-
-## `v0.2.0-beta`: Self-Hosted Operator Build
+## `v0.5.0-beta.1`: Self-Hosted Operator Build
 
 Goal: make FountLayer practical for a developer to run as their own Gateway.
 
-1. Harden runtime configuration.
-   - Add environment validation at Gateway startup.
-   - Fail fast on unsafe production settings.
-   - Split local demo, self-hosted, and managed-service env examples.
+1. Align version, docs, and release packaging.
+   - Add beta release notes and a self-hosted beta quickstart.
+   - Keep the hosted managed-service boundary explicit.
+   - Publish a beta-specific release checklist.
 
-2. Add rate and budget controls.
-   - Per-app, per-channel, per-end-user, and anonymous IP limits.
-   - Per-session request caps.
-   - High-price model allowlist checks.
-   - Streaming budget interruption for long-running responses.
+2. Prove self-hosted runtime.
+   - Validate Docker Compose with Postgres, Redis, LiteLLM, Gateway, Console,
+     and the demo app.
+   - Record `pnpm smoke:runtime` output in release notes.
 
-3. Improve Gateway API behavior.
-   - Add idempotency keys for billable requests.
-   - Standardize error codes and response shapes.
-   - Add request IDs to all public responses.
+3. Improve Gateway API operator behavior.
    - Add pagination for Admin list endpoints.
+   - Add basic filters for usage, ledger, app, channel, end-user hash, status,
+     and date range.
+   - Add minimum create/update endpoints for apps, channels, routes, faucet
+     grants, and pricing policies.
 
 4. Expand Console operator workflows.
    - Create and update apps, channels, routes, faucet grants, and pricing
      policies.
-   - Revoke sessions and admin tokens.
    - Inspect usage and ledger by app, channel, user hash, and date range.
+   - Keep credentials and admin tokens server-side only.
 
 Done when:
 
 - A new self-hosting user can run the Gateway from README without editing code.
 - Abuse controls exist before any managed provider key can be used.
 - Admin APIs and Console flows are covered by tests.
+- Runtime smoke is repeatable in a Docker-enabled environment.
 
 ## `v0.3.0`: Credentials, Routing, and Provider Expansion
 

@@ -72,6 +72,41 @@ Docker Compose is included for Postgres, Redis, and LiteLLM self-hosting:
 docker compose up -d
 ```
 
+## Self-Hosted Beta Quickstart
+
+Use this path for the `v0.5.0-beta.1` operator beta. All local service ports
+must stay inside `3300-3399`.
+
+```bash
+pnpm install
+cp .env.example .env
+docker compose up -d postgres redis litellm
+pnpm db:migrate
+pnpm db:seed
+FOUNTLAYER_GATEWAY_STORE=postgres pnpm --filter @fountlayer/gateway dev
+```
+
+In another terminal, start the Console with the same local admin token:
+
+```bash
+GATEWAY_BASE_URL=http://localhost:3300 \
+CONSOLE_GATEWAY_ADMIN_TOKEN=change_me_admin_token \
+pnpm --filter @fountlayer/console dev
+```
+
+Then run the runtime smoke path:
+
+```bash
+GATEWAY_BASE_URL=http://localhost:3300 \
+CONSOLE_BASE_URL=http://localhost:3301 \
+CONSOLE_GATEWAY_ADMIN_TOKEN=change_me_admin_token \
+pnpm smoke:runtime
+```
+
+For production-like testing, set `FOUNTLAYER_DEPLOYMENT_ENV=production`,
+`FOUNTLAYER_GATEWAY_STORE=postgres`, hashed admin tokens, a non-local
+`DATABASE_URL`, and `FOUNTLAYER_CREDENTIAL_MASTER_KEY`.
+
 ## Current Local Loop
 
 The MVP implementation includes the smallest complete FountLayer path:
@@ -95,7 +130,7 @@ NEXT_PUBLIC_GATEWAY_BASE_URL=http://localhost:3300 pnpm --filter @fountlayer/dem
 ### Database-Backed Gateway
 
 The default Gateway mode is `memory` so the demo works without Docker. To use
-the v0.2.0-alpha PostgreSQL-backed store:
+the beta PostgreSQL-backed store:
 
 ```bash
 docker compose up -d postgres redis
@@ -167,7 +202,7 @@ Local port allocation:
 The Console reads live Gateway Admin API usage, ledger, app, channel, faucet,
 route, credential-metadata, and pricing data from `CONSOLE_GATEWAY_BASE_URL` or
 `GATEWAY_BASE_URL`, and falls back to local sample data when the Gateway is
-unavailable. In `v0.2.0-alpha`, `/admin/*` requires an admin bearer token.
+unavailable. In `v0.5.0-beta.1`, `/admin/*` requires an admin bearer token.
 Configure the Gateway with `FOUNTLAYER_ADMIN_TOKEN_SHA256` or
 `FOUNTLAYER_ADMIN_TOKEN`, and configure the Console server with
 `CONSOLE_GATEWAY_ADMIN_TOKEN`. Do not expose this token through `NEXT_PUBLIC_*`
@@ -262,9 +297,9 @@ fountlayer/
 └── examples/
 ```
 
-## Implemented MVP Scope
+## Implemented Foundation Scope
 
-The first public version proves the full commercial loop:
+The current beta foundation proves the full commercial loop:
 
 - SDK can call the Gateway.
 - Gateway can route through the local demo adapter, LiteLLM adapter package, or
@@ -274,19 +309,27 @@ The first public version proves the full commercial loop:
 - Usage events and ledger entries are created for every successful call.
 - Developer console can show usage, cost, revenue, gross margin, and channel commission.
 - SDK helpers support local-only BYOK and local endpoint configuration.
+- PostgreSQL-backed Gateway mode persists sessions, grants, usage, ledger,
+  credentials metadata, wallets, routes, and pricing policies.
+- Admin APIs require bearer-token authentication and return credential metadata
+  only.
+- Server-side credential writes encrypt provider keys before persistence.
+- Wallet-funded calls, route policies, settlement exports, metadata-only
+  observability, reliability controls, and privacy retention helpers are
+  implemented as beta foundations.
 - Provider API keys never appear in SDK, frontend bundles, mobile apps, logs, or the Git repository.
 
 ## Current Limitations
 
-- Gateway runtime state is in-memory in `v0.1.0`; PostgreSQL schema, migration,
-  seed packages, and a v0.2.0-alpha Gateway store are present. Use
-  `FOUNTLAYER_GATEWAY_STORE=postgres` to enable the database-backed path.
-- Wallet-funded calls, hosted BYOK, settlement jobs, OpenMeter, and Lago adapters
-  are planned after the faucet-funded loop.
-- This release is not production-ready for a hosted managed service. Add
-  persistent authentication, managed KMS/Vault backing for credential keys,
-  broader abuse controls, privacy/terms documents, provider terms review, and
-  payment/tax review before public managed hosting.
+- `v0.5.0-beta.1` is a self-hosted operator beta, not a hosted managed-service
+  production launch.
+- Docker Compose runtime validation must be repeated in a Docker-enabled
+  environment before tagging the beta release.
+- Admin list endpoints still need beta-grade pagination and filters.
+- Console beta setup workflows are still mostly read-oriented and need minimum
+  create/update forms for operator objects.
+- Managed-service operations still need formal provider terms review,
+  privacy/terms documents, payment/tax review, and managed KMS/Vault backing.
 
 ## Security Rule Zero
 
@@ -320,6 +363,7 @@ Never embed real provider API keys in the SDK, frontend code, mobile app, deskto
 - [Release Checklist](./docs/RELEASE_CHECKLIST.md)
 - [Release Notes v0.1.0](./docs/RELEASE_NOTES_v0.1.0.md)
 - [Release Notes v0.5.0](./docs/RELEASE_NOTES_v0.5.0.md)
+- [Release Notes v0.5.0-beta.1](./docs/RELEASE_NOTES_v0.5.0-beta.1.md)
 - [Roadmap](./docs/ROADMAP.md)
 - [Changelog](./CHANGELOG.md)
 

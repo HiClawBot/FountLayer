@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+No unreleased changes yet.
+
+## 0.5.0-beta.1 - 2026-07-03
+
 ### Added
 
 - Gateway Store abstraction with in-memory and PostgreSQL implementations.
@@ -54,6 +58,8 @@
 - Added Worker in-memory job queue and `settlement.export` handler for
   queue-backed settlement report and CSV export generation.
 - Root database scripts: `pnpm db:migrate`, `pnpm db:seed`, and `pnpm db:test:setup`.
+- Self-hosted beta plan, beta release notes, and local service port policy
+  constrained to `3300-3399`.
 
 ## 0.1.0 - 2026-06-17
 
