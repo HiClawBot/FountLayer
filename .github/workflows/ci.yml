@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - codex/v0.5.0-beta
 
 jobs:
   verify:

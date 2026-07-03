@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - v0.2.0-alpha
+      - codex/v0.5.0-beta
   workflow_dispatch:
 
 permissions:

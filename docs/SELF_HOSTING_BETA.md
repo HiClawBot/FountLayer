@@ -99,10 +99,10 @@ CONSOLE_GATEWAY_ADMIN_TOKEN=change_me_admin_token \
 pnpm smoke:runtime
 ```
 
-If Docker is unavailable on the local machine, run the `Runtime Smoke` GitHub
-Actions workflow manually. It starts the Compose dependencies, migrates and
-seeds Postgres, starts Gateway on `3300`, starts Console on `3301`, and runs
-`pnpm smoke:runtime`.
+If Docker is unavailable on the local machine, push `codex/v0.5.0-beta` or run
+the `Runtime Smoke` GitHub Actions workflow manually. It starts the Compose
+dependencies, migrates and seeds Postgres, starts Gateway on `3300`, starts
+Console on `3301`, and runs `pnpm smoke:runtime`.
 
 The smoke test checks:
 

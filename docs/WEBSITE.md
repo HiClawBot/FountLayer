@@ -77,7 +77,8 @@ shown.
 ## GitHub Pages
 
 The Pages workflow builds `apps/site`, runs `pnpm smoke:site`, and uploads
-`apps/site/dist`.
+`apps/site/dist`. It runs on pushes to `main`, `v0.2.0-alpha`, and
+`codex/v0.5.0-beta`, plus manual dispatch.
 
 Default project Pages URL:
 

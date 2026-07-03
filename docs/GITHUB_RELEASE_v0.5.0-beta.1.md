@@ -43,8 +43,9 @@ port scan       # no local service port settings outside 3300-3399
 ```
 
 Docker Compose runtime smoke still needs to be run in a Docker-enabled
-environment before tagging. Use a local Docker host or run the manual
-`Runtime Smoke` GitHub Actions workflow:
+environment before tagging. Pushing `codex/v0.5.0-beta` runs the `Runtime Smoke`
+GitHub Actions workflow automatically; maintainers can also use a local Docker
+host or run the workflow manually:
 
 ```bash
 pnpm db:migrate
