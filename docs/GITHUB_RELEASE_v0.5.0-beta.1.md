@@ -46,11 +46,11 @@ port scan       # no local service port settings outside 3300-3399
 GitHub Actions verification on the beta branch:
 
 - CI passed:
-  <https://github.com/HiClawBot/FountLayer/actions/runs/28671883204>
+  <https://github.com/HiClawBot/FountLayer/actions/workflows/ci.yml?query=branch%3Acodex%2Fv0.5.0-beta>
 - Runtime Smoke passed in a Docker-enabled runner:
-  <https://github.com/HiClawBot/FountLayer/actions/runs/28671883236>
+  <https://github.com/HiClawBot/FountLayer/actions/workflows/runtime-smoke.yml?query=branch%3Acodex%2Fv0.5.0-beta>
 - Pages deploy passed:
-  <https://github.com/HiClawBot/FountLayer/actions/runs/28671883169>
+  <https://github.com/HiClawBot/FountLayer/actions/workflows/pages.yml?query=branch%3Acodex%2Fv0.5.0-beta>
 - Public site returned HTTP 200: <https://hiclawbot.github.io/FountLayer/>
 
 Maintainers can repeat the runtime smoke locally with Docker:

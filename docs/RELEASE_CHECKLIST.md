@@ -59,7 +59,7 @@
 
 - [x] `docs/RELEASE_NOTES_v0.5.0-beta.1.md` is complete.
 - [x] Docker Compose runtime smoke passes in a Docker-enabled environment:
-      <https://github.com/HiClawBot/FountLayer/actions/runs/28671883236>.
+      <https://github.com/HiClawBot/FountLayer/actions/workflows/runtime-smoke.yml?query=branch%3Acodex%2Fv0.5.0-beta>.
 - [x] Self-hosted beta runbook is present.
 - [x] Admin list endpoints have beta-grade pagination and filters.
 - [x] Admin APIs can create/update apps, channels, routes, faucet grants, and

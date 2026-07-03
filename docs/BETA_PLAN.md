@@ -46,11 +46,12 @@ Verified locally:
 
 Verified on GitHub Actions for the beta branch:
 
-- CI: <https://github.com/HiClawBot/FountLayer/actions/runs/28671883204>
+- CI:
+  <https://github.com/HiClawBot/FountLayer/actions/workflows/ci.yml?query=branch%3Acodex%2Fv0.5.0-beta>
 - Runtime Smoke:
-  <https://github.com/HiClawBot/FountLayer/actions/runs/28671883236>
+  <https://github.com/HiClawBot/FountLayer/actions/workflows/runtime-smoke.yml?query=branch%3Acodex%2Fv0.5.0-beta>
 - Pages deploy:
-  <https://github.com/HiClawBot/FountLayer/actions/runs/28671883169>
+  <https://github.com/HiClawBot/FountLayer/actions/workflows/pages.yml?query=branch%3Acodex%2Fv0.5.0-beta>
 - Public site: <https://hiclawbot.github.io/FountLayer/>
 
 Current blocker before tagging beta:

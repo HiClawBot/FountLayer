@@ -105,7 +105,7 @@ dependencies, migrates and seeds Postgres, starts Gateway on `3300`, starts
 Console on `3301`, and runs `pnpm smoke:runtime`.
 
 The beta release gate passed in GitHub Actions on the beta branch:
-<https://github.com/HiClawBot/FountLayer/actions/runs/28671883236>.
+<https://github.com/HiClawBot/FountLayer/actions/workflows/runtime-smoke.yml?query=branch%3Acodex%2Fv0.5.0-beta>.
 
 The smoke test checks:
 
