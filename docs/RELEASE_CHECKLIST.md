@@ -61,9 +61,10 @@
 - [ ] `docs/RELEASE_NOTES_v0.5.0-beta.1.md` is complete.
 - [ ] Docker Compose runtime smoke passes in a Docker-enabled environment.
 - [x] Self-hosted beta runbook is present.
-- [ ] Admin list endpoints have beta-grade pagination and filters.
+- [x] Admin list endpoints have beta-grade pagination and filters.
 - [ ] Console has minimum operator setup workflows for apps, channels, routes,
       faucet grants, pricing policies, and credential metadata.
 - [ ] Threat model and beta security checklist are present.
-- [ ] Strict key scan script passes.
-- [ ] No local service port settings outside `3300-3399`.
+- [x] Strict key scan script exists.
+- [x] `pnpm scan:keys` passes.
+- [x] No local service port settings outside `3300-3399`.

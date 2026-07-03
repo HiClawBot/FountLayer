@@ -28,6 +28,9 @@ Implemented foundation:
   anonymization hooks.
 - Static bilingual project website and GitHub Pages workflow.
 - Local port policy consolidated to the `3300-3399` range.
+- Admin list pagination and basic filters for apps, channels, routes, faucet
+  grants, pricing policies, credentials, usage events, and ledger entries.
+- Strict provider-key scan script.
 
 Verified locally:
 
@@ -35,13 +38,15 @@ Verified locally:
 - `pnpm lint`
 - `pnpm format`
 - `pnpm typecheck`
+- `pnpm scan:keys`
 - Static scan for old local service ports outside `3300-3399`
 
 Current blockers before tagging beta:
 
 - Docker Compose runtime validation is still not proven in a Docker-enabled
   environment.
-- Admin list endpoints need beta-grade pagination and filters for operator use.
+- Admin create/update endpoints are still needed for setup without editing seed
+  data.
 - Console is mostly read-oriented; beta needs minimum write workflows for
   operator setup.
 - Release packaging, beta checklist, and contributor-facing docs need a beta
@@ -74,7 +79,7 @@ Goal: stabilize the current beta branch before continuing beta changes.
 - [x] Commit the SAFE cleanup removal of the unused Console placeholder file.
 - [x] Re-run `pnpm test`, `pnpm lint`, `pnpm format`, and `pnpm typecheck`.
 - [x] Confirm no old local service port settings outside `3300-3399`.
-- [ ] Add the strict key scan script in Phase 5.
+- [x] Add the strict key scan script in Phase 5.
 - [x] Record this as the baseline for beta.
 
 Exit gate:
@@ -124,9 +129,9 @@ Exit gate:
 
 Goal: make Admin APIs usable for real operator workflows.
 
-- Add pagination and basic filters to Admin list endpoints:
-  apps, channels, routes, faucet grants, pricing policies, credentials, usage
-  events, and ledger entries.
+- [x] Add pagination and basic filters to Admin list endpoints:
+      apps, channels, routes, faucet grants, pricing policies, credentials, usage
+      events, and ledger entries.
 - Add minimal create/update endpoints for apps, channels, routes, faucet
   grants, and pricing policies.
 - Add revoke flows for sessions and admin tokens if they are present in the
@@ -164,7 +169,7 @@ Goal: make beta safe enough for public self-hosted testers.
 
 - Add `docs/THREAT_MODEL.md`.
 - Add `docs/SECURITY_BETA_CHECKLIST.md`.
-- Add a repository script for strict provider-key pattern scans.
+- [x] Add a repository script for strict provider-key pattern scans.
 - Add anonymous IP or unauthenticated boundary rate limiting if public demo
   exposure is supported.
 - Document production key generation for

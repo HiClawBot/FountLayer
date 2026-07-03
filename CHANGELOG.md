@@ -60,6 +60,9 @@ No unreleased changes yet.
 - Root database scripts: `pnpm db:migrate`, `pnpm db:seed`, and `pnpm db:test:setup`.
 - Self-hosted beta plan, beta release notes, and local service port policy
   constrained to `3300-3399`.
+- Admin list pagination and basic filters for registry, usage, and ledger
+  endpoints.
+- Strict provider-key scan script via `pnpm scan:keys`.
 
 ## 0.1.0 - 2026-06-17
 

@@ -30,6 +30,8 @@ This beta is not a hosted managed-service production launch.
 - Static bilingual website with GitHub Pages workflow.
 - Local service port policy constrained to `3300-3399`.
 - Self-hosted beta runbook.
+- Admin list pagination and basic filters.
+- Strict provider-key scan script: `pnpm scan:keys`.
 
 ## Preserved Invariants
 
@@ -50,24 +52,23 @@ This beta is not a hosted managed-service production launch.
 Latest local baseline:
 
 ```txt
-pnpm test       # passed, 108 passed and 2 skipped
+pnpm test       # passed, 110 passed and 2 skipped
 pnpm lint       # passed
 pnpm format     # passed
 pnpm typecheck  # passed
+pnpm scan:keys  # passed, no findings
 port scan       # no local service port settings outside 3300-3399
 ```
 
 Required before tagging `v0.5.0-beta.1`:
 
 - Docker Compose runtime smoke in a Docker-enabled environment.
-- Strict provider-key scan script.
 - Beta threat model and security checklist.
-- Admin API pagination and filters.
 - Minimum Console operator setup workflows.
 
 ## Known Gaps
 
-- Admin list endpoints still need beta-grade pagination and filters.
+- Admin create/update endpoints still need beta setup coverage.
 - Console setup workflows are still mostly read-oriented.
 - Docker Compose runtime smoke must be repeated where Docker is available.
 - Managed-service production launch still requires provider terms review,

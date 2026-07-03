@@ -17,6 +17,7 @@
     "format": "prettier --check .",
     "format:write": "prettier --write .",
     "lint": "eslint .",
+    "scan:keys": "node scripts/strict-key-scan.mjs",
     "smoke:runtime": "node scripts/smoke-runtime.mjs",
     "smoke:site": "node scripts/smoke-site.mjs",
     "test": "vitest run --passWithNoTests",
