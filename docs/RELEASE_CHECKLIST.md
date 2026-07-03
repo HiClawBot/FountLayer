@@ -66,7 +66,7 @@
       pricing policies.
 - [x] Console has minimum operator setup workflows for apps, channels, routes,
       faucet grants, pricing policies, and credential metadata.
-- [ ] Threat model and beta security checklist are present.
+- [x] Threat model and beta security checklist are present.
 - [x] Strict key scan script exists.
 - [x] `pnpm scan:keys` passes.
 - [x] No local service port settings outside `3300-3399`.

@@ -37,6 +37,7 @@ This beta is not a hosted managed-service production launch.
   policies, and credential metadata through server-side Admin API actions.
 - Console Usage & Ledger filters for app, channel, end user, status, direction,
   wallet, usage event, and date bounds.
+- Beta threat model and security checklist.
 - Strict provider-key scan script: `pnpm scan:keys`.
 
 ## Preserved Invariants
@@ -69,7 +70,6 @@ port scan       # no local service port settings outside 3300-3399
 Required before tagging `v0.5.0-beta.1`:
 
 - Docker Compose runtime smoke in a Docker-enabled environment.
-- Beta threat model and security checklist.
 
 ## Known Gaps
 

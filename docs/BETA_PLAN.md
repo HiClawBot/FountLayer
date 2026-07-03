@@ -47,7 +47,8 @@ Current blockers before tagging beta:
 
 - Docker Compose runtime validation is still not proven in a Docker-enabled
   environment.
-- Beta threat model and beta security checklist are still needed.
+- Docker runtime smoke remains blocked on this machine until Docker CLI is
+  available.
 - Release packaging, beta checklist, and contributor-facing docs need a beta
   pass.
 
@@ -166,15 +167,15 @@ Exit gate:
 
 Goal: make beta safe enough for public self-hosted testers.
 
-- Add `docs/THREAT_MODEL.md`.
-- Add `docs/SECURITY_BETA_CHECKLIST.md`.
+- [x] Add `docs/THREAT_MODEL.md`.
+- [x] Add `docs/SECURITY_BETA_CHECKLIST.md`.
 - [x] Add a repository script for strict provider-key pattern scans.
 - Add anonymous IP or unauthenticated boundary rate limiting if public demo
   exposure is supported.
-- Document production key generation for
-  `FOUNTLAYER_CREDENTIAL_MASTER_KEY`.
-- Confirm telemetry, spans, metrics, and health checks never expose prompts,
-  outputs, auth headers, provider keys, or connection-string errors.
+- [x] Document production key generation for
+      `FOUNTLAYER_CREDENTIAL_MASTER_KEY`.
+- [x] Confirm telemetry, spans, metrics, and health checks never expose prompts,
+      outputs, auth headers, provider keys, or connection-string errors.
 
 Exit gate:
 

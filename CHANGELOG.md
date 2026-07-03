@@ -67,6 +67,7 @@ No unreleased changes yet.
 - Console `/setup` workflow for server-side creation of apps, channels, routes,
   faucet grants, pricing policies, and credential metadata.
 - Console Usage & Ledger filters backed by Gateway Admin list query parameters.
+- Beta threat model and security checklist.
 - Strict provider-key scan script via `pnpm scan:keys`.
 
 ## 0.1.0 - 2026-06-17

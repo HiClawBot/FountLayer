@@ -357,6 +357,8 @@ Never embed real provider API keys in the SDK, frontend code, mobile app, deskto
 - [Data Model](./docs/DATA_MODEL.sql)
 - [Pricing and Ledger](./docs/PRICING_LEDGER.md)
 - [Security](./docs/SECURITY.md)
+- [Threat Model](./docs/THREAT_MODEL.md)
+- [Beta Security Checklist](./docs/SECURITY_BETA_CHECKLIST.md)
 - [Website](./docs/WEBSITE.md)
 - [Beta Plan](./docs/BETA_PLAN.md)
 - [Self-Hosted Beta Runbook](./docs/SELF_HOSTING_BETA.md)
