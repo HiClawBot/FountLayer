@@ -109,8 +109,9 @@ Exit gate:
 Goal: make self-hosting repeatable, not aspirational.
 
 - [x] Add a Docker Compose beta runbook.
-- Validate Postgres on `3332`, Redis on `3379`, LiteLLM on `3305`, Gateway on
-  `3300`, Console on `3301`, and Demo on `3302`.
+- [ ] Validate Postgres on `3332`, Redis on `3379`, LiteLLM on `3305`, Gateway
+      on `3300`, Console on `3301`, and Demo on `3302` in a Docker-enabled
+      environment.
 - [x] Extend `pnpm smoke:runtime` or add a beta smoke script that checks
       health, dependency readiness, session creation, estimate, chat, Admin
       readback, usage events, ledger entries, and Console live data.
@@ -136,8 +137,8 @@ Goal: make Admin APIs usable for real operator workflows.
       current data model. Sessions can be revoked through Admin API; admin
       tokens are configured from environment hashes and do not have a persisted
       table in this beta.
-- Preserve metadata-only credential responses.
-- Add tests for all write paths and for secret non-disclosure.
+- [x] Preserve metadata-only credential responses.
+- [x] Add tests for current Admin write paths and for secret non-disclosure.
 
 Exit gate:
 
@@ -170,15 +171,12 @@ Goal: make beta safe enough for public self-hosted testers.
 - [x] Add `docs/THREAT_MODEL.md`.
 - [x] Add `docs/SECURITY_BETA_CHECKLIST.md`.
 - [x] Add a repository script for strict provider-key pattern scans.
-- Add anonymous IP or unauthenticated boundary rate limiting if public demo
-  exposure is supported.
+- [x] Decide public demo exposure is unsupported in this self-hosted beta, so
+      anonymous IP/CAPTCHA throttling is out of scope for this release track.
 - [x] Document production key generation for
       `FOUNTLAYER_CREDENTIAL_MASTER_KEY`.
 - [x] Confirm telemetry, spans, metrics, and health checks never expose prompts,
       outputs, auth headers, provider keys, or connection-string errors.
-- [x] Document public demo CAPTCHA/IP throttling as out of scope for the
-      self-hosted beta. Do not expose an unauthenticated public demo from this
-      release track.
 
 Exit gate:
 
