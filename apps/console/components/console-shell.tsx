@@ -43,7 +43,7 @@ export function ConsoleShell({ children }: { children: React.ReactNode }) {
         </nav>
         <div className="brand">
           <CircuitBoard size={20} aria-hidden="true" />
-          <span>Gateway http://localhost:8787</span>
+          <span>Gateway http://localhost:3300</span>
         </div>
       </aside>
       <main className="main">{children}</main>

@@ -12,8 +12,11 @@ pnpm --filter @fountlayer/site dev
 Local URL:
 
 ```txt
-http://127.0.0.1:4174
+http://127.0.0.1:3303
 ```
+
+The website dev and preview scripts use strict ports. Keep website development
+inside the project port range: dev on `3303`, preview on `3304`.
 
 ## Build
 

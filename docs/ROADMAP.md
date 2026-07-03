@@ -1,6 +1,8 @@
 # FountLayer Roadmap
 
-This roadmap starts from the current `v0.2.0-alpha` branch:
+This roadmap starts from the current `v0.2.0-alpha` branch. The direct beta
+execution plan is tracked in [Beta Plan](./BETA_PLAN.md) with target
+`v0.5.0-beta.1`.
 
 - PostgreSQL-backed Gateway Store exists.
 - Gateway sessions are persisted as token hashes.

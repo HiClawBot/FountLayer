@@ -5,22 +5,24 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: fountlayer
+      PGPORT: 3332
     ports:
-      - "5432:5432"
+      - "3332:3332"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d fountlayer"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d fountlayer -p 3332"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:7
+    command: ["redis-server", "--port", "3379"]
     ports:
-      - "6379:6379"
+      - "3379:3379"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-p", "3379", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -28,13 +30,13 @@ services:
   litellm:
     image: ghcr.io/berriai/litellm:main-latest
     command:
-      ["--config", "/app/config.yaml", "--host", "0.0.0.0", "--port", "4000"]
+      ["--config", "/app/config.yaml", "--host", "0.0.0.0", "--port", "3305"]
     environment:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-change_me}
-      LOCAL_OPENAI_BASE_URL: ${LOCAL_OPENAI_BASE_URL:-http://host.docker.internal:11434/v1}
+      LOCAL_OPENAI_BASE_URL: ${LOCAL_OPENAI_BASE_URL:-http://host.docker.internal:3314/v1}
       LOCAL_OPENAI_API_KEY: ${LOCAL_OPENAI_API_KEY:-local-placeholder}
     ports:
-      - "4000:4000"
+      - "3305:3305"
     volumes:
       - ./infra/litellm-config.yaml:/app/config.yaml:ro
 

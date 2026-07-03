@@ -45,11 +45,13 @@ function isValidSha256Hex(value: string): boolean {
 }
 
 function parsePort(env: GatewayEnv): number {
-  const rawPort = env.PORT ?? env.GATEWAY_PORT ?? "8787";
+  const rawPort = env.PORT ?? env.GATEWAY_PORT ?? "3300";
   const port = Number(rawPort);
 
-  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
-    throw new Error(`Invalid Gateway port: ${rawPort}`);
+  if (!Number.isInteger(port) || port < 3300 || port > 3399) {
+    throw new Error(
+      `Invalid Gateway port: ${rawPort}. Expected a port between 3300 and 3399.`,
+    );
   }
 
   return port;

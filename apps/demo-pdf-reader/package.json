@@ -6,7 +6,7 @@
   "scripts": {
     "build": "next build",
     "clean": "rm -rf .next dist",
-    "dev": "next dev --port 3002",
+    "dev": "next dev --port 3302",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

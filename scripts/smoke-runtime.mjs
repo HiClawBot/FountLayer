@@ -1,7 +1,7 @@
 /* global console, fetch, process */
 
-const gatewayBaseUrl = process.env.GATEWAY_BASE_URL ?? "http://localhost:8787";
-const consoleBaseUrl = process.env.CONSOLE_BASE_URL ?? "http://localhost:3000";
+const gatewayBaseUrl = process.env.GATEWAY_BASE_URL ?? "http://localhost:3300";
+const consoleBaseUrl = process.env.CONSOLE_BASE_URL ?? "http://localhost:3301";
 const adminToken =
   process.env.CONSOLE_GATEWAY_ADMIN_TOKEN ??
   process.env.GATEWAY_ADMIN_TOKEN ??

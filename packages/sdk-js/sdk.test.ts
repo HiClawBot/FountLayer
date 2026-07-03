@@ -23,7 +23,7 @@ describe("FountLayer SDK", () => {
     const sdk = createFountLayer({
       appId: "app_pdf_reader",
       channelId: "channel_desktop",
-      endpoint: "http://localhost:8787/",
+      endpoint: "http://localhost:3300/",
       fetchImpl: async (url, init) => {
         calls.push({ url: String(url), init });
         return new Response(
@@ -44,7 +44,7 @@ describe("FountLayer SDK", () => {
     });
 
     expect(session.token).toBe("fl_sess_123");
-    expect(calls[0]?.url).toBe("http://localhost:8787/v1/sessions");
+    expect(calls[0]?.url).toBe("http://localhost:3300/v1/sessions");
     expect(calls[0]?.init?.headers).toMatchObject({
       "x-fl-app-id": "app_pdf_reader",
       "x-fl-channel-id": "channel_desktop",
@@ -59,7 +59,7 @@ describe("FountLayer SDK", () => {
     const sdk = createFountLayer({
       appId: "app_pdf_reader",
       channelId: "channel_desktop",
-      endpoint: "http://localhost:8787",
+      endpoint: "http://localhost:3300",
       fetchImpl: async (url) => {
         urls.push(String(url));
 
@@ -126,9 +126,9 @@ describe("FountLayer SDK", () => {
     await session.getBalance();
 
     expect(urls).toEqual([
-      "http://localhost:8787/v1/sessions",
-      "http://localhost:8787/v1/chat/completions",
-      "http://localhost:8787/v1/balance",
+      "http://localhost:3300/v1/sessions",
+      "http://localhost:3300/v1/chat/completions",
+      "http://localhost:3300/v1/balance",
     ]);
   });
 
@@ -137,20 +137,20 @@ describe("FountLayer SDK", () => {
     const sdk = createFountLayer({
       appId: "app_pdf_reader",
       channelId: "channel_desktop",
-      endpoint: "http://localhost:8787",
+      endpoint: "http://localhost:3300",
       storage,
     });
 
     sdk.setUserApiKey(" user-key-placeholder ");
     sdk.rotateUserApiKey("rotated-user-key-placeholder");
     sdk.setLocalEndpoint({
-      baseUrl: "http://127.0.0.1:11434/v1/",
+      baseUrl: "http://127.0.0.1:3314/v1/",
       apiKey: " local-placeholder ",
     });
 
     expect(sdk.getUserApiKey()).toBe("rotated-user-key-placeholder");
     expect(sdk.getLocalEndpoint()).toEqual({
-      baseUrl: "http://127.0.0.1:11434/v1",
+      baseUrl: "http://127.0.0.1:3314/v1",
       apiKey: "local-placeholder",
     });
 
@@ -166,7 +166,7 @@ describe("FountLayer SDK", () => {
     const sdk = createFountLayer({
       appId: "app_pdf_reader",
       channelId: "channel_desktop",
-      endpoint: "http://localhost:8787",
+      endpoint: "http://localhost:3300",
       storage,
     });
 
@@ -183,14 +183,12 @@ describe("FountLayer SDK", () => {
     const sdk = createFountLayer({
       appId: "app_pdf_reader",
       channelId: "channel_desktop",
-      endpoint: "http://localhost:8787",
+      endpoint: "http://localhost:3300",
       storage,
     });
 
-    sdk.setLocalEndpoint({ baseUrl: "http://192.168.1.10:11434/v1" });
-    expect(sdk.getLocalEndpoint()?.baseUrl).toBe(
-      "http://192.168.1.10:11434/v1",
-    );
+    sdk.setLocalEndpoint({ baseUrl: "http://192.168.1.10:3314/v1" });
+    expect(sdk.getLocalEndpoint()?.baseUrl).toBe("http://192.168.1.10:3314/v1");
 
     sdk.setLocalEndpoint({ baseUrl: "http://fountlayer-gateway.local/v1" });
     expect(sdk.getLocalEndpoint()?.baseUrl).toBe(
@@ -210,7 +208,7 @@ describe("FountLayer SDK", () => {
     const sdk = createFountLayer({
       appId: "app_pdf_reader",
       channelId: "channel_desktop",
-      endpoint: "http://localhost:8787",
+      endpoint: "http://localhost:3300",
       fetchImpl: async (url) => {
         if (String(url).endsWith("/v1/sessions")) {
           return new Response(

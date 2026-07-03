@@ -6,8 +6,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "clean": "rm -rf dist",
-    "dev": "vite --host 127.0.0.1 --port 4174",
-    "preview": "vite preview --host 127.0.0.1 --port 4175",
+    "dev": "vite --host 127.0.0.1 --port 3303 --strictPort",
+    "preview": "vite preview --host 127.0.0.1 --port 3304 --strictPort",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

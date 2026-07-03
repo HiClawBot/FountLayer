@@ -6,7 +6,7 @@ describe("local OpenAI-compatible adapter", () => {
   it("supports BYOK/local endpoint requests without global provider keys", async () => {
     const calls: Array<{ init?: RequestInit }> = [];
     const adapter = createByokAdapter({
-      baseUrl: "http://127.0.0.1:11434",
+      baseUrl: "http://127.0.0.1:3314",
       apiKey: "user-local-placeholder",
       fetchImpl: async (_url, init) => {
         calls.push({ init });

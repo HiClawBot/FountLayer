@@ -1,8 +1,8 @@
 export const defaultDatabaseUrl =
-  "postgres://postgres:postgres@localhost:5432/fountlayer";
+  "postgres://postgres:postgres@localhost:3332/fountlayer";
 
 export const defaultTestDatabaseUrl =
-  "postgres://postgres:postgres@localhost:5432/fountlayer_test";
+  "postgres://postgres:postgres@localhost:3332/fountlayer_test";
 
 export function getDatabaseUrl(): string {
   return process.env.DATABASE_URL ?? defaultDatabaseUrl;

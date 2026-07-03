@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { createFountLayer, type FountLayerMode } from "@fountlayer/sdk-js";
 
 const gatewayEndpoint =
-  process.env.NEXT_PUBLIC_GATEWAY_BASE_URL ?? "http://localhost:8787";
+  process.env.NEXT_PUBLIC_GATEWAY_BASE_URL ?? "http://localhost:3300";
 
 const modes: FountLayerMode[] = ["managed", "byok", "local"];
 
@@ -17,7 +17,7 @@ export function DemoReader() {
   );
   const [apiKey, setApiKey] = useState("");
   const [localEndpoint, setLocalEndpoint] = useState(
-    "http://127.0.0.1:11434/v1",
+    "http://127.0.0.1:3314/v1",
   );
   const [estimate, setEstimate] = useState<string>("0.00000000");
   const [balance, setBalance] = useState<string>("0.00000000");

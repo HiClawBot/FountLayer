@@ -89,7 +89,7 @@ pnpm lint
 pnpm typecheck
 pnpm --filter @fountlayer/gateway dev
 pnpm --filter @fountlayer/console dev
-NEXT_PUBLIC_GATEWAY_BASE_URL=http://localhost:8787 pnpm --filter @fountlayer/demo-pdf-reader dev
+NEXT_PUBLIC_GATEWAY_BASE_URL=http://localhost:3300 pnpm --filter @fountlayer/demo-pdf-reader dev
 ```
 
 ### Database-Backed Gateway
@@ -118,21 +118,21 @@ FOUNTLAYER_ADMIN_TOKEN=change_me_admin_token \
 FOUNTLAYER_GATEWAY_STORE=postgres \
 pnpm --filter @fountlayer/gateway dev
 
-GATEWAY_BASE_URL=http://localhost:8787 \
+GATEWAY_BASE_URL=http://localhost:3300 \
 CONSOLE_GATEWAY_ADMIN_TOKEN=change_me_admin_token \
 pnpm --filter @fountlayer/console dev
 
-GATEWAY_BASE_URL=http://localhost:8787 \
-CONSOLE_BASE_URL=http://localhost:3000 \
+GATEWAY_BASE_URL=http://localhost:3300 \
+CONSOLE_BASE_URL=http://localhost:3301 \
 CONSOLE_GATEWAY_ADMIN_TOKEN=change_me_admin_token \
 pnpm smoke:runtime
 ```
 
-If another service already uses port `8787`, start the gateway on another port and point the demo at it:
+If another service already uses port `3300`, start the gateway on another port within `3300-3399` and point the demo at it:
 
 ```bash
-GATEWAY_PORT=8788 pnpm --filter @fountlayer/gateway dev
-NEXT_PUBLIC_GATEWAY_BASE_URL=http://localhost:8788 pnpm --filter @fountlayer/demo-pdf-reader dev
+GATEWAY_PORT=3390 pnpm --filter @fountlayer/gateway dev
+NEXT_PUBLIC_GATEWAY_BASE_URL=http://localhost:3390 pnpm --filter @fountlayer/demo-pdf-reader dev
 ```
 
 The demo seed attribution is:
@@ -145,9 +145,24 @@ use_case: paper_summary
 mode: managed
 ```
 
-The developer console runs on `http://localhost:3000` by default, and the PDF
-reader demo runs on `http://localhost:3002`. Next.js may choose the next
-available port if a default port is already in use.
+The developer console runs on `http://localhost:3301` by default, and the PDF
+reader demo runs on `http://localhost:3302`. Keep all local development ports
+inside `3300-3399`; if a port is occupied, stop the conflicting process or
+choose another explicit port in that range.
+
+Local port allocation:
+
+| Port   | Service                                  |
+| ------ | ---------------------------------------- |
+| `3300` | Gateway                                  |
+| `3301` | Console                                  |
+| `3302` | Demo PDF Reader                          |
+| `3303` | Project website dev server               |
+| `3304` | Project website preview server           |
+| `3305` | LiteLLM proxy                            |
+| `3314` | Local OpenAI-compatible endpoint example |
+| `3332` | PostgreSQL                               |
+| `3379` | Redis                                    |
 
 The Console reads live Gateway Admin API usage, ledger, app, channel, faucet,
 route, credential-metadata, and pricing data from `CONSOLE_GATEWAY_BASE_URL` or
@@ -300,6 +315,7 @@ Never embed real provider API keys in the SDK, frontend code, mobile app, deskto
 - [Pricing and Ledger](./docs/PRICING_LEDGER.md)
 - [Security](./docs/SECURITY.md)
 - [Website](./docs/WEBSITE.md)
+- [Beta Plan](./docs/BETA_PLAN.md)
 - [Codex Tasks](./docs/CODEX_TASKS.md)
 - [Release Checklist](./docs/RELEASE_CHECKLIST.md)
 - [Release Notes v0.1.0](./docs/RELEASE_NOTES_v0.1.0.md)

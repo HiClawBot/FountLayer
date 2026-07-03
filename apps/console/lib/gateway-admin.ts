@@ -140,7 +140,7 @@ type LedgerResponse = {
 const gatewayBaseUrl =
   process.env.CONSOLE_GATEWAY_BASE_URL ??
   process.env.GATEWAY_BASE_URL ??
-  "http://localhost:8787";
+  "http://localhost:3300";
 const gatewayAdminToken =
   process.env.CONSOLE_GATEWAY_ADMIN_TOKEN ??
   process.env.GATEWAY_ADMIN_TOKEN ??

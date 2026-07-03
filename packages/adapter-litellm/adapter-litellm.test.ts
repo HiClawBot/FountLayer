@@ -10,7 +10,7 @@ describe("LiteLLM adapter", () => {
   it("sends OpenAI-compatible requests and maps provider usage", async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     const adapter = new LiteLLMAdapter({
-      baseUrl: "http://localhost:4000",
+      baseUrl: "http://localhost:3305",
       apiKey: "test-placeholder",
       fetchImpl: async (url, init) => {
         calls.push({ url: String(url), init });
@@ -50,7 +50,7 @@ describe("LiteLLM adapter", () => {
       stream?: boolean;
     };
 
-    expect(calls[0]?.url).toBe("http://localhost:4000/v1/chat/completions");
+    expect(calls[0]?.url).toBe("http://localhost:3305/v1/chat/completions");
     expect(
       (calls[0]?.init?.headers as Record<string, string>).authorization,
     ).toBe("Bearer test-placeholder");
@@ -72,7 +72,7 @@ describe("LiteLLM adapter", () => {
 
   it("estimates usage when provider usage is missing", async () => {
     const adapter = new LiteLLMAdapter({
-      baseUrl: "http://localhost:4000",
+      baseUrl: "http://localhost:3305",
       fetchImpl: async () =>
         new Response(
           JSON.stringify({

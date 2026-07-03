@@ -68,10 +68,10 @@ fountlayer/
 ## 4. Environment Variables
 
 ```bash
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/fountlayer
-REDIS_URL=redis://localhost:6379
-GATEWAY_BASE_URL=http://localhost:8787
-LITELLM_BASE_URL=http://localhost:4000
+DATABASE_URL=postgres://postgres:postgres@localhost:3332/fountlayer
+REDIS_URL=redis://localhost:3379
+GATEWAY_BASE_URL=http://localhost:3300
+LITELLM_BASE_URL=http://localhost:3305
 LITELLM_MASTER_KEY=change_me
 FOUNTLAYER_JWT_SECRET=change_me
 ENCRYPTION_MASTER_KEY=change_me_32_bytes

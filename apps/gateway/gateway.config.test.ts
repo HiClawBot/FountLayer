@@ -28,7 +28,7 @@ describe("gateway runtime config", () => {
       deploymentEnv: "development",
       host: "0.0.0.0",
       isProduction: false,
-      port: 8787,
+      port: 3300,
       rateLimits: {
         billableWindowMs: 3600000,
         endUserBillableRequestsPerWindow: 120,
@@ -64,7 +64,7 @@ describe("gateway runtime config", () => {
   it("rejects invalid ports", () => {
     expect(() =>
       loadGatewayRuntimeConfig({
-        GATEWAY_PORT: "70000",
+        GATEWAY_PORT: "not-a-port",
       }),
     ).toThrow("Invalid Gateway port");
   });
@@ -138,7 +138,7 @@ describe("gateway runtime config", () => {
   it("rejects the default local database URL in production", () => {
     expect(() =>
       loadGatewayRuntimeConfig({
-        DATABASE_URL: "postgres://postgres:postgres@localhost:5432/fountlayer",
+        DATABASE_URL: "postgres://postgres:postgres@localhost:3332/fountlayer",
         FOUNTLAYER_ADMIN_TOKEN_SHA256: hashToken("fl_admin_prod"),
         FOUNTLAYER_CREDENTIAL_MASTER_KEY: credentialMasterKeyEnv(),
         FOUNTLAYER_DEPLOYMENT_ENV: "production",
@@ -167,7 +167,7 @@ describe("gateway runtime config", () => {
       FOUNTLAYER_DEPLOYMENT_ENV: "production",
       FOUNTLAYER_GATEWAY_STORE: "postgres",
       GATEWAY_HOST: "127.0.0.1",
-      GATEWAY_PORT: "9000",
+      GATEWAY_PORT: "3390",
     });
 
     expect(config).toMatchObject({
@@ -179,7 +179,7 @@ describe("gateway runtime config", () => {
       deploymentEnv: "production",
       host: "127.0.0.1",
       isProduction: true,
-      port: 9000,
+      port: 3390,
       storeMode: "postgres",
     });
   });
