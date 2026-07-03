@@ -58,7 +58,7 @@
 
 ## v0.5.0-beta.1 Gates
 
-- [ ] `docs/RELEASE_NOTES_v0.5.0-beta.1.md` is complete.
+- [x] `docs/RELEASE_NOTES_v0.5.0-beta.1.md` is complete.
 - [ ] Docker Compose runtime smoke passes in a Docker-enabled environment.
 - [x] Self-hosted beta runbook is present.
 - [x] Admin list endpoints have beta-grade pagination and filters.

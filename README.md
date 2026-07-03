@@ -327,7 +327,6 @@ The current beta foundation proves the full commercial loop:
   production launch.
 - Docker Compose runtime validation must be repeated in a Docker-enabled
   environment before tagging the beta release.
-- Console usage and ledger filtering still need operator-grade controls.
 - Managed-service operations still need formal provider terms review,
   privacy/terms documents, payment/tax review, and managed KMS/Vault backing.
 
@@ -364,6 +363,7 @@ Never embed real provider API keys in the SDK, frontend code, mobile app, deskto
 - [Self-Hosted Beta Runbook](./docs/SELF_HOSTING_BETA.md)
 - [Codex Tasks](./docs/CODEX_TASKS.md)
 - [Release Checklist](./docs/RELEASE_CHECKLIST.md)
+- [GitHub Release Draft v0.5.0-beta.1](./docs/GITHUB_RELEASE_v0.5.0-beta.1.md)
 - [Release Notes v0.1.0](./docs/RELEASE_NOTES_v0.1.0.md)
 - [Release Notes v0.5.0](./docs/RELEASE_NOTES_v0.5.0.md)
 - [Release Notes v0.5.0-beta.1](./docs/RELEASE_NOTES_v0.5.0-beta.1.md)

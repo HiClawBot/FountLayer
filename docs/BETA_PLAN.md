@@ -188,11 +188,11 @@ Exit gate:
 
 Goal: make the beta publishable.
 
-- Update changelog for `v0.5.0-beta.1`.
-- Update release checklist with beta-specific gates.
-- Add GitHub release draft text.
-- Confirm GitHub Pages site links to beta quickstart and docs.
-- Tag `v0.5.0-beta.1` only after checks pass.
+- [x] Update changelog for `v0.5.0-beta.1`.
+- [x] Update release checklist with beta-specific gates.
+- [x] Add GitHub release draft text.
+- [x] Confirm GitHub Pages site links to beta quickstart and docs.
+- Tag `v0.5.0-beta.1` only after Docker runtime smoke passes.
 
 Exit gate:
 

@@ -68,6 +68,7 @@ No unreleased changes yet.
   faucet grants, pricing policies, and credential metadata.
 - Console Usage & Ledger filters backed by Gateway Admin list query parameters.
 - Beta threat model and security checklist.
+- GitHub release draft for `v0.5.0-beta.1`.
 - Strict provider-key scan script via `pnpm scan:keys`.
 
 ## 0.1.0 - 2026-06-17

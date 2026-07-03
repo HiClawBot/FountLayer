@@ -203,11 +203,11 @@ const copy = {
       metrics: [
         {
           label: "Current milestone",
-          value: "v0.5 foundation",
+          value: "v0.5 beta",
         },
         {
           label: "Verified tests",
-          value: "108 passed",
+          value: "112 passed",
         },
         {
           label: "Provider keys",
@@ -538,11 +538,11 @@ const copy = {
       metrics: [
         {
           label: "当前里程碑",
-          value: "0.5 基础版",
+          value: "0.5 beta",
         },
         {
           label: "验证测试",
-          value: "108 项通过",
+          value: "112 项通过",
         },
         {
           label: "服务商密钥",
