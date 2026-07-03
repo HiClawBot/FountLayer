@@ -106,6 +106,10 @@ export type ConsoleRuntimeData = {
   source: "gateway" | "fallback";
 };
 
+export type ConsoleRuntimeOptions = {
+  usageLedgerQuery?: string;
+};
+
 type AppsResponse = {
   apps?: ConsoleApp[];
 };
@@ -321,7 +325,11 @@ export async function createConsoleCredential(formData: FormData) {
   revalidateConsoleSetup();
 }
 
-export async function getConsoleRuntimeData(): Promise<ConsoleRuntimeData> {
+export async function getConsoleRuntimeData(
+  options: ConsoleRuntimeOptions = {},
+): Promise<ConsoleRuntimeData> {
+  const usageLedgerQuery = options.usageLedgerQuery ?? "";
+
   try {
     const [
       apps,
@@ -339,8 +347,8 @@ export async function getConsoleRuntimeData(): Promise<ConsoleRuntimeData> {
       fetchJson<FaucetGrantsResponse>("/admin/faucet-grants"),
       fetchJson<PricingPoliciesResponse>("/admin/pricing-policies"),
       fetchJson<RoutesResponse>("/admin/routes"),
-      fetchJson<UsageEventsResponse>("/admin/usage-events"),
-      fetchJson<LedgerResponse>("/admin/ledger"),
+      fetchJson<UsageEventsResponse>(`/admin/usage-events${usageLedgerQuery}`),
+      fetchJson<LedgerResponse>(`/admin/ledger${usageLedgerQuery}`),
     ]);
 
     if (!Array.isArray(apps.apps)) {

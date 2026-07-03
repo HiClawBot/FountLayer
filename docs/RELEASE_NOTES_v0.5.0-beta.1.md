@@ -35,6 +35,8 @@ This beta is not a hosted managed-service production launch.
   pricing policies.
 - Console `/setup` workflow for apps, channels, routes, faucet grants, pricing
   policies, and credential metadata through server-side Admin API actions.
+- Console Usage & Ledger filters for app, channel, end user, status, direction,
+  wallet, usage event, and date bounds.
 - Strict provider-key scan script: `pnpm scan:keys`.
 
 ## Preserved Invariants
@@ -71,7 +73,6 @@ Required before tagging `v0.5.0-beta.1`:
 
 ## Known Gaps
 
-- Console usage and ledger filters still need operator-grade controls.
 - Docker Compose runtime smoke must be repeated where Docker is available.
 - Managed-service production launch still requires provider terms review,
   privacy policy, terms of service, payment/tax review, settlement operations

@@ -219,6 +219,13 @@ button {
   padding: 16px 18px 18px;
 }
 
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 16px 18px 18px;
+}
+
 .field {
   display: grid;
   gap: 6px;
@@ -247,6 +254,10 @@ button {
   border-color: var(--accent);
   outline: 2px solid rgb(23 107 91 / 16%);
   outline-offset: 0;
+}
+
+.field.compact input {
+  min-height: 36px;
 }
 
 .form-actions {
@@ -374,7 +385,8 @@ td.mono,
     grid-template-columns: 1fr;
   }
 
-  .form-grid {
+  .form-grid,
+  .filter-grid {
     grid-template-columns: 1fr;
   }
 }
