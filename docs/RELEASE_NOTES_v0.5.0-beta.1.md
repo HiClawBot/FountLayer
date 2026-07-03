@@ -58,24 +58,30 @@ This beta is not a hosted managed-service production launch.
 
 ## Verification Before Tagging
 
-Latest local baseline:
+Latest local baseline on `codex/v0.5.0-beta`:
 
 ```txt
-pnpm test       # passed, 112 passed and 2 skipped
+pnpm test       # passed, 113 passed and 2 skipped
 pnpm lint       # passed
 pnpm format     # passed
 pnpm typecheck  # passed
+pnpm smoke:site # passed
 pnpm scan:keys  # passed, no findings
 port scan       # no local service port settings outside 3300-3399
 ```
 
-Required before tagging `v0.5.0-beta.1`:
+GitHub Actions verification on the beta branch:
 
-- Docker Compose runtime smoke in a Docker-enabled environment.
+- CI passed:
+  <https://github.com/HiClawBot/FountLayer/actions/runs/28671883204>
+- Runtime Smoke passed:
+  <https://github.com/HiClawBot/FountLayer/actions/runs/28671883236>
+- Pages deploy passed:
+  <https://github.com/HiClawBot/FountLayer/actions/runs/28671883169>
+- Public site returned HTTP 200: <https://hiclawbot.github.io/FountLayer/>
 
 ## Known Gaps
 
-- Docker Compose runtime smoke must be repeated where Docker is available.
 - Managed-service production launch still requires provider terms review,
   privacy policy, terms of service, payment/tax review, settlement operations
   review, managed KMS/Vault backing, and production tenant/role controls.

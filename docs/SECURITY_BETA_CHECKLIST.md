@@ -30,7 +30,8 @@ Scope: `v0.5.0-beta.1` self-hosted operator beta.
       connection-string errors.
 - [x] Privacy purge and anonymization preserve accounting records.
 - [x] Local service port settings stay inside `3300-3399`.
-- [ ] Docker Compose runtime smoke passes in a Docker-enabled environment.
+- [x] Docker Compose runtime smoke passes in a Docker-enabled environment:
+      <https://github.com/HiClawBot/FountLayer/actions/runs/28671883236>.
 
 ## Operator Defaults
 

@@ -104,6 +104,9 @@ the `Runtime Smoke` GitHub Actions workflow manually. It starts the Compose
 dependencies, migrates and seeds Postgres, starts Gateway on `3300`, starts
 Console on `3301`, and runs `pnpm smoke:runtime`.
 
+The beta release gate passed in GitHub Actions on the beta branch:
+<https://github.com/HiClawBot/FountLayer/actions/runs/28671883236>.
+
 The smoke test checks:
 
 - Gateway health.

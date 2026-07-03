@@ -34,18 +34,26 @@ This is not a hosted managed-service production launch.
 Latest local verification:
 
 ```txt
-pnpm test       # 112 passed, 2 skipped
+pnpm test       # 113 passed, 2 skipped
 pnpm lint       # passed
 pnpm format     # passed
 pnpm typecheck  # passed
+pnpm smoke:site # passed
 pnpm scan:keys  # passed, no findings
 port scan       # no local service port settings outside 3300-3399
 ```
 
-Docker Compose runtime smoke still needs to be run in a Docker-enabled
-environment before tagging. Pushing `codex/v0.5.0-beta` runs the `Runtime Smoke`
-GitHub Actions workflow automatically; maintainers can also use a local Docker
-host or run the workflow manually:
+GitHub Actions verification on the beta branch:
+
+- CI passed:
+  <https://github.com/HiClawBot/FountLayer/actions/runs/28671883204>
+- Runtime Smoke passed in a Docker-enabled runner:
+  <https://github.com/HiClawBot/FountLayer/actions/runs/28671883236>
+- Pages deploy passed:
+  <https://github.com/HiClawBot/FountLayer/actions/runs/28671883169>
+- Public site returned HTTP 200: <https://hiclawbot.github.io/FountLayer/>
+
+Maintainers can repeat the runtime smoke locally with Docker:
 
 ```bash
 pnpm db:migrate
@@ -57,8 +65,6 @@ pnpm smoke:runtime
 
 ## Known Gaps
 
-- Docker Compose runtime smoke could not be completed on the current local
-  machine because Docker CLI is unavailable.
 - Hosted managed-service production launch still requires provider terms
   review, privacy policy, terms of service, payment/tax review, settlement
   operations review, managed KMS/Vault backing, and production tenant/role

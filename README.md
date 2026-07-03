@@ -325,8 +325,8 @@ The current beta foundation proves the full commercial loop:
 
 - `v0.5.0-beta.1` is a self-hosted operator beta, not a hosted managed-service
   production launch.
-- Docker Compose runtime validation must be repeated in a Docker-enabled
-  environment before tagging the beta release.
+- Docker Compose runtime validation passed in GitHub Actions for the beta
+  release gate; maintainers can repeat it locally where Docker is available.
 - Managed-service operations still need formal provider terms review,
   privacy/terms documents, payment/tax review, and managed KMS/Vault backing.
 

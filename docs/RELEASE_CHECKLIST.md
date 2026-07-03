@@ -40,8 +40,7 @@
 
 - [x] Node/pnpm quickstart commands tested locally.
 - [x] Docker Compose self-hosting runtime test is scripted with
-      `pnpm smoke:runtime`, but remains blocked locally because Docker CLI is
-      unavailable.
+      `pnpm smoke:runtime` and passed in GitHub Actions Runtime Smoke.
 - [x] Optional Postgres integration test runs in CI with
       `FOUNTLAYER_RUN_DB_TESTS=1`.
 - [x] Security warning visible.
@@ -59,7 +58,8 @@
 ## v0.5.0-beta.1 Gates
 
 - [x] `docs/RELEASE_NOTES_v0.5.0-beta.1.md` is complete.
-- [ ] Docker Compose runtime smoke passes in a Docker-enabled environment.
+- [x] Docker Compose runtime smoke passes in a Docker-enabled environment:
+      <https://github.com/HiClawBot/FountLayer/actions/runs/28671883236>.
 - [x] Self-hosted beta runbook is present.
 - [x] Admin list endpoints have beta-grade pagination and filters.
 - [x] Admin APIs can create/update apps, channels, routes, faucet grants, and

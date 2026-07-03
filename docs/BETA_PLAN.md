@@ -36,19 +36,27 @@ Implemented foundation:
 
 Verified locally:
 
-- `pnpm test`
+- `pnpm test` - 113 passed, 2 skipped.
 - `pnpm lint`
 - `pnpm format`
 - `pnpm typecheck`
+- `pnpm smoke:site`
 - `pnpm scan:keys`
 - Static scan for old local service ports outside `3300-3399`
 
-Current blockers before tagging beta:
+Verified on GitHub Actions for the beta branch:
 
-- Docker Compose runtime validation is still not proven in a Docker-enabled
-  environment.
-- Docker runtime smoke remains blocked on this machine until Docker CLI is
-  available.
+- CI: <https://github.com/HiClawBot/FountLayer/actions/runs/28671883204>
+- Runtime Smoke:
+  <https://github.com/HiClawBot/FountLayer/actions/runs/28671883236>
+- Pages deploy:
+  <https://github.com/HiClawBot/FountLayer/actions/runs/28671883169>
+- Public site: <https://hiclawbot.github.io/FountLayer/>
+
+Current blocker before tagging beta:
+
+- None from the code/release gate. Tagging `v0.5.0-beta.1` is now a maintainer
+  publishing action.
 
 ## Beta Definition
 
@@ -109,7 +117,7 @@ Exit gate:
 Goal: make self-hosting repeatable, not aspirational.
 
 - [x] Add a Docker Compose beta runbook.
-- [ ] Validate Postgres on `3332`, Redis on `3379`, LiteLLM on `3305`, Gateway
+- [x] Validate Postgres on `3332`, Redis on `3379`, LiteLLM on `3305`, Gateway
       on `3300`, Console on `3301`, and Demo on `3302` in a Docker-enabled
       environment.
 - [x] Extend `pnpm smoke:runtime` or add a beta smoke script that checks
@@ -193,7 +201,9 @@ Goal: make the beta publishable.
 - [x] Update release checklist with beta-specific gates.
 - [x] Add GitHub release draft text.
 - [x] Confirm GitHub Pages site links to beta quickstart and docs.
-- Tag `v0.5.0-beta.1` only after Docker runtime smoke passes.
+- [x] Docker runtime smoke passed on GitHub Actions.
+- Tag `v0.5.0-beta.1` from a commit whose CI, Runtime Smoke, and Pages runs are
+  green.
 
 Exit gate:
 
