@@ -31,6 +31,8 @@ This beta is not a hosted managed-service production launch.
 - Local service port policy constrained to `3300-3399`.
 - Self-hosted beta runbook.
 - Admin list pagination and basic filters.
+- Admin create/update APIs for apps, channels, routes, faucet grants, and
+  pricing policies.
 - Strict provider-key scan script: `pnpm scan:keys`.
 
 ## Preserved Invariants
@@ -52,7 +54,7 @@ This beta is not a hosted managed-service production launch.
 Latest local baseline:
 
 ```txt
-pnpm test       # passed, 110 passed and 2 skipped
+pnpm test       # passed, 112 passed and 2 skipped
 pnpm lint       # passed
 pnpm format     # passed
 pnpm typecheck  # passed
@@ -68,7 +70,6 @@ Required before tagging `v0.5.0-beta.1`:
 
 ## Known Gaps
 
-- Admin create/update endpoints still need beta setup coverage.
 - Console setup workflows are still mostly read-oriented.
 - Docker Compose runtime smoke must be repeated where Docker is available.
 - Managed-service production launch still requires provider terms review,

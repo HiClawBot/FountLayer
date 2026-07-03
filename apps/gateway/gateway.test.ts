@@ -348,6 +348,227 @@ describe("gateway minimum API", () => {
     expect(response.json().error.code).toBe("invalid_admin_list_query");
   });
 
+  it("creates and updates admin setup records for a billable app path", async () => {
+    const state = createDefaultInMemoryGatewayState();
+    const server = buildGatewayServer(createInMemoryGatewayStore(state), {
+      adminTokenHashes: [hashTestToken(adminToken)],
+    });
+
+    const app = await server.inject({
+      method: "POST",
+      url: "/admin/apps",
+      headers: adminHeaders,
+      payload: {
+        developerId: "dev_beta",
+        developerName: "Beta Developer",
+        id: "app_beta",
+        name: "Beta App",
+      },
+    });
+    const channel = await server.inject({
+      method: "POST",
+      url: "/admin/channels",
+      headers: adminHeaders,
+      payload: {
+        appId: "app_beta",
+        id: "channel_beta",
+        name: "Beta Web",
+        type: "direct",
+      },
+    });
+    const pricing = await server.inject({
+      method: "POST",
+      url: "/admin/pricing-policies",
+      headers: adminHeaders,
+      payload: {
+        appId: "app_beta",
+        id: "policy_beta",
+        name: "Beta Pricing",
+      },
+    });
+    const route = await server.inject({
+      method: "POST",
+      url: "/admin/routes",
+      headers: adminHeaders,
+      payload: {
+        adapter: "local",
+        alias: "vertical/beta",
+        appId: "app_beta",
+        id: "route_beta",
+        model: "demo-local-model",
+        modelAllowlist: ["demo-local-model"],
+        provider: "demo",
+      },
+    });
+    const grant = await server.inject({
+      method: "POST",
+      url: "/admin/faucet-grants",
+      headers: adminHeaders,
+      payload: {
+        allowedModels: ["vertical/beta", "demo-local-model"],
+        allowedUseCases: ["paper_summary"],
+        appId: "app_beta",
+        channelId: "channel_beta",
+        dailyCap: "0.25000000",
+        endUserId: "user_beta",
+        expiresAt: "2030-01-01T00:00:00Z",
+        id: "grant_beta",
+        remaining: "1.00000000",
+      },
+    });
+
+    expect(app.statusCode).toBe(201);
+    expect(channel.statusCode).toBe(201);
+    expect(pricing.statusCode).toBe(201);
+    expect(route.statusCode).toBe(201);
+    expect(grant.statusCode).toBe(201);
+
+    const appUpdate = await server.inject({
+      method: "PATCH",
+      url: "/admin/apps/app_beta",
+      headers: adminHeaders,
+      payload: {
+        defaultPricingPolicyId: "policy_beta",
+        defaultRouteId: "route_beta",
+        name: "Beta App Updated",
+      },
+    });
+    const channelUpdate = await server.inject({
+      method: "PATCH",
+      url: "/admin/channels/channel_beta",
+      headers: adminHeaders,
+      payload: {
+        name: "Beta Web Updated",
+      },
+    });
+    const pricingUpdate = await server.inject({
+      method: "PATCH",
+      url: "/admin/pricing-policies/policy_beta",
+      headers: adminHeaders,
+      payload: {
+        platformFeeRate: "0.200000",
+      },
+    });
+    const routeUpdate = await server.inject({
+      method: "PATCH",
+      url: "/admin/routes/route_beta",
+      headers: adminHeaders,
+      payload: {
+        maxRetailPrice: "0.50000000",
+      },
+    });
+    const grantUpdate = await server.inject({
+      method: "PATCH",
+      url: "/admin/faucet-grants/grant_beta",
+      headers: adminHeaders,
+      payload: {
+        dailyCap: "0.50000000",
+      },
+    });
+
+    expect(appUpdate.statusCode).toBe(200);
+    expect(appUpdate.json().app).toMatchObject({
+      defaultRoute: "vertical/beta",
+      name: "Beta App Updated",
+    });
+    expect(channelUpdate.statusCode).toBe(200);
+    expect(channelUpdate.json().channel.name).toBe("Beta Web Updated");
+    expect(pricingUpdate.statusCode).toBe(200);
+    expect(pricingUpdate.json().pricing_policy.platformFeeRate).toBe("20%");
+    expect(routeUpdate.statusCode).toBe(200);
+    expect(grantUpdate.statusCode).toBe(200);
+    expect(grantUpdate.json().faucet_grant.dailyCap).toBe("0.50000000");
+
+    const betaAttributionHeaders = {
+      authorization: "Bearer fl_beta_seed",
+      "x-fl-app-id": "app_beta",
+      "x-fl-channel-id": "channel_beta",
+      "x-fl-end-user-id": "user_beta",
+      "x-fl-mode": "managed",
+      "x-fl-use-case": "paper_summary",
+    };
+    const session = await server.inject({
+      method: "POST",
+      url: "/v1/sessions",
+      headers: betaAttributionHeaders,
+      payload: {
+        appId: "app_beta",
+        channelId: "channel_beta",
+        endUserId: "user_beta",
+        mode: "managed",
+        useCase: "paper_summary",
+      },
+    });
+    const chat = await server.inject({
+      method: "POST",
+      url: "/v1/chat/completions",
+      headers: {
+        ...betaAttributionHeaders,
+        authorization: `Bearer ${session.json().token}`,
+      },
+      payload: {
+        messages: [{ role: "user", content: "Summarize beta setup." }],
+        model: "vertical/beta",
+      },
+    });
+    const usage = await server.inject({
+      method: "GET",
+      url: "/admin/usage-events?app_id=app_beta",
+      headers: adminHeaders,
+    });
+    const ledger = await server.inject({
+      method: "GET",
+      url: "/admin/ledger",
+      headers: adminHeaders,
+    });
+
+    expect(session.statusCode).toBe(201);
+    expect(chat.statusCode).toBe(200);
+    expect(chat.json().billing.paid_by).toBe("faucet_grant");
+    expect(usage.json().usage_events).toHaveLength(1);
+    expect(usage.json().usage_events[0]).toMatchObject({
+      appId: "app_beta",
+      channelId: "channel_beta",
+      faucetGrantId: "grant_beta",
+      routeId: "route_beta",
+    });
+    expect(ledger.json().ledger_entries).toHaveLength(4);
+    expect(state.apps.get("app_beta")?.status).toBe("active");
+    expect(state.channels.get("channel_beta")?.status).toBe("active");
+    expect(
+      state.routePolicies.find((item) => item.id === "route_beta"),
+    ).toBeDefined();
+    expect(
+      state.faucetGrants.find((item) => item.id === "grant_beta"),
+    ).toBeDefined();
+  });
+
+  it("requires faucet grant controls on admin create", async () => {
+    const state = createDefaultInMemoryGatewayState();
+    const server = buildGatewayServer(createInMemoryGatewayStore(state), {
+      adminTokenHashes: [hashTestToken(adminToken)],
+    });
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/admin/faucet-grants",
+      headers: adminHeaders,
+      payload: {
+        appId: "app_pdf_reader",
+        channelId: "channel_desktop",
+        endUserId: "user_hash_123",
+        id: "grant_missing_controls",
+        remaining: "1.00000000",
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe("invalid_faucet_grant");
+    expect(
+      state.faucetGrants.some((grant) => grant.id === "grant_missing_controls"),
+    ).toBe(false);
+  });
+
   it("rejects provider credential writes when encryption is not configured", async () => {
     const server = buildGatewayServer(undefined, {
       adminTokenHashes: [hashTestToken(adminToken)],

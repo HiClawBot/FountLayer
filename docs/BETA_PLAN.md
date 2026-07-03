@@ -30,6 +30,8 @@ Implemented foundation:
 - Local port policy consolidated to the `3300-3399` range.
 - Admin list pagination and basic filters for apps, channels, routes, faucet
   grants, pricing policies, credentials, usage events, and ledger entries.
+- Admin create/update APIs for apps, channels, routes, faucet grants, and
+  pricing policies, with a tested billable setup path.
 - Strict provider-key scan script.
 
 Verified locally:
@@ -45,8 +47,6 @@ Current blockers before tagging beta:
 
 - Docker Compose runtime validation is still not proven in a Docker-enabled
   environment.
-- Admin create/update endpoints are still needed for setup without editing seed
-  data.
 - Console is mostly read-oriented; beta needs minimum write workflows for
   operator setup.
 - Release packaging, beta checklist, and contributor-facing docs need a beta
@@ -132,8 +132,8 @@ Goal: make Admin APIs usable for real operator workflows.
 - [x] Add pagination and basic filters to Admin list endpoints:
       apps, channels, routes, faucet grants, pricing policies, credentials, usage
       events, and ledger entries.
-- Add minimal create/update endpoints for apps, channels, routes, faucet
-  grants, and pricing policies.
+- [x] Add minimal create/update endpoints for apps, channels, routes, faucet
+      grants, and pricing policies.
 - Add revoke flows for sessions and admin tokens if they are present in the
   current data model.
 - Preserve metadata-only credential responses.

@@ -46,6 +46,16 @@ import {
 
 import {
   createInMemoryGatewayStore,
+  type GatewayAdminAppCreateInput,
+  type GatewayAdminAppUpdateInput,
+  type GatewayAdminChannelCreateInput,
+  type GatewayAdminChannelUpdateInput,
+  type GatewayAdminPricingPolicyCreateInput,
+  type GatewayAdminPricingPolicyUpdateInput,
+  type GatewayAdminRouteCreateInput,
+  type GatewayAdminRouteUpdateInput,
+  type GatewayFaucetGrantCreateInput,
+  type GatewayFaucetGrantUpdateInput,
   type GatewayGrantRecord,
   type GatewayRoutePolicyRecord,
   type GatewayStore,
@@ -193,6 +203,9 @@ type ProviderCredentialRotateBody = {
   apiKey: string;
 };
 
+type AdminWriteStatus = "active" | "disabled";
+type FaucetGrantStatus = "active" | "exhausted" | "expired" | "revoked";
+
 type PrivacyEndUserAnonymizeBody = {
   appId: string;
   endUserId: string;
@@ -232,6 +245,23 @@ function requiredBodyString(
     : undefined;
 }
 
+function optionalBodyString(
+  body: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const value = body[key];
+
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new Error(`${key} must be a non-empty string.`);
+  }
+
+  return value.trim();
+}
+
 function optionalMoneyString(
   body: Record<string, unknown>,
   key: string,
@@ -247,6 +277,131 @@ function optionalMoneyString(
   }
 
   return value;
+}
+
+function requiredMoneyString(body: Record<string, unknown>, key: string) {
+  const value = optionalMoneyString(body, key);
+
+  if (!value) {
+    throw new Error(`${key} is required.`);
+  }
+
+  return value;
+}
+
+function optionalDecimalString(
+  body: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const value = body[key];
+
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+
+  if (typeof value !== "string" || !/^\d+(\.\d{1,8})?$/.test(value)) {
+    throw new Error(`${key} must be a decimal string with up to 8 places.`);
+  }
+
+  return value;
+}
+
+function requiredStringArray(
+  body: Record<string, unknown>,
+  key: string,
+): string[] {
+  const value = body[key];
+
+  if (!Array.isArray(value)) {
+    throw new Error(`${key} must be a non-empty string array.`);
+  }
+
+  const strings = value
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter((item) => item.length > 0);
+
+  if (strings.length !== value.length || strings.length === 0) {
+    throw new Error(`${key} must be a non-empty string array.`);
+  }
+
+  return strings;
+}
+
+function optionalStringArray(
+  body: Record<string, unknown>,
+  key: string,
+): string[] | undefined {
+  return body[key] === undefined ? undefined : requiredStringArray(body, key);
+}
+
+function optionalAdminStatus(
+  body: Record<string, unknown>,
+  key: string,
+): AdminWriteStatus | undefined {
+  const value = optionalBodyString(body, key);
+
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value !== "active" && value !== "disabled") {
+    throw new Error(`${key} must be active or disabled.`);
+  }
+
+  return value;
+}
+
+function optionalFaucetGrantStatus(
+  body: Record<string, unknown>,
+  key: string,
+): FaucetGrantStatus | undefined {
+  const value = optionalBodyString(body, key);
+
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (
+    value !== "active" &&
+    value !== "exhausted" &&
+    value !== "expired" &&
+    value !== "revoked"
+  ) {
+    throw new Error(`${key} must be active, exhausted, expired, or revoked.`);
+  }
+
+  return value;
+}
+
+function optionalDateString(
+  body: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const value = optionalBodyString(body, key);
+
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (Number.isNaN(Date.parse(value))) {
+    throw new Error(`${key} must be a valid date string.`);
+  }
+
+  return new Date(value).toISOString();
+}
+
+function requiredDateString(body: Record<string, unknown>, key: string) {
+  const value = optionalDateString(body, key);
+
+  if (!value) {
+    throw new Error(`${key} is required.`);
+  }
+
+  return value;
+}
+
+function hasWriteFields(value: Record<string, unknown>): boolean {
+  return Object.values(value).some((item) => item !== undefined);
 }
 
 function parseProviderCredentialCreateBody(
@@ -297,6 +452,276 @@ function parseProviderCredentialRotateBody(
   };
 }
 
+function parseAdminAppCreateBody(
+  value: unknown,
+): GatewayAdminAppCreateInput | undefined {
+  const body = recordFromBody(value);
+
+  if (!body) {
+    return undefined;
+  }
+
+  const developerId = requiredBodyString(body, "developerId");
+  const developerName = requiredBodyString(body, "developerName");
+  const id = requiredBodyString(body, "id");
+  const name = requiredBodyString(body, "name");
+
+  if (!developerId || !developerName || !id || !name) {
+    return undefined;
+  }
+
+  return {
+    defaultPricingPolicyId: optionalBodyString(body, "defaultPricingPolicyId"),
+    defaultRouteId: optionalBodyString(body, "defaultRouteId"),
+    developerId,
+    developerName,
+    id,
+    name,
+    status: optionalAdminStatus(body, "status") ?? "active",
+  };
+}
+
+function parseAdminAppUpdateBody(
+  value: unknown,
+): GatewayAdminAppUpdateInput | undefined {
+  const body = recordFromBody(value);
+
+  if (!body) {
+    return undefined;
+  }
+
+  const input: GatewayAdminAppUpdateInput = {
+    defaultPricingPolicyId: optionalBodyString(body, "defaultPricingPolicyId"),
+    defaultRouteId: optionalBodyString(body, "defaultRouteId"),
+    name: optionalBodyString(body, "name"),
+    status: optionalAdminStatus(body, "status"),
+  };
+
+  return hasWriteFields(input) ? input : undefined;
+}
+
+function parseAdminChannelCreateBody(
+  value: unknown,
+): GatewayAdminChannelCreateInput | undefined {
+  const body = recordFromBody(value);
+
+  if (!body) {
+    return undefined;
+  }
+
+  const appId = requiredBodyString(body, "appId");
+  const id = requiredBodyString(body, "id");
+  const name = requiredBodyString(body, "name");
+  const type = requiredBodyString(body, "type");
+
+  if (!appId || !id || !name || !type) {
+    return undefined;
+  }
+
+  return {
+    appId,
+    id,
+    name,
+    status: optionalAdminStatus(body, "status") ?? "active",
+    type,
+  };
+}
+
+function parseAdminChannelUpdateBody(
+  value: unknown,
+): GatewayAdminChannelUpdateInput | undefined {
+  const body = recordFromBody(value);
+
+  if (!body) {
+    return undefined;
+  }
+
+  const input: GatewayAdminChannelUpdateInput = {
+    name: optionalBodyString(body, "name"),
+    status: optionalAdminStatus(body, "status"),
+    type: optionalBodyString(body, "type"),
+  };
+
+  return hasWriteFields(input) ? input : undefined;
+}
+
+function parseAdminRouteCreateBody(
+  value: unknown,
+): GatewayAdminRouteCreateInput | undefined {
+  const body = recordFromBody(value);
+
+  if (!body) {
+    return undefined;
+  }
+
+  const adapter = requiredBodyString(body, "adapter");
+  const alias = requiredBodyString(body, "alias");
+  const appId = requiredBodyString(body, "appId");
+  const id = requiredBodyString(body, "id");
+  const model = requiredBodyString(body, "model");
+  const provider = requiredBodyString(body, "provider");
+
+  if (!adapter || !alias || !appId || !id || !model || !provider) {
+    return undefined;
+  }
+
+  return {
+    adapter,
+    alias,
+    appId,
+    fallbackModels: optionalStringArray(body, "fallbackModels"),
+    id,
+    latencyPreference: optionalBodyString(body, "latencyPreference"),
+    maxRetailPrice: optionalMoneyString(body, "maxRetailPrice"),
+    model,
+    modelAllowlist: requiredStringArray(body, "modelAllowlist"),
+    provider,
+    status: optionalAdminStatus(body, "status") ?? "active",
+  };
+}
+
+function parseAdminRouteUpdateBody(
+  value: unknown,
+): GatewayAdminRouteUpdateInput | undefined {
+  const body = recordFromBody(value);
+
+  if (!body) {
+    return undefined;
+  }
+
+  const input: GatewayAdminRouteUpdateInput = {
+    adapter: optionalBodyString(body, "adapter"),
+    alias: optionalBodyString(body, "alias"),
+    appId: optionalBodyString(body, "appId"),
+    fallbackModels: optionalStringArray(body, "fallbackModels"),
+    latencyPreference: optionalBodyString(body, "latencyPreference"),
+    maxRetailPrice: optionalMoneyString(body, "maxRetailPrice"),
+    model: optionalBodyString(body, "model"),
+    modelAllowlist: optionalStringArray(body, "modelAllowlist"),
+    provider: optionalBodyString(body, "provider"),
+    status: optionalAdminStatus(body, "status"),
+  };
+
+  return hasWriteFields(input) ? input : undefined;
+}
+
+function parseFaucetGrantCreateBody(
+  value: unknown,
+): GatewayFaucetGrantCreateInput | undefined {
+  const body = recordFromBody(value);
+
+  if (!body) {
+    return undefined;
+  }
+
+  const appId = requiredBodyString(body, "appId");
+  const channelId = requiredBodyString(body, "channelId");
+  const endUserId = requiredBodyString(body, "endUserId");
+  const id = requiredBodyString(body, "id");
+  const remaining = requiredMoneyString(body, "remaining");
+
+  if (!appId || !channelId || !endUserId || !id) {
+    return undefined;
+  }
+
+  return {
+    allowedModels: requiredStringArray(body, "allowedModels"),
+    allowedUseCases: requiredStringArray(body, "allowedUseCases"),
+    amount: optionalMoneyString(body, "amount") ?? remaining,
+    appId,
+    channelId,
+    dailyCap: requiredMoneyString(body, "dailyCap"),
+    endUserId,
+    expiresAt: requiredDateString(body, "expiresAt"),
+    id,
+    remaining,
+    sponsorId: optionalBodyString(body, "sponsorId"),
+    sponsorType: optionalBodyString(body, "sponsorType") ?? "platform",
+    status: optionalFaucetGrantStatus(body, "status") ?? "active",
+    walletId: optionalBodyString(body, "walletId") ?? `wallet_${id}`,
+  };
+}
+
+function parseFaucetGrantUpdateBody(
+  value: unknown,
+): GatewayFaucetGrantUpdateInput | undefined {
+  const body = recordFromBody(value);
+
+  if (!body) {
+    return undefined;
+  }
+
+  const input: GatewayFaucetGrantUpdateInput = {
+    allowedModels: optionalStringArray(body, "allowedModels"),
+    allowedUseCases: optionalStringArray(body, "allowedUseCases"),
+    amount: optionalMoneyString(body, "amount"),
+    dailyCap: optionalMoneyString(body, "dailyCap"),
+    expiresAt: optionalDateString(body, "expiresAt"),
+    remaining: optionalMoneyString(body, "remaining"),
+    status: optionalFaucetGrantStatus(body, "status"),
+  };
+
+  return hasWriteFields(input) ? input : undefined;
+}
+
+function parsePricingPolicyCreateBody(
+  value: unknown,
+): GatewayAdminPricingPolicyCreateInput | undefined {
+  const body = recordFromBody(value);
+
+  if (!body) {
+    return undefined;
+  }
+
+  const id = requiredBodyString(body, "id");
+  const name = requiredBodyString(body, "name");
+
+  if (!id || !name) {
+    return undefined;
+  }
+
+  return {
+    appId: optionalBodyString(body, "appId"),
+    channelMarkupRate:
+      optionalDecimalString(body, "channelMarkupRate") ?? "0.000000",
+    developerMarkupRate:
+      optionalDecimalString(body, "developerMarkupRate") ?? "0.000000",
+    id,
+    maxTotalMarkupRate:
+      optionalDecimalString(body, "maxTotalMarkupRate") ?? "1.000000",
+    name,
+    paymentFeeReserveRate:
+      optionalDecimalString(body, "paymentFeeReserveRate") ?? "0.030000",
+    platformFeeRate:
+      optionalDecimalString(body, "platformFeeRate") ?? "0.250000",
+    riskReserveRate:
+      optionalDecimalString(body, "riskReserveRate") ?? "0.050000",
+  };
+}
+
+function parsePricingPolicyUpdateBody(
+  value: unknown,
+): GatewayAdminPricingPolicyUpdateInput | undefined {
+  const body = recordFromBody(value);
+
+  if (!body) {
+    return undefined;
+  }
+
+  const input: GatewayAdminPricingPolicyUpdateInput = {
+    appId: optionalBodyString(body, "appId"),
+    channelMarkupRate: optionalDecimalString(body, "channelMarkupRate"),
+    developerMarkupRate: optionalDecimalString(body, "developerMarkupRate"),
+    maxTotalMarkupRate: optionalDecimalString(body, "maxTotalMarkupRate"),
+    name: optionalBodyString(body, "name"),
+    paymentFeeReserveRate: optionalDecimalString(body, "paymentFeeReserveRate"),
+    platformFeeRate: optionalDecimalString(body, "platformFeeRate"),
+    riskReserveRate: optionalDecimalString(body, "riskReserveRate"),
+  };
+
+  return hasWriteFields(input) ? input : undefined;
+}
+
 function parseRetentionDays(value: unknown): number | undefined {
   if (value === undefined || value === null || value === "") {
     return undefined;
@@ -343,6 +768,10 @@ function credentialIdFromParams(params: unknown): string | undefined {
   const id = record?.id;
 
   return typeof id === "string" && id.trim().length > 0 ? id.trim() : undefined;
+}
+
+function adminIdFromParams(params: unknown): string | undefined {
+  return credentialIdFromParams(params);
 }
 
 function createRateLimiter(now = () => Date.now()) {
@@ -1892,6 +2321,103 @@ export function buildGatewayServer(
     ),
   );
 
+  server.post("/admin/apps", async (request, reply) => {
+    let parsed: GatewayAdminAppCreateInput | undefined;
+
+    try {
+      parsed = parseAdminAppCreateBody(request.body);
+    } catch (error) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_admin_app",
+        "Admin app request is invalid.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+
+    if (!parsed) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_admin_app",
+        "Admin app request must include id, name, developerId, and developerName.",
+      );
+    }
+
+    if ((await store.listApps()).some((app) => app.id === parsed.id)) {
+      return jsonError(
+        reply,
+        409,
+        "admin_app_conflict",
+        "Admin app already exists.",
+      );
+    }
+
+    try {
+      const app = await store.createApp(parsed);
+
+      return reply.code(201).send({ app });
+    } catch (error) {
+      return jsonError(
+        reply,
+        500,
+        "store_error",
+        "Gateway store failed while creating an app.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+  });
+
+  server.patch<{
+    Params: { id: string };
+  }>("/admin/apps/:id", async (request, reply) => {
+    const id = adminIdFromParams(request.params);
+
+    if (!id) {
+      return jsonError(reply, 400, "invalid_admin_app", "App id is required.");
+    }
+
+    let parsed: GatewayAdminAppUpdateInput | undefined;
+
+    try {
+      parsed = parseAdminAppUpdateBody(request.body);
+    } catch (error) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_admin_app",
+        "Admin app update request is invalid.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+
+    if (!parsed) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_admin_app",
+        "Admin app update request must include at least one writable field.",
+      );
+    }
+
+    try {
+      const app = await store.updateApp(id, parsed);
+
+      return app
+        ? { app }
+        : jsonError(reply, 404, "admin_app_not_found", "App was not found.");
+    } catch (error) {
+      return jsonError(
+        reply,
+        500,
+        "store_error",
+        "Gateway store failed while updating an app.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+  });
+
   server.get("/admin/channels", async (request, reply) =>
     adminListResponse(
       request,
@@ -1912,6 +2438,115 @@ export function buildGatewayServer(
       ],
     ),
   );
+
+  server.post("/admin/channels", async (request, reply) => {
+    let parsed: GatewayAdminChannelCreateInput | undefined;
+
+    try {
+      parsed = parseAdminChannelCreateBody(request.body);
+    } catch (error) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_admin_channel",
+        "Admin channel request is invalid.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+
+    if (!parsed) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_admin_channel",
+        "Admin channel request must include id, appId, name, and type.",
+      );
+    }
+
+    if (
+      (await store.listChannels()).some((channel) => channel.id === parsed.id)
+    ) {
+      return jsonError(
+        reply,
+        409,
+        "admin_channel_conflict",
+        "Admin channel already exists.",
+      );
+    }
+
+    try {
+      const channel = await store.createChannel(parsed);
+
+      return reply.code(201).send({ channel });
+    } catch (error) {
+      return jsonError(
+        reply,
+        500,
+        "store_error",
+        "Gateway store failed while creating a channel.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+  });
+
+  server.patch<{
+    Params: { id: string };
+  }>("/admin/channels/:id", async (request, reply) => {
+    const id = adminIdFromParams(request.params);
+
+    if (!id) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_admin_channel",
+        "Channel id is required.",
+      );
+    }
+
+    let parsed: GatewayAdminChannelUpdateInput | undefined;
+
+    try {
+      parsed = parseAdminChannelUpdateBody(request.body);
+    } catch (error) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_admin_channel",
+        "Admin channel update request is invalid.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+
+    if (!parsed) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_admin_channel",
+        "Admin channel update request must include at least one writable field.",
+      );
+    }
+
+    try {
+      const channel = await store.updateChannel(id, parsed);
+
+      return channel
+        ? { channel }
+        : jsonError(
+            reply,
+            404,
+            "admin_channel_not_found",
+            "Channel was not found.",
+          );
+    } catch (error) {
+      return jsonError(
+        reply,
+        500,
+        "store_error",
+        "Gateway store failed while updating a channel.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+  });
 
   server.get("/admin/faucet-grants", async (request, reply) =>
     adminListResponse(
@@ -1937,6 +2572,115 @@ export function buildGatewayServer(
     ),
   );
 
+  server.post("/admin/faucet-grants", async (request, reply) => {
+    let parsed: GatewayFaucetGrantCreateInput | undefined;
+
+    try {
+      parsed = parseFaucetGrantCreateBody(request.body);
+    } catch (error) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_faucet_grant",
+        "Faucet grant request is invalid.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+
+    if (!parsed) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_faucet_grant",
+        "Faucet grant request must include id, appId, channelId, endUserId, remaining, allowedModels, allowedUseCases, dailyCap, and expiresAt.",
+      );
+    }
+
+    if (
+      (await store.listFaucetGrants()).some((grant) => grant.id === parsed.id)
+    ) {
+      return jsonError(
+        reply,
+        409,
+        "faucet_grant_conflict",
+        "Faucet grant already exists.",
+      );
+    }
+
+    try {
+      const faucetGrant = await store.createFaucetGrant(parsed);
+
+      return reply.code(201).send({ faucet_grant: faucetGrant });
+    } catch (error) {
+      return jsonError(
+        reply,
+        500,
+        "store_error",
+        "Gateway store failed while creating a faucet grant.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+  });
+
+  server.patch<{
+    Params: { id: string };
+  }>("/admin/faucet-grants/:id", async (request, reply) => {
+    const id = adminIdFromParams(request.params);
+
+    if (!id) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_faucet_grant",
+        "Faucet grant id is required.",
+      );
+    }
+
+    let parsed: GatewayFaucetGrantUpdateInput | undefined;
+
+    try {
+      parsed = parseFaucetGrantUpdateBody(request.body);
+    } catch (error) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_faucet_grant",
+        "Faucet grant update request is invalid.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+
+    if (!parsed) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_faucet_grant",
+        "Faucet grant update request must include at least one writable field.",
+      );
+    }
+
+    try {
+      const faucetGrant = await store.updateFaucetGrant(id, parsed);
+
+      return faucetGrant
+        ? { faucet_grant: faucetGrant }
+        : jsonError(
+            reply,
+            404,
+            "faucet_grant_not_found",
+            "Faucet grant was not found.",
+          );
+    } catch (error) {
+      return jsonError(
+        reply,
+        500,
+        "store_error",
+        "Gateway store failed while updating a faucet grant.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+  });
+
   server.get("/admin/routes", async (request, reply) =>
     adminListResponse(
       request,
@@ -1945,6 +2689,7 @@ export function buildGatewayServer(
       await store.listRoutes(),
       [
         { query: "id", read: (item) => item.id },
+        { query: "app_id", read: (item) => item.appId },
         { query: "alias", read: (item) => item.alias },
         { query: "adapter", read: (item) => item.adapter },
         { query: "model", read: (item) => item.model },
@@ -1953,6 +2698,7 @@ export function buildGatewayServer(
       ],
       [
         (item) => item.id,
+        (item) => item.appId,
         (item) => item.alias,
         (item) => item.adapter,
         (item) => item.model,
@@ -1960,6 +2706,113 @@ export function buildGatewayServer(
       ],
     ),
   );
+
+  server.post("/admin/routes", async (request, reply) => {
+    let parsed: GatewayAdminRouteCreateInput | undefined;
+
+    try {
+      parsed = parseAdminRouteCreateBody(request.body);
+    } catch (error) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_admin_route",
+        "Admin route request is invalid.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+
+    if (!parsed) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_admin_route",
+        "Admin route request must include id, appId, alias, adapter, provider, model, and modelAllowlist.",
+      );
+    }
+
+    if ((await store.listRoutes()).some((route) => route.id === parsed.id)) {
+      return jsonError(
+        reply,
+        409,
+        "admin_route_conflict",
+        "Admin route already exists.",
+      );
+    }
+
+    try {
+      const route = await store.createRoute(parsed);
+
+      return reply.code(201).send({ route });
+    } catch (error) {
+      return jsonError(
+        reply,
+        500,
+        "store_error",
+        "Gateway store failed while creating a route.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+  });
+
+  server.patch<{
+    Params: { id: string };
+  }>("/admin/routes/:id", async (request, reply) => {
+    const id = adminIdFromParams(request.params);
+
+    if (!id) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_admin_route",
+        "Route id is required.",
+      );
+    }
+
+    let parsed: GatewayAdminRouteUpdateInput | undefined;
+
+    try {
+      parsed = parseAdminRouteUpdateBody(request.body);
+    } catch (error) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_admin_route",
+        "Admin route update request is invalid.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+
+    if (!parsed) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_admin_route",
+        "Admin route update request must include at least one writable field.",
+      );
+    }
+
+    try {
+      const route = await store.updateRoute(id, parsed);
+
+      return route
+        ? { route }
+        : jsonError(
+            reply,
+            404,
+            "admin_route_not_found",
+            "Route was not found.",
+          );
+    } catch (error) {
+      return jsonError(
+        reply,
+        500,
+        "store_error",
+        "Gateway store failed while updating a route.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+  });
 
   server.get("/admin/provider-credentials", async (request, reply) =>
     adminListResponse(
@@ -2178,6 +3031,117 @@ export function buildGatewayServer(
       [(item) => item.id, (item) => item.appId],
     ),
   );
+
+  server.post("/admin/pricing-policies", async (request, reply) => {
+    let parsed: GatewayAdminPricingPolicyCreateInput | undefined;
+
+    try {
+      parsed = parsePricingPolicyCreateBody(request.body);
+    } catch (error) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_pricing_policy",
+        "Pricing policy request is invalid.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+
+    if (!parsed) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_pricing_policy",
+        "Pricing policy request must include id and name.",
+      );
+    }
+
+    if (
+      (await store.listPricingPolicies()).some(
+        (policy) => policy.id === parsed.id,
+      )
+    ) {
+      return jsonError(
+        reply,
+        409,
+        "pricing_policy_conflict",
+        "Pricing policy already exists.",
+      );
+    }
+
+    try {
+      const pricingPolicy = await store.createPricingPolicy(parsed);
+
+      return reply.code(201).send({ pricing_policy: pricingPolicy });
+    } catch (error) {
+      return jsonError(
+        reply,
+        500,
+        "store_error",
+        "Gateway store failed while creating a pricing policy.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+  });
+
+  server.patch<{
+    Params: { id: string };
+  }>("/admin/pricing-policies/:id", async (request, reply) => {
+    const id = adminIdFromParams(request.params);
+
+    if (!id) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_pricing_policy",
+        "Pricing policy id is required.",
+      );
+    }
+
+    let parsed: GatewayAdminPricingPolicyUpdateInput | undefined;
+
+    try {
+      parsed = parsePricingPolicyUpdateBody(request.body);
+    } catch (error) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_pricing_policy",
+        "Pricing policy update request is invalid.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+
+    if (!parsed) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_pricing_policy",
+        "Pricing policy update request must include at least one writable field.",
+      );
+    }
+
+    try {
+      const pricingPolicy = await store.updatePricingPolicy(id, parsed);
+
+      return pricingPolicy
+        ? { pricing_policy: pricingPolicy }
+        : jsonError(
+            reply,
+            404,
+            "pricing_policy_not_found",
+            "Pricing policy was not found.",
+          );
+    } catch (error) {
+      return jsonError(
+        reply,
+        500,
+        "store_error",
+        "Gateway store failed while updating a pricing policy.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+  });
 
   server.get("/admin/usage-events", async (request, reply) =>
     adminListResponse(

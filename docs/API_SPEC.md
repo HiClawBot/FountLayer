@@ -191,14 +191,24 @@ Implemented:
 
 ```txt
 GET    /admin/apps
+POST   /admin/apps
+PATCH  /admin/apps/:id
 GET    /admin/channels
+POST   /admin/channels
+PATCH  /admin/channels/:id
 GET    /admin/faucet-grants
+POST   /admin/faucet-grants
+PATCH  /admin/faucet-grants/:id
 GET    /admin/routes
+POST   /admin/routes
+PATCH  /admin/routes/:id
 GET    /admin/provider-credentials
 POST   /admin/provider-credentials
 PATCH  /admin/provider-credentials/:id/rotate
 DELETE /admin/provider-credentials/:id
 GET    /admin/pricing-policies
+POST   /admin/pricing-policies
+PATCH  /admin/pricing-policies/:id
 GET    /admin/usage-events
 GET    /admin/ledger
 POST   /admin/privacy/request-metadata/purge
@@ -232,6 +242,11 @@ Supported common query parameters:
 Endpoint-specific filters use snake_case field names, such as `app_id`,
 `channel_id`, `end_user_id`, `route_id`, `usage_event_id`, `wallet_id`,
 `status`, `mode`, `provider`, `model`, `direction`, and `reason`.
+
+Admin setup writes use camelCase JSON fields. Faucet grant creation requires
+`remaining`, `allowedModels`, `allowedUseCases`, `dailyCap`, and `expiresAt`;
+route creation requires `modelAllowlist`. Provider credential writes remain
+metadata-only in responses and never return plaintext keys or ciphertext.
 
 The `v0.5.0-beta.1` Console can read these endpoints directly for live usage and
 ledger, registry, faucet, route, pricing, and credential-metadata views when
@@ -300,11 +315,5 @@ Create/rotate response:
 Planned:
 
 ```txt
-POST   /admin/apps
-PATCH  /admin/apps/:id
-POST   /admin/apps/:appId/channels
-POST   /admin/faucet-grants
-POST   /admin/routes
-POST   /admin/pricing-policies
 GET    /admin/revenue
 ```

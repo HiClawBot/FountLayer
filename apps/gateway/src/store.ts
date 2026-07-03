@@ -31,6 +31,23 @@ export type GatewayAdminAppRecord = {
   defaultRoute: string;
 };
 
+export type GatewayAdminAppCreateInput = {
+  defaultPricingPolicyId?: string;
+  defaultRouteId?: string;
+  developerId: string;
+  developerName: string;
+  id: string;
+  name: string;
+  status: "active" | "disabled";
+};
+
+export type GatewayAdminAppUpdateInput = {
+  defaultPricingPolicyId?: string;
+  defaultRouteId?: string;
+  name?: string;
+  status?: "active" | "disabled";
+};
+
 export type GatewayAdminChannelRecord = {
   id: string;
   appId: string;
@@ -39,13 +56,55 @@ export type GatewayAdminChannelRecord = {
   status: string;
 };
 
+export type GatewayAdminChannelCreateInput = {
+  appId: string;
+  id: string;
+  name: string;
+  status: "active" | "disabled";
+  type: string;
+};
+
+export type GatewayAdminChannelUpdateInput = {
+  name?: string;
+  status?: "active" | "disabled";
+  type?: string;
+};
+
 export type GatewayAdminRouteRecord = {
+  appId: string;
   id: string;
   alias: string;
   provider: string;
   model: string;
   adapter: string;
   status: string;
+};
+
+export type GatewayAdminRouteCreateInput = {
+  adapter: string;
+  alias: string;
+  appId: string;
+  fallbackModels?: string[];
+  id: string;
+  latencyPreference?: string;
+  maxRetailPrice?: string;
+  model: string;
+  modelAllowlist: string[];
+  provider: string;
+  status: "active" | "disabled";
+};
+
+export type GatewayAdminRouteUpdateInput = {
+  adapter?: string;
+  alias?: string;
+  appId?: string;
+  fallbackModels?: string[];
+  latencyPreference?: string;
+  maxRetailPrice?: string;
+  model?: string;
+  modelAllowlist?: string[];
+  provider?: string;
+  status?: "active" | "disabled";
 };
 
 export type GatewayRoutePolicyRecord = {
@@ -116,6 +175,29 @@ export type GatewayAdminPricingPolicyRecord = {
   maxTotalMarkupRate: string;
 };
 
+export type GatewayAdminPricingPolicyCreateInput = {
+  appId?: string;
+  channelMarkupRate: string;
+  developerMarkupRate: string;
+  id: string;
+  maxTotalMarkupRate: string;
+  name: string;
+  paymentFeeReserveRate: string;
+  platformFeeRate: string;
+  riskReserveRate: string;
+};
+
+export type GatewayAdminPricingPolicyUpdateInput = {
+  appId?: string;
+  channelMarkupRate?: string;
+  developerMarkupRate?: string;
+  maxTotalMarkupRate?: string;
+  name?: string;
+  paymentFeeReserveRate?: string;
+  platformFeeRate?: string;
+  riskReserveRate?: string;
+};
+
 export type GatewayGrantRecord = {
   id: string;
   appId: string;
@@ -128,6 +210,33 @@ export type GatewayGrantRecord = {
   dailyCap: string;
   expiresAt: string;
   status: "active" | "exhausted" | "expired" | "revoked";
+};
+
+export type GatewayFaucetGrantCreateInput = {
+  allowedModels: string[];
+  allowedUseCases: string[];
+  amount: string;
+  appId: string;
+  channelId: string;
+  dailyCap: string;
+  endUserId: string;
+  expiresAt: string;
+  id: string;
+  remaining: string;
+  sponsorId?: string;
+  sponsorType: string;
+  status: "active" | "exhausted" | "expired" | "revoked";
+  walletId: string;
+};
+
+export type GatewayFaucetGrantUpdateInput = {
+  allowedModels?: string[];
+  allowedUseCases?: string[];
+  amount?: string;
+  dailyCap?: string;
+  expiresAt?: string;
+  remaining?: string;
+  status?: "active" | "exhausted" | "expired" | "revoked";
 };
 
 export type GatewayWalletRecord = {
@@ -254,9 +363,35 @@ export type GatewayStore = {
     input: Omit<BillableCallRecord, "grantId"> & { walletId: string },
   ): Promise<WalletBillableCallRecordResult>;
   listApps(): Promise<GatewayAdminAppRecord[]>;
+  createApp(input: GatewayAdminAppCreateInput): Promise<GatewayAdminAppRecord>;
+  updateApp(
+    id: string,
+    input: GatewayAdminAppUpdateInput,
+  ): Promise<GatewayAdminAppRecord | undefined>;
   listChannels(): Promise<GatewayAdminChannelRecord[]>;
+  createChannel(
+    input: GatewayAdminChannelCreateInput,
+  ): Promise<GatewayAdminChannelRecord>;
+  updateChannel(
+    id: string,
+    input: GatewayAdminChannelUpdateInput,
+  ): Promise<GatewayAdminChannelRecord | undefined>;
   listFaucetGrants(): Promise<GatewayGrantRecord[]>;
+  createFaucetGrant(
+    input: GatewayFaucetGrantCreateInput,
+  ): Promise<GatewayGrantRecord>;
+  updateFaucetGrant(
+    id: string,
+    input: GatewayFaucetGrantUpdateInput,
+  ): Promise<GatewayGrantRecord | undefined>;
   listRoutes(): Promise<GatewayAdminRouteRecord[]>;
+  createRoute(
+    input: GatewayAdminRouteCreateInput,
+  ): Promise<GatewayAdminRouteRecord>;
+  updateRoute(
+    id: string,
+    input: GatewayAdminRouteUpdateInput,
+  ): Promise<GatewayAdminRouteRecord | undefined>;
   listProviderCredentials(): Promise<GatewayAdminCredentialRecord[]>;
   createProviderCredential(
     input: GatewayProviderCredentialWriteInput,
@@ -266,6 +401,13 @@ export type GatewayStore = {
   ): Promise<GatewayAdminCredentialRecord | undefined>;
   deleteProviderCredential(id: string): Promise<boolean>;
   listPricingPolicies(): Promise<GatewayAdminPricingPolicyRecord[]>;
+  createPricingPolicy(
+    input: GatewayAdminPricingPolicyCreateInput,
+  ): Promise<GatewayAdminPricingPolicyRecord>;
+  updatePricingPolicy(
+    id: string,
+    input: GatewayAdminPricingPolicyUpdateInput,
+  ): Promise<GatewayAdminPricingPolicyRecord | undefined>;
   listUsageEvents(): Promise<UsageEventRecord[]>;
   listLedgerEntries(): Promise<LedgerEntryRecord[]>;
   purgeExpiredRequestMetadata(input: {
@@ -280,9 +422,12 @@ export type GatewayStore = {
 };
 
 export type InMemoryGatewayState = {
+  adminApps: Map<string, GatewayAdminAppRecord>;
+  adminChannels: Map<string, GatewayAdminChannelRecord>;
   apps: Map<string, GatewayAppRecord>;
   channels: Map<string, GatewayChannelRecord>;
   faucetGrants: GatewayGrantRecord[];
+  pricingPolicies: GatewayAdminPricingPolicyRecord[];
   providerCredentials: GatewayProviderCredentialRecord[];
   routePolicies: GatewayRoutePolicyRecord[];
   wallets: Map<string, GatewayWalletRecord>;
@@ -503,6 +648,10 @@ const defaultUserWallet: GatewayWalletRecord = {
 
 export function createDefaultInMemoryGatewayState(): InMemoryGatewayState {
   return {
+    adminApps: new Map([[defaultAdminApp.id, { ...defaultAdminApp }]]),
+    adminChannels: new Map([
+      [defaultAdminChannel.id, { ...defaultAdminChannel }],
+    ]),
     apps: new Map([[defaultApp.id, { ...defaultApp }]]),
     channels: new Map([[defaultChannel.id, { ...defaultChannel }]]),
     faucetGrants: [
@@ -512,6 +661,7 @@ export function createDefaultInMemoryGatewayState(): InMemoryGatewayState {
         allowedUseCases: [...defaultGrant.allowedUseCases],
       },
     ],
+    pricingPolicies: [{ ...defaultPricingPolicy }],
     providerCredentials: [],
     routePolicies: [
       {
@@ -674,6 +824,7 @@ function stringArrayFromConfig(
 
 function mapAdminRouteRow(row: AdminRouteRow): GatewayAdminRouteRecord {
   return {
+    appId: row.app_id,
     id: row.id,
     alias: row.alias,
     provider: stringFromConfig(row.config, "provider", "unknown"),
@@ -734,6 +885,177 @@ function mapProviderCredentialRecord(
     status: credential.status,
     display: credential.display,
   };
+}
+
+function mapAdminAppRow(row: AdminAppRow): GatewayAdminAppRecord {
+  return {
+    id: row.id,
+    name: row.name,
+    developer: row.developer,
+    status: row.status,
+    defaultRoute: row.default_route ?? "not configured",
+  };
+}
+
+function mapAdminChannelRow(row: AdminChannelRow): GatewayAdminChannelRecord {
+  return {
+    id: row.id,
+    appId: row.app_id,
+    name: row.name,
+    type: row.type,
+    status: row.status,
+  };
+}
+
+function routeConfigFromPolicy(
+  route: GatewayRoutePolicyRecord,
+): Record<string, unknown> {
+  return {
+    adapter: route.adapter,
+    fallbackModels: route.fallbackModels,
+    latencyPreference: route.latencyPreference,
+    maxRetailPrice: route.maxRetailPrice,
+    model: route.model,
+    modelAllowlist: route.modelAllowlist,
+    provider: route.provider,
+  };
+}
+
+function adminRouteFromPolicy(
+  route: GatewayRoutePolicyRecord,
+): GatewayAdminRouteRecord {
+  return {
+    adapter: route.adapter,
+    alias: route.alias,
+    appId: route.appId,
+    id: route.id,
+    model: route.model,
+    provider: route.provider,
+    status: route.status,
+  };
+}
+
+function defaultRouteLabel(
+  state: InMemoryGatewayState,
+  defaultRouteId?: string,
+): string {
+  if (!defaultRouteId) {
+    return "not configured";
+  }
+
+  return (
+    state.routePolicies.find((route) => route.id === defaultRouteId)?.alias ??
+    "not configured"
+  );
+}
+
+function cloneGrant(grant: GatewayGrantRecord): GatewayGrantRecord {
+  return {
+    ...grant,
+    allowedModels: [...grant.allowedModels],
+    allowedUseCases: [...grant.allowedUseCases],
+  };
+}
+
+async function getPostgresAdminApp(
+  sql: FountLayerSql,
+  id: string,
+): Promise<GatewayAdminAppRecord | undefined> {
+  const rows = await sql<AdminAppRow[]>`
+    select
+      apps.id,
+      apps.name,
+      developers.name as developer,
+      apps.status,
+      routes.alias as default_route
+    from apps
+    join developers on developers.id = apps.developer_id
+    left join routes on routes.id = apps.default_route_id
+    where apps.id = ${id}
+    limit 1
+  `;
+  const row = rows[0];
+
+  return row ? mapAdminAppRow(row) : undefined;
+}
+
+async function getPostgresAdminChannel(
+  sql: FountLayerSql,
+  id: string,
+): Promise<GatewayAdminChannelRecord | undefined> {
+  const rows = await sql<AdminChannelRow[]>`
+    select id, app_id, name, type, status
+    from channels
+    where id = ${id}
+    limit 1
+  `;
+  const row = rows[0];
+
+  return row ? mapAdminChannelRow(row) : undefined;
+}
+
+async function getPostgresFaucetGrant(
+  sql: FountLayerSql,
+  id: string,
+): Promise<GatewayGrantRecord | undefined> {
+  const rows = await sql<GrantRow[]>`
+    select
+      id,
+      app_id,
+      channel_id,
+      end_user_id,
+      wallet_id,
+      remaining_numeric::text as remaining,
+      allowed_models,
+      allowed_use_cases,
+      daily_cap_numeric::text as daily_cap,
+      expires_at,
+      status
+    from faucet_grants
+    where id = ${id}
+    limit 1
+  `;
+  const row = rows[0];
+
+  return row ? mapGrantRow(row) : undefined;
+}
+
+async function getPostgresAdminRoute(
+  sql: FountLayerSql,
+  id: string,
+): Promise<GatewayAdminRouteRecord | undefined> {
+  const rows = await sql<AdminRouteRow[]>`
+    select id, app_id, alias, config, status
+    from routes
+    where id = ${id}
+    limit 1
+  `;
+  const row = rows[0];
+
+  return row ? mapAdminRouteRow(row) : undefined;
+}
+
+async function getPostgresAdminPricingPolicy(
+  sql: FountLayerSql,
+  id: string,
+): Promise<GatewayAdminPricingPolicyRecord | undefined> {
+  const rows = await sql<AdminPricingPolicyRow[]>`
+    select
+      id,
+      app_id,
+      platform_fee_rate::text as platform_fee_rate,
+      payment_fee_reserve_rate::text as payment_fee_reserve_rate,
+      risk_reserve_rate::text as risk_reserve_rate,
+      developer_markup_rate::text as developer_markup_rate,
+      channel_markup_rate::text as channel_markup_rate,
+      max_total_markup_rate::text as max_total_markup_rate
+    from pricing_policies
+    where id = ${id}
+    limit 1
+  `;
+  const row = rows[0];
+
+  return row ? mapAdminPricingPolicyRow(row) : undefined;
 }
 
 function findGatewayGrantMatch(input: {
@@ -1029,26 +1351,227 @@ export function createInMemoryGatewayStore(
     },
 
     async listApps() {
-      return [{ ...defaultAdminApp }];
+      return [...state.adminApps.values()].map((app) => ({ ...app }));
+    },
+
+    async createApp(input) {
+      const defaultRouteId = input.defaultRouteId ?? "route_default";
+      const app: GatewayAppRecord = {
+        id: input.id,
+        status: input.status,
+        defaultRouteId,
+      };
+      const adminApp: GatewayAdminAppRecord = {
+        id: input.id,
+        name: input.name,
+        developer: input.developerName,
+        status: input.status,
+        defaultRoute: defaultRouteLabel(state, input.defaultRouteId),
+      };
+
+      state.apps.set(input.id, app);
+      state.adminApps.set(input.id, adminApp);
+
+      return { ...adminApp };
+    },
+
+    async updateApp(id, input) {
+      const app = state.apps.get(id);
+      const adminApp = state.adminApps.get(id);
+
+      if (!app || !adminApp) {
+        return undefined;
+      }
+
+      const defaultRouteId = input.defaultRouteId ?? app.defaultRouteId;
+      const status = input.status ?? app.status;
+      const updatedApp: GatewayAppRecord = {
+        ...app,
+        defaultRouteId,
+        status,
+      };
+      const updatedAdminApp: GatewayAdminAppRecord = {
+        ...adminApp,
+        defaultRoute: defaultRouteLabel(state, defaultRouteId),
+        name: input.name ?? adminApp.name,
+        status,
+      };
+
+      state.apps.set(id, updatedApp);
+      state.adminApps.set(id, updatedAdminApp);
+
+      return { ...updatedAdminApp };
     },
 
     async listChannels() {
-      return [{ ...defaultAdminChannel }];
+      return [...state.adminChannels.values()].map((channel) => ({
+        ...channel,
+      }));
+    },
+
+    async createChannel(input) {
+      const channel: GatewayChannelRecord = {
+        appId: input.appId,
+        id: input.id,
+        status: input.status,
+      };
+      const adminChannel: GatewayAdminChannelRecord = {
+        appId: input.appId,
+        id: input.id,
+        name: input.name,
+        status: input.status,
+        type: input.type,
+      };
+
+      state.channels.set(input.id, channel);
+      state.adminChannels.set(input.id, adminChannel);
+
+      return { ...adminChannel };
+    },
+
+    async updateChannel(id, input) {
+      const channel = state.channels.get(id);
+      const adminChannel = state.adminChannels.get(id);
+
+      if (!channel || !adminChannel) {
+        return undefined;
+      }
+
+      const status = input.status ?? channel.status;
+      const updatedChannel: GatewayChannelRecord = {
+        ...channel,
+        status,
+      };
+      const updatedAdminChannel: GatewayAdminChannelRecord = {
+        ...adminChannel,
+        name: input.name ?? adminChannel.name,
+        status,
+        type: input.type ?? adminChannel.type,
+      };
+
+      state.channels.set(id, updatedChannel);
+      state.adminChannels.set(id, updatedAdminChannel);
+
+      return { ...updatedAdminChannel };
     },
 
     async listFaucetGrants() {
-      return state.faucetGrants;
+      return state.faucetGrants.map(cloneGrant);
+    },
+
+    async createFaucetGrant(input) {
+      const grant: GatewayGrantRecord = {
+        allowedModels: [...input.allowedModels],
+        allowedUseCases: [...input.allowedUseCases],
+        appId: input.appId,
+        channelId: input.channelId,
+        dailyCap: input.dailyCap,
+        endUserId: input.endUserId,
+        expiresAt: input.expiresAt,
+        id: input.id,
+        remaining: input.remaining,
+        status: input.status,
+        walletId: input.walletId,
+      };
+
+      if (!state.wallets.has(input.walletId)) {
+        state.wallets.set(input.walletId, {
+          balance: "0.00000000",
+          currency: "USD",
+          id: input.walletId,
+          ownerId: input.id,
+          ownerType: "faucet_grant",
+        });
+      }
+
+      state.faucetGrants.push(grant);
+
+      return cloneGrant(grant);
+    },
+
+    async updateFaucetGrant(id, input) {
+      const index = state.faucetGrants.findIndex((grant) => grant.id === id);
+      const grant = state.faucetGrants[index];
+
+      if (index === -1 || !grant) {
+        return undefined;
+      }
+
+      const updatedGrant: GatewayGrantRecord = {
+        ...grant,
+        allowedModels: input.allowedModels
+          ? [...input.allowedModels]
+          : [...grant.allowedModels],
+        allowedUseCases: input.allowedUseCases
+          ? [...input.allowedUseCases]
+          : [...grant.allowedUseCases],
+        dailyCap: input.dailyCap ?? grant.dailyCap,
+        expiresAt: input.expiresAt ?? grant.expiresAt,
+        remaining: input.remaining ?? grant.remaining,
+        status: input.status ?? grant.status,
+      };
+
+      state.faucetGrants[index] = updatedGrant;
+
+      return cloneGrant(updatedGrant);
     },
 
     async listRoutes() {
-      return state.routePolicies.map((route) => ({
-        id: route.id,
-        alias: route.alias,
-        provider: route.provider,
-        model: route.model,
-        adapter: route.adapter,
-        status: route.status,
-      }));
+      return state.routePolicies.map(adminRouteFromPolicy);
+    },
+
+    async createRoute(input) {
+      const route: GatewayRoutePolicyRecord = {
+        adapter: input.adapter,
+        alias: input.alias,
+        appId: input.appId,
+        fallbackModels: input.fallbackModels
+          ? [...input.fallbackModels]
+          : [input.model],
+        id: input.id,
+        latencyPreference: input.latencyPreference,
+        maxRetailPrice: input.maxRetailPrice,
+        model: input.model,
+        modelAllowlist: [...input.modelAllowlist],
+        provider: input.provider,
+        status: input.status,
+      };
+
+      state.routePolicies.push(route);
+
+      return adminRouteFromPolicy(route);
+    },
+
+    async updateRoute(id, input) {
+      const index = state.routePolicies.findIndex((route) => route.id === id);
+      const route = state.routePolicies[index];
+
+      if (index === -1 || !route) {
+        return undefined;
+      }
+
+      const model = input.model ?? route.model;
+      const updatedRoute: GatewayRoutePolicyRecord = {
+        ...route,
+        adapter: input.adapter ?? route.adapter,
+        alias: input.alias ?? route.alias,
+        appId: input.appId ?? route.appId,
+        fallbackModels: input.fallbackModels
+          ? [...input.fallbackModels]
+          : [...route.fallbackModels],
+        latencyPreference: input.latencyPreference ?? route.latencyPreference,
+        maxRetailPrice: input.maxRetailPrice ?? route.maxRetailPrice,
+        model,
+        modelAllowlist: input.modelAllowlist
+          ? [...input.modelAllowlist]
+          : [...route.modelAllowlist],
+        provider: input.provider ?? route.provider,
+        status: input.status ?? route.status,
+      };
+
+      state.routePolicies[index] = updatedRoute;
+
+      return adminRouteFromPolicy(updatedRoute);
     },
 
     async listProviderCredentials() {
@@ -1109,7 +1632,62 @@ export function createInMemoryGatewayStore(
     },
 
     async listPricingPolicies() {
-      return [{ ...defaultPricingPolicy }];
+      return state.pricingPolicies.map((policy) => ({ ...policy }));
+    },
+
+    async createPricingPolicy(input) {
+      const policy: GatewayAdminPricingPolicyRecord = {
+        appId: input.appId ?? "platform",
+        channelMarkupRate: percent(input.channelMarkupRate),
+        developerMarkupRate: percent(input.developerMarkupRate),
+        id: input.id,
+        maxTotalMarkupRate: percent(input.maxTotalMarkupRate),
+        paymentFeeReserveRate: percent(input.paymentFeeReserveRate),
+        platformFeeRate: percent(input.platformFeeRate),
+        riskReserveRate: percent(input.riskReserveRate),
+      };
+
+      state.pricingPolicies.push(policy);
+
+      return { ...policy };
+    },
+
+    async updatePricingPolicy(id, input) {
+      const index = state.pricingPolicies.findIndex(
+        (policy) => policy.id === id,
+      );
+      const policy = state.pricingPolicies[index];
+
+      if (index === -1 || !policy) {
+        return undefined;
+      }
+
+      const updatedPolicy: GatewayAdminPricingPolicyRecord = {
+        ...policy,
+        appId: input.appId ?? policy.appId,
+        channelMarkupRate: input.channelMarkupRate
+          ? percent(input.channelMarkupRate)
+          : policy.channelMarkupRate,
+        developerMarkupRate: input.developerMarkupRate
+          ? percent(input.developerMarkupRate)
+          : policy.developerMarkupRate,
+        maxTotalMarkupRate: input.maxTotalMarkupRate
+          ? percent(input.maxTotalMarkupRate)
+          : policy.maxTotalMarkupRate,
+        paymentFeeReserveRate: input.paymentFeeReserveRate
+          ? percent(input.paymentFeeReserveRate)
+          : policy.paymentFeeReserveRate,
+        platformFeeRate: input.platformFeeRate
+          ? percent(input.platformFeeRate)
+          : policy.platformFeeRate,
+        riskReserveRate: input.riskReserveRate
+          ? percent(input.riskReserveRate)
+          : policy.riskReserveRate,
+      };
+
+      state.pricingPolicies[index] = updatedPolicy;
+
+      return { ...updatedPolicy };
     },
 
     async listUsageEvents() {
@@ -1803,13 +2381,64 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
         order by apps.created_at desc, apps.id asc
       `;
 
-      return rows.map((row) => ({
-        id: row.id,
-        name: row.name,
-        developer: row.developer,
-        status: row.status,
-        defaultRoute: row.default_route ?? "not configured",
-      }));
+      return rows.map(mapAdminAppRow);
+    },
+
+    async createApp(input) {
+      await sql.begin(async (transaction) => {
+        await transaction`
+          insert into developers (id, name)
+          values (${input.developerId}, ${input.developerName})
+          on conflict (id) do update set
+            name = excluded.name
+        `;
+
+        await transaction`
+          insert into apps (
+            id,
+            developer_id,
+            name,
+            default_route_id,
+            default_pricing_policy_id,
+            status
+          )
+          values (
+            ${input.id},
+            ${input.developerId},
+            ${input.name},
+            ${input.defaultRouteId ?? null},
+            ${input.defaultPricingPolicyId ?? null},
+            ${input.status}
+          )
+        `;
+      });
+
+      const app = await getPostgresAdminApp(sql, input.id);
+
+      if (!app) {
+        throw new Error("App was not created.");
+      }
+
+      return app;
+    },
+
+    async updateApp(id, input) {
+      const rows = await sql<Array<{ id: string }>>`
+        update apps
+        set
+          name = coalesce(${input.name ?? null}, name),
+          default_route_id = coalesce(${input.defaultRouteId ?? null}, default_route_id),
+          default_pricing_policy_id = coalesce(${input.defaultPricingPolicyId ?? null}, default_pricing_policy_id),
+          status = coalesce(${input.status ?? null}, status)
+        where id = ${id}
+        returning id
+      `;
+
+      if (rows.length === 0) {
+        return undefined;
+      }
+
+      return getPostgresAdminApp(sql, id);
     },
 
     async listChannels() {
@@ -1819,13 +2448,40 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
         order by created_at desc, id asc
       `;
 
-      return rows.map((row) => ({
-        id: row.id,
-        appId: row.app_id,
-        name: row.name,
-        type: row.type,
-        status: row.status,
-      }));
+      return rows.map(mapAdminChannelRow);
+    },
+
+    async createChannel(input) {
+      await sql`
+        insert into channels (id, app_id, name, type, status)
+        values (${input.id}, ${input.appId}, ${input.name}, ${input.type}, ${input.status})
+      `;
+
+      const channel = await getPostgresAdminChannel(sql, input.id);
+
+      if (!channel) {
+        throw new Error("Channel was not created.");
+      }
+
+      return channel;
+    },
+
+    async updateChannel(id, input) {
+      const rows = await sql<Array<{ id: string }>>`
+        update channels
+        set
+          name = coalesce(${input.name ?? null}, name),
+          type = coalesce(${input.type ?? null}, type),
+          status = coalesce(${input.status ?? null}, status)
+        where id = ${id}
+        returning id
+      `;
+
+      if (rows.length === 0) {
+        return undefined;
+      }
+
+      return getPostgresAdminChannel(sql, id);
     },
 
     async listFaucetGrants() {
@@ -1849,6 +2505,105 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
       return rows.map(mapGrantRow);
     },
 
+    async createFaucetGrant(input) {
+      await sql.begin(async (transaction) => {
+        await transaction`
+          insert into end_users (id, app_id, external_user_hash)
+          values (${input.endUserId}, ${input.appId}, ${input.endUserId})
+          on conflict (id) do update set
+            external_user_hash = excluded.external_user_hash
+        `;
+
+        await transaction`
+          insert into wallets (id, owner_type, owner_id, currency, balance_numeric)
+          values (${input.walletId}, 'faucet_grant', ${input.id}, 'USD', 0)
+          on conflict (id) do update set
+            owner_type = excluded.owner_type,
+            owner_id = excluded.owner_id,
+            currency = excluded.currency
+        `;
+
+        await transaction`
+          insert into faucet_grants (
+            id,
+            sponsor_type,
+            sponsor_id,
+            app_id,
+            channel_id,
+            end_user_id,
+            wallet_id,
+            amount_numeric,
+            remaining_numeric,
+            allowed_models,
+            allowed_use_cases,
+            daily_cap_numeric,
+            expires_at,
+            status
+          )
+          values (
+            ${input.id},
+            ${input.sponsorType},
+            ${input.sponsorId ?? null},
+            ${input.appId},
+            ${input.channelId},
+            ${input.endUserId},
+            ${input.walletId},
+            ${input.amount},
+            ${input.remaining},
+            ${transaction.json(input.allowedModels)},
+            ${transaction.json(input.allowedUseCases)},
+            ${input.dailyCap},
+            ${input.expiresAt},
+            ${input.status}
+          )
+        `;
+      });
+
+      const grant = await getPostgresFaucetGrant(sql, input.id);
+
+      if (!grant) {
+        throw new Error("Faucet grant was not created.");
+      }
+
+      return grant;
+    },
+
+    async updateFaucetGrant(id, input) {
+      const current = await getPostgresFaucetGrant(sql, id);
+
+      if (!current) {
+        return undefined;
+      }
+
+      const rows = await sql<GrantRow[]>`
+        update faucet_grants
+        set
+          amount_numeric = coalesce(${input.amount ?? null}, amount_numeric),
+          remaining_numeric = coalesce(${input.remaining ?? null}, remaining_numeric),
+          allowed_models = ${sql.json(input.allowedModels ?? current.allowedModels)},
+          allowed_use_cases = ${sql.json(input.allowedUseCases ?? current.allowedUseCases)},
+          daily_cap_numeric = coalesce(${input.dailyCap ?? null}, daily_cap_numeric),
+          expires_at = coalesce(${input.expiresAt ?? null}, expires_at),
+          status = coalesce(${input.status ?? null}, status)
+        where id = ${id}
+        returning
+          id,
+          app_id,
+          channel_id,
+          end_user_id,
+          wallet_id,
+          remaining_numeric::text as remaining,
+          allowed_models,
+          allowed_use_cases,
+          daily_cap_numeric::text as daily_cap,
+          expires_at,
+          status
+      `;
+      const row = rows[0];
+
+      return row ? mapGrantRow(row) : undefined;
+    },
+
     async listRoutes() {
       const rows = await sql<AdminRouteRow[]>`
         select id, app_id, alias, config, status
@@ -1857,6 +2612,89 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
       `;
 
       return rows.map(mapAdminRouteRow);
+    },
+
+    async createRoute(input) {
+      await sql`
+        insert into routes (id, app_id, alias, config, status)
+        values (
+          ${input.id},
+          ${input.appId},
+          ${input.alias},
+          ${sql.json(
+            toJsonValue(
+              routeConfigFromPolicy({
+                adapter: input.adapter,
+                alias: input.alias,
+                appId: input.appId,
+                fallbackModels: input.fallbackModels ?? [input.model],
+                id: input.id,
+                latencyPreference: input.latencyPreference,
+                maxRetailPrice: input.maxRetailPrice,
+                model: input.model,
+                modelAllowlist: input.modelAllowlist,
+                provider: input.provider,
+                status: input.status,
+              }),
+            ),
+          )},
+          ${input.status}
+        )
+      `;
+
+      const route = await getPostgresAdminRoute(sql, input.id);
+
+      if (!route) {
+        throw new Error("Route was not created.");
+      }
+
+      return route;
+    },
+
+    async updateRoute(id, input) {
+      const rows = await sql<AdminRouteRow[]>`
+        select id, app_id, alias, config, status
+        from routes
+        where id = ${id}
+        limit 1
+      `;
+      const row = rows[0];
+
+      if (!row) {
+        return undefined;
+      }
+
+      const current = mapRoutePolicyRow(row);
+      const model = input.model ?? current.model;
+      const updated: GatewayRoutePolicyRecord = {
+        ...current,
+        adapter: input.adapter ?? current.adapter,
+        alias: input.alias ?? current.alias,
+        appId: input.appId ?? current.appId,
+        fallbackModels: input.fallbackModels
+          ? [...input.fallbackModels]
+          : [...current.fallbackModels],
+        latencyPreference: input.latencyPreference ?? current.latencyPreference,
+        maxRetailPrice: input.maxRetailPrice ?? current.maxRetailPrice,
+        model,
+        modelAllowlist: input.modelAllowlist
+          ? [...input.modelAllowlist]
+          : [...current.modelAllowlist],
+        provider: input.provider ?? current.provider,
+        status: input.status ?? current.status,
+      };
+
+      await sql`
+        update routes
+        set
+          app_id = ${updated.appId},
+          alias = ${updated.alias},
+          config = ${sql.json(toJsonValue(routeConfigFromPolicy(updated)))},
+          status = ${updated.status}
+        where id = ${id}
+      `;
+
+      return getPostgresAdminRoute(sql, id);
     },
 
     async listProviderCredentials() {
@@ -2025,6 +2863,64 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
       `;
 
       return rows.map(mapAdminPricingPolicyRow);
+    },
+
+    async createPricingPolicy(input) {
+      await sql`
+        insert into pricing_policies (
+          id,
+          app_id,
+          name,
+          platform_fee_rate,
+          payment_fee_reserve_rate,
+          risk_reserve_rate,
+          developer_markup_rate,
+          channel_markup_rate,
+          max_total_markup_rate
+        )
+        values (
+          ${input.id},
+          ${input.appId ?? null},
+          ${input.name},
+          ${input.platformFeeRate},
+          ${input.paymentFeeReserveRate},
+          ${input.riskReserveRate},
+          ${input.developerMarkupRate},
+          ${input.channelMarkupRate},
+          ${input.maxTotalMarkupRate}
+        )
+      `;
+
+      const policy = await getPostgresAdminPricingPolicy(sql, input.id);
+
+      if (!policy) {
+        throw new Error("Pricing policy was not created.");
+      }
+
+      return policy;
+    },
+
+    async updatePricingPolicy(id, input) {
+      const rows = await sql<Array<{ id: string }>>`
+        update pricing_policies
+        set
+          app_id = coalesce(${input.appId ?? null}, app_id),
+          name = coalesce(${input.name ?? null}, name),
+          platform_fee_rate = coalesce(${input.platformFeeRate ?? null}, platform_fee_rate),
+          payment_fee_reserve_rate = coalesce(${input.paymentFeeReserveRate ?? null}, payment_fee_reserve_rate),
+          risk_reserve_rate = coalesce(${input.riskReserveRate ?? null}, risk_reserve_rate),
+          developer_markup_rate = coalesce(${input.developerMarkupRate ?? null}, developer_markup_rate),
+          channel_markup_rate = coalesce(${input.channelMarkupRate ?? null}, channel_markup_rate),
+          max_total_markup_rate = coalesce(${input.maxTotalMarkupRate ?? null}, max_total_markup_rate)
+        where id = ${id}
+        returning id
+      `;
+
+      if (rows.length === 0) {
+        return undefined;
+      }
+
+      return getPostgresAdminPricingPolicy(sql, id);
     },
 
     async listUsageEvents() {

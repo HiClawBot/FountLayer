@@ -62,6 +62,8 @@ No unreleased changes yet.
   constrained to `3300-3399`.
 - Admin list pagination and basic filters for registry, usage, and ledger
   endpoints.
+- Admin create/update APIs for apps, channels, routes, faucet grants, and
+  pricing policies, with tests for a full billable setup path.
 - Strict provider-key scan script via `pnpm scan:keys`.
 
 ## 0.1.0 - 2026-06-17

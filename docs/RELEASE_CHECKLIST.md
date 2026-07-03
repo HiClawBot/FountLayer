@@ -62,6 +62,8 @@
 - [ ] Docker Compose runtime smoke passes in a Docker-enabled environment.
 - [x] Self-hosted beta runbook is present.
 - [x] Admin list endpoints have beta-grade pagination and filters.
+- [x] Admin APIs can create/update apps, channels, routes, faucet grants, and
+      pricing policies.
 - [ ] Console has minimum operator setup workflows for apps, channels, routes,
       faucet grants, pricing policies, and credential metadata.
 - [ ] Threat model and beta security checklist are present.
