@@ -69,6 +69,8 @@ No unreleased changes yet.
 - Console Usage & Ledger filters backed by Gateway Admin list query parameters.
 - Beta threat model and security checklist.
 - GitHub release draft for `v0.5.0-beta.1`.
+- Manual GitHub Actions runtime smoke workflow for Docker-enabled release
+  validation.
 - Strict provider-key scan script via `pnpm scan:keys`.
 
 ## 0.1.0 - 2026-06-17

@@ -1,0 +1,101 @@
+name: Runtime Smoke
+
+on:
+  workflow_dispatch:
+
+jobs:
+  runtime-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CONSOLE_BASE_URL: http://localhost:3301
+      CONSOLE_GATEWAY_ADMIN_TOKEN: change_me_admin_token
+      DATABASE_URL: postgres://postgres:postgres@localhost:3332/fountlayer
+      FOUNTLAYER_ADMIN_TOKEN: change_me_admin_token
+      FOUNTLAYER_CREDENTIAL_MASTER_KEY: base64:CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQk=
+      FOUNTLAYER_GATEWAY_STORE: postgres
+      GATEWAY_BASE_URL: http://localhost:3300
+      LITELLM_MASTER_KEY: change_me
+      LOCAL_OPENAI_API_KEY: local-placeholder
+      LOCAL_OPENAI_BASE_URL: http://127.0.0.1:3314/v1
+      REDIS_URL: redis://localhost:3379
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Start compose dependencies
+        run: docker compose -f infra/docker-compose.example.yml up -d postgres redis litellm
+
+      - name: Wait for Postgres
+        run: |
+          for attempt in {1..30}; do
+            if docker compose -f infra/docker-compose.example.yml exec -T postgres pg_isready -U postgres -d fountlayer -p 3332; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose -f infra/docker-compose.example.yml logs postgres
+          exit 1
+
+      - name: Prepare database
+        run: |
+          pnpm db:migrate
+          pnpm db:seed
+
+      - name: Start Gateway
+        run: |
+          pnpm --filter @fountlayer/gateway dev > /tmp/fountlayer-gateway.log 2>&1 &
+          echo $! > /tmp/fountlayer-gateway.pid
+
+      - name: Wait for Gateway
+        run: |
+          for attempt in {1..30}; do
+            if curl -fsS "$GATEWAY_BASE_URL/health" > /tmp/fountlayer-gateway-health.json; then
+              cat /tmp/fountlayer-gateway-health.json
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/fountlayer-gateway.log
+          exit 1
+
+      - name: Start Console
+        run: |
+          pnpm --filter @fountlayer/console dev > /tmp/fountlayer-console.log 2>&1 &
+          echo $! > /tmp/fountlayer-console.pid
+
+      - name: Wait for Console
+        run: |
+          for attempt in {1..30}; do
+            if curl -fsS "$CONSOLE_BASE_URL/overview" > /tmp/fountlayer-console-overview.html; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/fountlayer-console.log
+          exit 1
+
+      - name: Runtime smoke
+        run: pnpm smoke:runtime
+
+      - name: Dump logs on failure
+        if: failure()
+        run: |
+          test -f /tmp/fountlayer-gateway.log && cat /tmp/fountlayer-gateway.log
+          test -f /tmp/fountlayer-console.log && cat /tmp/fountlayer-console.log
+          docker compose -f infra/docker-compose.example.yml logs
+
+      - name: Stop compose dependencies
+        if: always()
+        run: docker compose -f infra/docker-compose.example.yml down -v

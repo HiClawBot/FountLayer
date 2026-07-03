@@ -39,7 +39,7 @@
 ## Documentation
 
 - [x] Node/pnpm quickstart commands tested locally.
-- [ ] Docker Compose self-hosting runtime test is scripted with
+- [x] Docker Compose self-hosting runtime test is scripted with
       `pnpm smoke:runtime`, but remains blocked locally because Docker CLI is
       unavailable.
 - [x] Optional Postgres integration test runs in CI with

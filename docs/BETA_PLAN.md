@@ -116,8 +116,8 @@ Goal: make self-hosting repeatable, not aspirational.
 - Extend `pnpm smoke:runtime` or add a beta smoke script that checks health,
   dependency readiness, session creation, estimate, chat, Admin readback,
   usage events, ledger entries, and Console live data.
-- Add a CI job or documented manual path for Docker runtime smoke when local
-  Docker is unavailable.
+- [x] Add a CI job or documented manual path for Docker runtime smoke when local
+      Docker is unavailable.
 
 Exit gate:
 

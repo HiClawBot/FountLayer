@@ -42,7 +42,8 @@ port scan       # no local service port settings outside 3300-3399
 ```
 
 Docker Compose runtime smoke still needs to be run in a Docker-enabled
-environment before tagging:
+environment before tagging. Use a local Docker host or run the manual
+`Runtime Smoke` GitHub Actions workflow:
 
 ```bash
 pnpm db:migrate
