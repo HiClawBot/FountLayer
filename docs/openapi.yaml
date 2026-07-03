@@ -200,6 +200,30 @@ paths:
         "200":
           description: Request metadata retention purge result
 
+  /admin/sessions/{id}/revoke:
+    post:
+      summary: Revoke a Gateway session without exposing token material
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Session metadata only
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [session]
+                properties:
+                  session:
+                    $ref: "#/components/schemas/AdminSession"
+        "404":
+          description: Session was not found
+
   /admin/privacy/end-users/anonymize:
     post:
       summary: Anonymize app-owned end-user identifiers
@@ -311,6 +335,33 @@ components:
         apiKey:
           type: string
           description: Replacement plaintext provider key accepted only by the authenticated server-side Admin API request body.
+
+    AdminSession:
+      type: object
+      required:
+        - id
+        - app_id
+        - channel_id
+        - end_user_id
+        - use_case
+        - mode
+        - expires_at
+        - revoked_at
+        - created_at
+      properties:
+        id: { type: string }
+        app_id: { type: string }
+        channel_id: { type: string }
+        end_user_id: { type: string }
+        use_case: { type: string }
+        mode:
+          type: string
+          enum: [managed, developer_key, byok, local]
+        expires_at: { type: string, format: date-time }
+        revoked_at:
+          type: [string, "null"]
+          format: date-time
+        created_at: { type: string, format: date-time }
 
     RequestMetadataRetentionPurge:
       type: object

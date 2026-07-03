@@ -209,6 +209,7 @@ DELETE /admin/provider-credentials/:id
 GET    /admin/pricing-policies
 POST   /admin/pricing-policies
 PATCH  /admin/pricing-policies/:id
+POST   /admin/sessions/:id/revoke
 GET    /admin/usage-events
 GET    /admin/ledger
 POST   /admin/privacy/request-metadata/purge
@@ -251,6 +252,28 @@ metadata-only in responses and never return plaintext keys or ciphertext.
 The `v0.5.0-beta.1` Console can read these endpoints directly for live usage and
 ledger, registry, faucet, route, pricing, and credential-metadata views when
 its server-side admin token is configured.
+
+Session revoke marks a Gateway session as revoked and makes the original
+session token unusable for `/v1` requests. The response returns session
+metadata only and never returns the plaintext token or token hash.
+
+Session revoke response:
+
+```json
+{
+  "session": {
+    "id": "sess_123",
+    "app_id": "app_pdf_reader",
+    "channel_id": "channel_desktop",
+    "end_user_id": "user_hash_123",
+    "use_case": "paper_summary",
+    "mode": "managed",
+    "expires_at": "2026-07-04T00:00:00Z",
+    "revoked_at": "2026-07-03T12:00:00Z",
+    "created_at": "2026-07-03T00:00:00Z"
+  }
+}
+```
 
 Credential writes require `FOUNTLAYER_CREDENTIAL_MASTER_KEY` on the Gateway.
 Create and rotate requests include plaintext provider keys only in the

@@ -16,7 +16,7 @@ This beta is not a hosted managed-service production launch.
   authenticated `/v1` traffic.
 - Authenticated Admin APIs for apps, channels, faucet grants, routes, pricing
   policies, credential metadata, usage events, ledger entries, privacy actions,
-  and provider credential writes.
+  session revoke, and provider credential writes.
 - Server-side credential encryption helpers and Gateway credential create,
   rotate, and delete flows.
 - Route policy resolution with model allowlists and route spend caps.
@@ -33,6 +33,8 @@ This beta is not a hosted managed-service production launch.
 - Admin list pagination and basic filters.
 - Admin create/update APIs for apps, channels, routes, faucet grants, and
   pricing policies.
+- Admin session revoke API that makes issued session tokens unusable without
+  returning plaintext tokens or token hashes.
 - Console `/setup` workflow for apps, channels, routes, faucet grants, pricing
   policies, and credential metadata through server-side Admin API actions.
 - Console Usage & Ledger filters for app, channel, end user, status, direction,

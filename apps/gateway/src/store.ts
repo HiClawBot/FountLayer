@@ -333,6 +333,10 @@ export type GatewayStore = {
     tokenHash: string,
     now?: Date,
   ): Promise<GatewaySessionRecord | undefined>;
+  revokeSession(
+    id: string,
+    now?: Date,
+  ): Promise<GatewaySessionRecord | undefined>;
   getActiveApp(id: string): Promise<GatewayAppRecord | undefined>;
   getActiveChannel(
     appId: string,
@@ -1204,6 +1208,24 @@ export function createInMemoryGatewayStore(
           !session.revokedAt &&
           Date.parse(session.expiresAt) > now.getTime(),
       );
+    },
+
+    async revokeSession(id, now = new Date()) {
+      const index = state.sessions.findIndex((session) => session.id === id);
+
+      if (index === -1) {
+        return undefined;
+      }
+
+      const session = state.sessions[index]!;
+      const revokedAt = session.revokedAt ?? now.toISOString();
+      const revokedSession = {
+        ...session,
+        revokedAt,
+      };
+
+      state.sessions[index] = revokedSession;
+      return revokedSession;
     },
 
     async getActiveApp(id) {
@@ -2109,6 +2131,28 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
           and expires_at > ${now.toISOString()}
           and revoked_at is null
         limit 1
+      `;
+      const row = rows[0];
+
+      return row ? mapSessionRow(row) : undefined;
+    },
+
+    async revokeSession(id, now = new Date()) {
+      const rows = await sql<SessionRow[]>`
+        update sessions
+        set revoked_at = coalesce(revoked_at, ${now.toISOString()})
+        where id = ${id}
+        returning
+          id,
+          app_id,
+          channel_id,
+          end_user_id,
+          use_case,
+          mode,
+          token_hash,
+          expires_at,
+          revoked_at,
+          created_at
       `;
       const row = rows[0];
 

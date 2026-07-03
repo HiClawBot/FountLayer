@@ -58,6 +58,7 @@ import {
   type GatewayFaucetGrantUpdateInput,
   type GatewayGrantRecord,
   type GatewayRoutePolicyRecord,
+  type GatewaySessionRecord,
   type GatewayStore,
   type GatewayWalletRecord,
 } from "./store.js";
@@ -772,6 +773,20 @@ function credentialIdFromParams(params: unknown): string | undefined {
 
 function adminIdFromParams(params: unknown): string | undefined {
   return credentialIdFromParams(params);
+}
+
+function adminSessionResponse(session: GatewaySessionRecord) {
+  return {
+    app_id: session.attribution.appId,
+    channel_id: session.attribution.channelId,
+    created_at: session.createdAt,
+    end_user_id: session.attribution.endUserId,
+    expires_at: session.expiresAt,
+    id: session.id,
+    mode: session.attribution.mode,
+    revoked_at: session.revokedAt ?? null,
+    use_case: session.attribution.useCase,
+  };
 }
 
 function createRateLimiter(now = () => Date.now()) {
@@ -2295,6 +2310,42 @@ export function buildGatewayServer(
         402,
         "insufficient_balance",
         "Payment source could not pay for this request after provider execution.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+  });
+
+  server.post<{
+    Params: { id: string };
+  }>("/admin/sessions/:id/revoke", async (request, reply) => {
+    const id = adminIdFromParams(request.params);
+
+    if (!id) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_admin_session",
+        "Session id is required.",
+      );
+    }
+
+    try {
+      const session = await store.revokeSession(id);
+
+      return session
+        ? { session: adminSessionResponse(session) }
+        : jsonError(
+            reply,
+            404,
+            "admin_session_not_found",
+            "Session was not found.",
+          );
+    } catch (error) {
+      return jsonError(
+        reply,
+        500,
+        "store_error",
+        "Gateway store failed while revoking a session.",
         error instanceof Error ? error.message : undefined,
       );
     }

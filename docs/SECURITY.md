@@ -22,6 +22,8 @@ Provider API keys must never appear in SDK source code, frontend bundles, mobile
 - Authenticated `/v1` requests must use a non-expired, non-revoked session token.
 - Session attribution must match `app_id`, `channel_id`, `end_user_id`,
   `use_case`, and `mode` request headers.
+- Admin API can revoke issued sessions by ID. Session revoke responses return
+  metadata only and never include plaintext session tokens or token hashes.
 - `/admin/*` requires a configured admin bearer token. Prefer
   `FOUNTLAYER_ADMIN_TOKEN_SHA256`; local development may use
   `FOUNTLAYER_ADMIN_TOKEN`, which is hashed at Gateway startup and never stored.

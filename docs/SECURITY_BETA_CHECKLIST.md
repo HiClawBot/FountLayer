@@ -12,6 +12,8 @@ Scope: `v0.5.0-beta.1` self-hosted operator beta.
 - [x] Session tokens are stored as hashes only.
 - [x] Authenticated `/v1` requests require attribution match for app, channel,
       end user, use case, and mode.
+- [x] Admin session revoke makes issued session tokens unusable without
+      returning plaintext tokens or token hashes.
 - [x] Credential create/rotate responses return metadata only.
 - [x] Hosted end-user BYOK credential storage requires explicit Gateway opt-in.
 - [x] Successful billable calls create exactly one usage event.

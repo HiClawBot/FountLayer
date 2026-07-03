@@ -19,7 +19,8 @@ This is not a hosted managed-service production launch.
   one usage event -> balanced ledger entries -> Console readback.
 - PostgreSQL-backed Gateway Store with in-memory local demo mode.
 - Authenticated Admin APIs with pagination, filters, and setup writes for apps,
-  channels, routes, faucet grants, pricing policies, and credential metadata.
+  channels, routes, faucet grants, pricing policies, credential metadata, and
+  session revoke.
 - Console `/setup` workflow and Usage & Ledger filters.
 - Server-side encrypted provider credential storage helpers with metadata-only
   responses.

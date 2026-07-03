@@ -49,8 +49,6 @@ Current blockers before tagging beta:
   environment.
 - Docker runtime smoke remains blocked on this machine until Docker CLI is
   available.
-- Release packaging, beta checklist, and contributor-facing docs need a beta
-  pass.
 
 ## Beta Definition
 
@@ -113,9 +111,9 @@ Goal: make self-hosting repeatable, not aspirational.
 - [x] Add a Docker Compose beta runbook.
 - Validate Postgres on `3332`, Redis on `3379`, LiteLLM on `3305`, Gateway on
   `3300`, Console on `3301`, and Demo on `3302`.
-- Extend `pnpm smoke:runtime` or add a beta smoke script that checks health,
-  dependency readiness, session creation, estimate, chat, Admin readback,
-  usage events, ledger entries, and Console live data.
+- [x] Extend `pnpm smoke:runtime` or add a beta smoke script that checks
+      health, dependency readiness, session creation, estimate, chat, Admin
+      readback, usage events, ledger entries, and Console live data.
 - [x] Add a CI job or documented manual path for Docker runtime smoke when local
       Docker is unavailable.
 
@@ -134,8 +132,10 @@ Goal: make Admin APIs usable for real operator workflows.
       events, and ledger entries.
 - [x] Add minimal create/update endpoints for apps, channels, routes, faucet
       grants, and pricing policies.
-- Add revoke flows for sessions and admin tokens if they are present in the
-  current data model.
+- [x] Add revoke flows for sessions and admin tokens if they are present in the
+      current data model. Sessions can be revoked through Admin API; admin
+      tokens are configured from environment hashes and do not have a persisted
+      table in this beta.
 - Preserve metadata-only credential responses.
 - Add tests for all write paths and for secret non-disclosure.
 
@@ -176,6 +176,9 @@ Goal: make beta safe enough for public self-hosted testers.
       `FOUNTLAYER_CREDENTIAL_MASTER_KEY`.
 - [x] Confirm telemetry, spans, metrics, and health checks never expose prompts,
       outputs, auth headers, provider keys, or connection-string errors.
+- [x] Document public demo CAPTCHA/IP throttling as out of scope for the
+      self-hosted beta. Do not expose an unauthenticated public demo from this
+      release track.
 
 Exit gate:
 

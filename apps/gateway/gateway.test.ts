@@ -287,6 +287,58 @@ describe("gateway minimum API", () => {
     }
   });
 
+  it("revokes sessions through the admin API without exposing token hashes", async () => {
+    const server = buildGatewayServer(undefined, {
+      adminTokenHashes: [hashTestToken(adminToken)],
+    });
+
+    const session = await server.inject({
+      method: "POST",
+      url: "/v1/sessions",
+      headers: attributionHeaders,
+      payload: {
+        appId: "app_pdf_reader",
+        channelId: "channel_desktop",
+        endUserId: "user_hash_123",
+        useCase: "paper_summary",
+        mode: "managed",
+      },
+    });
+    const token = session.json().token as string;
+    const sessionId = session.json().session_id as string;
+
+    const revoked = await server.inject({
+      method: "POST",
+      url: `/admin/sessions/${sessionId}/revoke`,
+      headers: adminHeaders,
+    });
+
+    expect(revoked.statusCode).toBe(200);
+    expect(revoked.json().session).toMatchObject({
+      app_id: "app_pdf_reader",
+      channel_id: "channel_desktop",
+      end_user_id: "user_hash_123",
+      id: sessionId,
+      mode: "managed",
+      use_case: "paper_summary",
+    });
+    expect(revoked.json().session.revoked_at).toBeTruthy();
+    expect(revoked.body).not.toContain(token);
+    expect(revoked.body).not.toContain(hashTestToken(token));
+
+    const balance = await server.inject({
+      method: "GET",
+      url: "/v1/balance",
+      headers: {
+        ...attributionHeaders,
+        authorization: `Bearer ${token}`,
+      },
+    });
+
+    expect(balance.statusCode).toBe(401);
+    expect(balance.json().error.code).toBe("invalid_auth");
+  });
+
   it("paginates and filters admin list endpoints", async () => {
     const server = buildGatewayServer(undefined, {
       adminTokenHashes: [hashTestToken(adminToken)],
