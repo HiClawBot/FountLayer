@@ -198,6 +198,23 @@ type PrivacyEndUserAnonymizeBody = {
   endUserId: string;
 };
 
+type AdminListFilter<T> = {
+  query: string;
+  read: (item: T) => unknown;
+};
+
+type AdminListPage = {
+  limit: number;
+  offset: number;
+  returned: number;
+  total: number;
+};
+
+type AdminListResult<T> = {
+  items: T[];
+  page: AdminListPage;
+};
+
 function recordFromBody(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object"
     ? (value as Record<string, unknown>)
@@ -426,6 +443,138 @@ function jsonError(
       details,
     },
   });
+}
+
+function queryString(
+  query: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const value = query[key];
+  const candidate = Array.isArray(value) ? value[0] : value;
+
+  return typeof candidate === "string" && candidate.trim().length > 0
+    ? candidate.trim()
+    : undefined;
+}
+
+function parseAdminListInteger(
+  query: Record<string, unknown>,
+  key: string,
+  defaultValue: number,
+): number {
+  const value = queryString(query, key);
+
+  if (!value) {
+    return defaultValue;
+  }
+
+  if (!/^\d+$/.test(value)) {
+    throw new Error(`${key} must be a non-negative integer.`);
+  }
+
+  return Number(value);
+}
+
+function normalizeForAdminFilter(value: unknown): string {
+  return String(value ?? "").toLowerCase();
+}
+
+function matchesAdminFilter(value: unknown, expected: string): boolean {
+  return normalizeForAdminFilter(value) === expected.toLowerCase();
+}
+
+function applyAdminListQuery<T>(
+  request: FastifyRequest,
+  records: T[],
+  filters: Array<AdminListFilter<T>>,
+  searchFields: Array<(item: T) => unknown>,
+): AdminListResult<T> {
+  const query = recordFromBody(request.query) ?? {};
+  const limit = Math.min(parseAdminListInteger(query, "limit", 100), 500);
+  const offset = parseAdminListInteger(query, "offset", 0);
+  const search = queryString(query, "q")?.toLowerCase();
+
+  let items = records.filter((item) =>
+    filters.every((filter) => {
+      const expected = queryString(query, filter.query);
+
+      return (
+        expected === undefined ||
+        matchesAdminFilter(filter.read(item), expected)
+      );
+    }),
+  );
+
+  const createdFrom = queryString(query, "created_from");
+  const createdTo = queryString(query, "created_to");
+
+  if (createdFrom || createdTo) {
+    const from = createdFrom
+      ? Date.parse(createdFrom)
+      : Number.NEGATIVE_INFINITY;
+    const to = createdTo ? Date.parse(createdTo) : Number.POSITIVE_INFINITY;
+
+    if (Number.isNaN(from) || Number.isNaN(to)) {
+      throw new Error(
+        "created_from and created_to must be valid date strings.",
+      );
+    }
+
+    items = items.filter((item) => {
+      const createdAt = Date.parse(
+        String((item as { createdAt?: string }).createdAt ?? ""),
+      );
+
+      return !Number.isNaN(createdAt) && createdAt >= from && createdAt <= to;
+    });
+  }
+
+  if (search) {
+    items = items.filter((item) =>
+      searchFields.some((field) =>
+        normalizeForAdminFilter(field(item)).includes(search),
+      ),
+    );
+  }
+
+  const total = items.length;
+  const pagedItems = items.slice(offset, offset + limit);
+
+  return {
+    items: pagedItems,
+    page: {
+      limit,
+      offset,
+      returned: pagedItems.length,
+      total,
+    },
+  };
+}
+
+function adminListResponse<T>(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  key: string,
+  records: T[],
+  filters: Array<AdminListFilter<T>>,
+  searchFields: Array<(item: T) => unknown>,
+) {
+  try {
+    const result = applyAdminListQuery(request, records, filters, searchFields);
+
+    return {
+      [key]: result.items,
+      page: result.page,
+    };
+  } catch (error) {
+    return jsonError(
+      reply,
+      400,
+      "invalid_admin_list_query",
+      "Admin list query is invalid.",
+      error instanceof Error ? error.message : undefined,
+    );
+  }
 }
 
 function parseAuthorizationHeader(
@@ -1722,25 +1871,118 @@ export function buildGatewayServer(
     }
   });
 
-  server.get("/admin/apps", async () => ({
-    apps: await store.listApps(),
-  }));
+  server.get("/admin/apps", async (request, reply) =>
+    adminListResponse(
+      request,
+      reply,
+      "apps",
+      await store.listApps(),
+      [
+        { query: "id", read: (item) => item.id },
+        { query: "status", read: (item) => item.status },
+        { query: "developer", read: (item) => item.developer },
+        { query: "default_route", read: (item) => item.defaultRoute },
+      ],
+      [
+        (item) => item.id,
+        (item) => item.name,
+        (item) => item.developer,
+        (item) => item.defaultRoute,
+      ],
+    ),
+  );
 
-  server.get("/admin/channels", async () => ({
-    channels: await store.listChannels(),
-  }));
+  server.get("/admin/channels", async (request, reply) =>
+    adminListResponse(
+      request,
+      reply,
+      "channels",
+      await store.listChannels(),
+      [
+        { query: "id", read: (item) => item.id },
+        { query: "app_id", read: (item) => item.appId },
+        { query: "status", read: (item) => item.status },
+        { query: "type", read: (item) => item.type },
+      ],
+      [
+        (item) => item.id,
+        (item) => item.appId,
+        (item) => item.name,
+        (item) => item.type,
+      ],
+    ),
+  );
 
-  server.get("/admin/faucet-grants", async () => ({
-    faucet_grants: await store.listFaucetGrants(),
-  }));
+  server.get("/admin/faucet-grants", async (request, reply) =>
+    adminListResponse(
+      request,
+      reply,
+      "faucet_grants",
+      await store.listFaucetGrants(),
+      [
+        { query: "id", read: (item) => item.id },
+        { query: "app_id", read: (item) => item.appId },
+        { query: "channel_id", read: (item) => item.channelId },
+        { query: "end_user_id", read: (item) => item.endUserId },
+        { query: "wallet_id", read: (item) => item.walletId },
+        { query: "status", read: (item) => item.status },
+      ],
+      [
+        (item) => item.id,
+        (item) => item.appId,
+        (item) => item.channelId,
+        (item) => item.endUserId,
+        (item) => item.walletId,
+      ],
+    ),
+  );
 
-  server.get("/admin/routes", async () => ({
-    routes: await store.listRoutes(),
-  }));
+  server.get("/admin/routes", async (request, reply) =>
+    adminListResponse(
+      request,
+      reply,
+      "routes",
+      await store.listRoutes(),
+      [
+        { query: "id", read: (item) => item.id },
+        { query: "alias", read: (item) => item.alias },
+        { query: "adapter", read: (item) => item.adapter },
+        { query: "model", read: (item) => item.model },
+        { query: "provider", read: (item) => item.provider },
+        { query: "status", read: (item) => item.status },
+      ],
+      [
+        (item) => item.id,
+        (item) => item.alias,
+        (item) => item.adapter,
+        (item) => item.model,
+        (item) => item.provider,
+      ],
+    ),
+  );
 
-  server.get("/admin/provider-credentials", async () => ({
-    credentials: await store.listProviderCredentials(),
-  }));
+  server.get("/admin/provider-credentials", async (request, reply) =>
+    adminListResponse(
+      request,
+      reply,
+      "credentials",
+      await store.listProviderCredentials(),
+      [
+        { query: "id", read: (item) => item.id },
+        { query: "owner", read: (item) => item.owner },
+        { query: "provider", read: (item) => item.provider },
+        { query: "status", read: (item) => item.status },
+        { query: "storage", read: (item) => item.storage },
+      ],
+      [
+        (item) => item.id,
+        (item) => item.owner,
+        (item) => item.provider,
+        (item) => item.status,
+        (item) => item.display,
+      ],
+    ),
+  );
 
   server.post("/admin/provider-credentials", async (request, reply) => {
     if (!credentialCipher) {
@@ -1923,17 +2165,74 @@ export function buildGatewayServer(
     }
   });
 
-  server.get("/admin/pricing-policies", async () => ({
-    pricing_policies: await store.listPricingPolicies(),
-  }));
+  server.get("/admin/pricing-policies", async (request, reply) =>
+    adminListResponse(
+      request,
+      reply,
+      "pricing_policies",
+      await store.listPricingPolicies(),
+      [
+        { query: "id", read: (item) => item.id },
+        { query: "app_id", read: (item) => item.appId },
+      ],
+      [(item) => item.id, (item) => item.appId],
+    ),
+  );
 
-  server.get("/admin/usage-events", async () => ({
-    usage_events: await store.listUsageEvents(),
-  }));
+  server.get("/admin/usage-events", async (request, reply) =>
+    adminListResponse(
+      request,
+      reply,
+      "usage_events",
+      await store.listUsageEvents(),
+      [
+        { query: "id", read: (item) => item.id },
+        { query: "request_id", read: (item) => item.requestId },
+        { query: "app_id", read: (item) => item.appId },
+        { query: "channel_id", read: (item) => item.channelId },
+        { query: "end_user_id", read: (item) => item.endUserId },
+        { query: "use_case", read: (item) => item.useCase },
+        { query: "mode", read: (item) => item.mode },
+        { query: "model", read: (item) => item.model },
+        { query: "route_id", read: (item) => item.routeId },
+        { query: "status", read: (item) => item.status },
+      ],
+      [
+        (item) => item.id,
+        (item) => item.requestId,
+        (item) => item.appId,
+        (item) => item.channelId,
+        (item) => item.endUserId,
+        (item) => item.useCase,
+        (item) => item.mode,
+        (item) => item.model,
+        (item) => item.routeId,
+      ],
+    ),
+  );
 
-  server.get("/admin/ledger", async () => ({
-    ledger_entries: await store.listLedgerEntries(),
-  }));
+  server.get("/admin/ledger", async (request, reply) =>
+    adminListResponse(
+      request,
+      reply,
+      "ledger_entries",
+      await store.listLedgerEntries(),
+      [
+        { query: "id", read: (item) => item.id },
+        { query: "usage_event_id", read: (item) => item.usageEventId },
+        { query: "wallet_id", read: (item) => item.walletId },
+        { query: "direction", read: (item) => item.direction },
+        { query: "reason", read: (item) => item.reason },
+      ],
+      [
+        (item) => item.id,
+        (item) => item.usageEventId,
+        (item) => item.walletId,
+        (item) => item.direction,
+        (item) => item.reason,
+      ],
+    ),
+  );
 
   server.post(
     "/admin/privacy/request-metadata/purge",

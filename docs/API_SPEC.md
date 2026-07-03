@@ -205,6 +205,34 @@ POST   /admin/privacy/request-metadata/purge
 POST   /admin/privacy/end-users/anonymize
 ```
 
+Admin list endpoints return their existing array field plus `page` metadata:
+
+```json
+{
+  "usage_events": [],
+  "page": {
+    "limit": 100,
+    "offset": 0,
+    "returned": 0,
+    "total": 0
+  }
+}
+```
+
+Supported common query parameters:
+
+| Parameter      | Meaning                                                     |
+| -------------- | ----------------------------------------------------------- |
+| `limit`        | Page size, default `100`, max `500`.                        |
+| `offset`       | Zero-based item offset, default `0`.                        |
+| `q`            | Case-insensitive search over endpoint-specific text fields. |
+| `created_from` | Inclusive date lower bound for records with `createdAt`.    |
+| `created_to`   | Inclusive date upper bound for records with `createdAt`.    |
+
+Endpoint-specific filters use snake_case field names, such as `app_id`,
+`channel_id`, `end_user_id`, `route_id`, `usage_event_id`, `wallet_id`,
+`status`, `mode`, `provider`, `model`, `direction`, and `reason`.
+
 The `v0.5.0-beta.1` Console can read these endpoints directly for live usage and
 ledger, registry, faucet, route, pricing, and credential-metadata views when
 its server-side admin token is configured.

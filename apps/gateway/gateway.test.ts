@@ -246,6 +246,12 @@ describe("gateway minimum API", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({
+      page: {
+        limit: 100,
+        offset: 0,
+        returned: 0,
+        total: 0,
+      },
       usage_events: [],
     });
   });
@@ -272,7 +278,74 @@ describe("gateway minimum API", () => {
 
       expect(response.statusCode).toBe(200);
       expect(response.json()[key]).toHaveLength(1);
+      expect(response.json().page).toMatchObject({
+        limit: 100,
+        offset: 0,
+        returned: 1,
+        total: 1,
+      });
     }
+  });
+
+  it("paginates and filters admin list endpoints", async () => {
+    const server = buildGatewayServer(undefined, {
+      adminTokenHashes: [hashTestToken(adminToken)],
+    });
+
+    const routes = await server.inject({
+      method: "GET",
+      url: "/admin/routes?status=active&limit=1&offset=0&q=paper",
+      headers: adminHeaders,
+    });
+    const grants = await server.inject({
+      method: "GET",
+      url: "/admin/faucet-grants?app_id=app_pdf_reader&end_user_id=user_hash_123&limit=1",
+      headers: adminHeaders,
+    });
+    const emptyRoutes = await server.inject({
+      method: "GET",
+      url: "/admin/routes?status=disabled",
+      headers: adminHeaders,
+    });
+
+    expect(routes.statusCode).toBe(200);
+    expect(routes.json().routes).toHaveLength(1);
+    expect(routes.json().routes[0]).toMatchObject({
+      alias: "vertical/paper-summary",
+      status: "active",
+    });
+    expect(routes.json().page).toEqual({
+      limit: 1,
+      offset: 0,
+      returned: 1,
+      total: 1,
+    });
+    expect(grants.statusCode).toBe(200);
+    expect(grants.json().faucet_grants).toHaveLength(1);
+    expect(grants.json().page.total).toBe(1);
+    expect(emptyRoutes.statusCode).toBe(200);
+    expect(emptyRoutes.json()).toMatchObject({
+      page: {
+        returned: 0,
+        total: 0,
+      },
+      routes: [],
+    });
+  });
+
+  it("rejects invalid admin list query parameters", async () => {
+    const server = buildGatewayServer(undefined, {
+      adminTokenHashes: [hashTestToken(adminToken)],
+    });
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/admin/routes?limit=abc",
+      headers: adminHeaders,
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe("invalid_admin_list_query");
   });
 
   it("rejects provider credential writes when encryption is not configured", async () => {
