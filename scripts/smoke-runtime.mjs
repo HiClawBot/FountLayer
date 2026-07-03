@@ -47,9 +47,15 @@ async function readJson(response) {
   }
 }
 
-async function fetchJson(path, init) {
+async function fetchRawJson(path, init) {
   const response = await fetch(`${gatewayBaseUrl}${path}`, init);
   const body = await readJson(response);
+
+  return { response, body };
+}
+
+async function fetchJson(path, init) {
+  const { response, body } = await fetchRawJson(path, init);
 
   if (!response.ok) {
     fail(`Gateway request failed: ${path}`, {
@@ -74,6 +80,15 @@ async function smokeGateway() {
 
   if (health.status !== "ok") {
     fail("Gateway health check did not return ok.", health);
+  }
+
+  const dependencyHealth = await fetchJson("/health/dependencies");
+
+  if (dependencyHealth.status !== "ok") {
+    fail(
+      "Gateway dependency health check did not return ok.",
+      dependencyHealth,
+    );
   }
 
   const session = await fetchJson("/v1/sessions", {
@@ -161,7 +176,46 @@ async function smokeGateway() {
     fail("Admin readback did not include expected runtime data.", checks);
   }
 
+  const denied = await fetchRawJson("/v1/chat/completions", {
+    method: "POST",
+    headers: sessionHeaders,
+    body: JSON.stringify({
+      model: "route/not-configured",
+      messages,
+    }),
+  });
+
+  if (denied.response.ok) {
+    fail("Denied route unexpectedly returned success.", denied.body);
+  }
+
+  const [usageAfterDenied, ledgerAfterDenied] = await Promise.all([
+    fetchAdminJson("/admin/usage-events"),
+    fetchAdminJson("/admin/ledger"),
+  ]);
+  const usageCountAfterDenied = usageAfterDenied.usage_events?.length ?? 0;
+  const ledgerCountAfterDenied = ledgerAfterDenied.ledger_entries?.length ?? 0;
+
+  if (
+    usageCountAfterDenied !== checks.usageEvents ||
+    ledgerCountAfterDenied !== checks.ledgerEntries
+  ) {
+    fail("Denied route created usage or ledger records.", {
+      before: {
+        usageEvents: checks.usageEvents,
+        ledgerEntries: checks.ledgerEntries,
+      },
+      after: {
+        usageEvents: usageCountAfterDenied,
+        ledgerEntries: ledgerCountAfterDenied,
+      },
+      denied: denied.body,
+    });
+  }
+
   return {
+    dependencyStatus: dependencyHealth.status,
+    deniedRouteCode: denied.body?.error?.code,
     usageEventId: chat.billing.usage_event_id,
     ...checks,
   };

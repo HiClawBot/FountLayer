@@ -359,6 +359,7 @@ Never embed real provider API keys in the SDK, frontend code, mobile app, deskto
 - [Security](./docs/SECURITY.md)
 - [Website](./docs/WEBSITE.md)
 - [Beta Plan](./docs/BETA_PLAN.md)
+- [Self-Hosted Beta Runbook](./docs/SELF_HOSTING_BETA.md)
 - [Codex Tasks](./docs/CODEX_TASKS.md)
 - [Release Checklist](./docs/RELEASE_CHECKLIST.md)
 - [Release Notes v0.1.0](./docs/RELEASE_NOTES_v0.1.0.md)

@@ -94,6 +94,7 @@ Goal: make the repository read like a beta track.
       from README and website docs.
 - [x] Add a beta known-limits section that clearly excludes hosted
       managed-service claims.
+- [x] Add a self-hosted beta runbook.
 
 Exit gate:
 
@@ -104,7 +105,7 @@ Exit gate:
 
 Goal: make self-hosting repeatable, not aspirational.
 
-- Add a Docker Compose beta runbook.
+- [x] Add a Docker Compose beta runbook.
 - Validate Postgres on `3332`, Redis on `3379`, LiteLLM on `3305`, Gateway on
   `3300`, Console on `3301`, and Demo on `3302`.
 - Extend `pnpm smoke:runtime` or add a beta smoke script that checks health,

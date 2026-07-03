@@ -29,6 +29,7 @@ This beta is not a hosted managed-service production launch.
 - Privacy retention purge and app-owned end-user anonymization hooks.
 - Static bilingual website with GitHub Pages workflow.
 - Local service port policy constrained to `3300-3399`.
+- Self-hosted beta runbook.
 
 ## Preserved Invariants
 
