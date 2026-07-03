@@ -47,8 +47,7 @@ Current blockers before tagging beta:
 
 - Docker Compose runtime validation is still not proven in a Docker-enabled
   environment.
-- Console is mostly read-oriented; beta needs minimum write workflows for
-  operator setup.
+- Console usage and ledger filters still need operator-grade controls.
 - Release packaging, beta checklist, and contributor-facing docs need a beta
   pass.
 
@@ -148,13 +147,13 @@ Exit gate:
 
 Goal: move Console from mostly read-only to minimally operational.
 
-- Add create/edit screens or forms for apps, channels, routes, faucet grants,
-  and pricing policies.
-- Add credential metadata management actions that call existing encrypted
-  Admin APIs.
+- [x] Add create/edit screens or forms for apps, channels, routes, faucet
+      grants, and pricing policies.
+- [x] Add credential metadata management actions that call existing encrypted
+      Admin APIs.
 - Add filters for usage and ledger by app, channel, end user hash, status, and
   date range.
-- Keep all admin tokens server-side only.
+- [x] Keep all admin tokens server-side only.
 - Preserve static fallback only for offline docs/demo rendering, not as a
   hidden runtime dependency.
 

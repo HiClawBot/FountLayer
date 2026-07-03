@@ -33,6 +33,8 @@ This beta is not a hosted managed-service production launch.
 - Admin list pagination and basic filters.
 - Admin create/update APIs for apps, channels, routes, faucet grants, and
   pricing policies.
+- Console `/setup` workflow for apps, channels, routes, faucet grants, pricing
+  policies, and credential metadata through server-side Admin API actions.
 - Strict provider-key scan script: `pnpm scan:keys`.
 
 ## Preserved Invariants
@@ -66,11 +68,10 @@ Required before tagging `v0.5.0-beta.1`:
 
 - Docker Compose runtime smoke in a Docker-enabled environment.
 - Beta threat model and security checklist.
-- Minimum Console operator setup workflows.
 
 ## Known Gaps
 
-- Console setup workflows are still mostly read-oriented.
+- Console usage and ledger filters still need operator-grade controls.
 - Docker Compose runtime smoke must be repeated where Docker is available.
 - Managed-service production launch still requires provider terms review,
   privacy policy, terms of service, payment/tax review, settlement operations

@@ -72,6 +72,7 @@ Open:
 
 ```txt
 http://localhost:3301/overview
+http://localhost:3301/setup
 ```
 
 ## Optional Demo App

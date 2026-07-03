@@ -7,12 +7,14 @@ import {
   LayoutDashboard,
   RadioTower,
   Route,
+  SlidersHorizontal,
   WalletCards,
 } from "lucide-react";
 import Link from "next/link";
 
 const navItems = [
   { href: "/overview", label: "Overview", icon: LayoutDashboard },
+  { href: "/setup", label: "Setup", icon: SlidersHorizontal },
   { href: "/apps", label: "Apps", icon: Boxes },
   { href: "/channels", label: "Channels", icon: RadioTower },
   { href: "/routes", label: "Routes", icon: Route },

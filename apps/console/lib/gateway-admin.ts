@@ -8,6 +8,7 @@ import {
   routes as fallbackRoutes,
   usageEvents as fallbackUsageEvents,
 } from "./console-data";
+import { revalidatePath } from "next/cache";
 
 export type ConsoleApp = {
   id: string;
@@ -177,6 +178,147 @@ async function fetchJson<T>(path: string): Promise<T> {
   }
 
   return (await response.json()) as T;
+}
+
+async function writeAdminJson(path: string, body: Record<string, unknown>) {
+  if (!gatewayAdminToken) {
+    throw new Error("Console Gateway Admin token is not configured.");
+  }
+
+  const response = await fetch(`${gatewayBaseUrl}${path}`, {
+    body: JSON.stringify(body),
+    cache: "no-store",
+    headers: {
+      authorization: `Bearer ${gatewayAdminToken}`,
+      "content-type": "application/json",
+    },
+    method: "POST",
+    signal: AbortSignal.timeout(1200),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Gateway Admin API returned ${response.status}`);
+  }
+}
+
+function formString(formData: FormData, key: string): string {
+  const value = formData.get(key);
+
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function optionalFormString(formData: FormData, key: string) {
+  const value = formString(formData, key);
+
+  return value.length > 0 ? value : undefined;
+}
+
+function formList(formData: FormData, key: string): string[] {
+  return formString(formData, key)
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function revalidateConsoleSetup() {
+  revalidatePath("/setup");
+  revalidatePath("/apps");
+  revalidatePath("/channels");
+  revalidatePath("/routes");
+  revalidatePath("/faucet");
+  revalidatePath("/pricing");
+  revalidatePath("/credentials");
+}
+
+export async function createConsoleApp(formData: FormData) {
+  "use server";
+
+  await writeAdminJson("/admin/apps", {
+    developerId: formString(formData, "developerId"),
+    developerName: formString(formData, "developerName"),
+    id: formString(formData, "id"),
+    name: formString(formData, "name"),
+  });
+  revalidateConsoleSetup();
+}
+
+export async function createConsoleChannel(formData: FormData) {
+  "use server";
+
+  await writeAdminJson("/admin/channels", {
+    appId: formString(formData, "appId"),
+    id: formString(formData, "id"),
+    name: formString(formData, "name"),
+    type: formString(formData, "type"),
+  });
+  revalidateConsoleSetup();
+}
+
+export async function createConsoleRoute(formData: FormData) {
+  "use server";
+
+  await writeAdminJson("/admin/routes", {
+    adapter: formString(formData, "adapter"),
+    alias: formString(formData, "alias"),
+    appId: formString(formData, "appId"),
+    id: formString(formData, "id"),
+    maxRetailPrice: optionalFormString(formData, "maxRetailPrice"),
+    model: formString(formData, "model"),
+    modelAllowlist: formList(formData, "modelAllowlist"),
+    provider: formString(formData, "provider"),
+  });
+  revalidateConsoleSetup();
+}
+
+export async function createConsoleFaucetGrant(formData: FormData) {
+  "use server";
+
+  await writeAdminJson("/admin/faucet-grants", {
+    allowedModels: formList(formData, "allowedModels"),
+    allowedUseCases: formList(formData, "allowedUseCases"),
+    appId: formString(formData, "appId"),
+    channelId: formString(formData, "channelId"),
+    dailyCap: formString(formData, "dailyCap"),
+    endUserId: formString(formData, "endUserId"),
+    expiresAt: formString(formData, "expiresAt"),
+    id: formString(formData, "id"),
+    remaining: formString(formData, "remaining"),
+  });
+  revalidateConsoleSetup();
+}
+
+export async function createConsolePricingPolicy(formData: FormData) {
+  "use server";
+
+  await writeAdminJson("/admin/pricing-policies", {
+    appId: optionalFormString(formData, "appId"),
+    channelMarkupRate: optionalFormString(formData, "channelMarkupRate"),
+    developerMarkupRate: optionalFormString(formData, "developerMarkupRate"),
+    id: formString(formData, "id"),
+    maxTotalMarkupRate: optionalFormString(formData, "maxTotalMarkupRate"),
+    name: formString(formData, "name"),
+    paymentFeeReserveRate: optionalFormString(
+      formData,
+      "paymentFeeReserveRate",
+    ),
+    platformFeeRate: optionalFormString(formData, "platformFeeRate"),
+    riskReserveRate: optionalFormString(formData, "riskReserveRate"),
+  });
+  revalidateConsoleSetup();
+}
+
+export async function createConsoleCredential(formData: FormData) {
+  "use server";
+
+  await writeAdminJson("/admin/provider-credentials", {
+    apiKey: formString(formData, "apiKey"),
+    budgetDaily: optionalFormString(formData, "budgetDaily"),
+    budgetMonthly: optionalFormString(formData, "budgetMonthly"),
+    ownerId: formString(formData, "ownerId"),
+    ownerType: formString(formData, "ownerType"),
+    provider: formString(formData, "provider"),
+  });
+  revalidateConsoleSetup();
 }
 
 export async function getConsoleRuntimeData(): Promise<ConsoleRuntimeData> {

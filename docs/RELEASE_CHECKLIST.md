@@ -64,7 +64,7 @@
 - [x] Admin list endpoints have beta-grade pagination and filters.
 - [x] Admin APIs can create/update apps, channels, routes, faucet grants, and
       pricing policies.
-- [ ] Console has minimum operator setup workflows for apps, channels, routes,
+- [x] Console has minimum operator setup workflows for apps, channels, routes,
       faucet grants, pricing policies, and credential metadata.
 - [ ] Threat model and beta security checklist are present.
 - [x] Strict key scan script exists.

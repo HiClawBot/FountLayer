@@ -202,7 +202,9 @@ Local port allocation:
 The Console reads live Gateway Admin API usage, ledger, app, channel, faucet,
 route, credential-metadata, and pricing data from `CONSOLE_GATEWAY_BASE_URL` or
 `GATEWAY_BASE_URL`, and falls back to local sample data when the Gateway is
-unavailable. In `v0.5.0-beta.1`, `/admin/*` requires an admin bearer token.
+unavailable. The `/setup` page creates apps, channels, routes, faucet grants,
+pricing policies, and credential metadata through server-side Admin API
+actions. In `v0.5.0-beta.1`, `/admin/*` requires an admin bearer token.
 Configure the Gateway with `FOUNTLAYER_ADMIN_TOKEN_SHA256` or
 `FOUNTLAYER_ADMIN_TOKEN`, and configure the Console server with
 `CONSOLE_GATEWAY_ADMIN_TOKEN`. Do not expose this token through `NEXT_PUBLIC_*`
@@ -325,9 +327,7 @@ The current beta foundation proves the full commercial loop:
   production launch.
 - Docker Compose runtime validation must be repeated in a Docker-enabled
   environment before tagging the beta release.
-- Admin list endpoints still need beta-grade pagination and filters.
-- Console beta setup workflows are still mostly read-oriented and need minimum
-  create/update forms for operator objects.
+- Console usage and ledger filtering still need operator-grade controls.
 - Managed-service operations still need formal provider terms review,
   privacy/terms documents, payment/tax review, and managed KMS/Vault backing.
 
