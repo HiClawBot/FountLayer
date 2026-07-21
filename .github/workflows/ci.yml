@@ -47,7 +47,9 @@ jobs:
         run: pnpm test
 
       - name: Migrate database
-        run: pnpm db:migrate
+        run: |
+          pnpm db:migrate
+          pnpm db:migrate
 
       - name: Seed database
         run: pnpm db:seed

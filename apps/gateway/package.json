@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@fountlayer/adapter-core": "workspace:*",
+    "@fountlayer/adapter-litellm": "workspace:*",
+    "@fountlayer/adapter-local": "workspace:*",
     "@fountlayer/credentials": "workspace:*",
     "@fountlayer/db": "workspace:*",
     "@fountlayer/faucet": "workspace:*",

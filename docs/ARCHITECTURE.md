@@ -36,6 +36,8 @@ Console / Worker / Optional Billing
 - `ledger_entries` are the source of truth for money flow.
 - `sessions` are the source of truth for Gateway session auth; only token
   hashes are persisted.
+- `idempotency_records` coordinate session-scoped billable requests; they store
+  request hashes, leases, status, and usage references but no response bodies.
 - `model_prices` are the source of truth for cost estimation.
 - `faucet_grants` are the source of truth for free credits.
 - Provider logs and SDK telemetry are not financial sources of truth.
@@ -47,12 +49,13 @@ Console / Worker / Optional Billing
 3. Gateway validates app, channel, end user, and mode.
 4. Gateway validates the session token hash and checks that session attribution
    matches request attribution.
-5. Gateway estimates request cost.
-6. Gateway chooses payment source: faucet grant, wallet, BYOK, or local.
-7. Gateway resolves route to provider/model.
-8. Adapter calls LiteLLM, developer credential, BYOK, or local endpoint.
-9. Gateway records usage event.
-10. Ledger engine records debits and credits.
+5. Gateway reserves an optional session-scoped idempotency key.
+6. Gateway estimates request cost.
+7. Gateway chooses payment source: faucet grant, wallet, BYOK, or local.
+8. Gateway resolves route to provider/model.
+9. Adapter calls LiteLLM, developer credential, BYOK, or local endpoint.
+10. Gateway atomically records the usage event, ledger entries, funding
+    mutation, and idempotency completion.
 11. Response returns usage and billing metadata.
 
 ## Routing Model
@@ -84,6 +87,9 @@ routes:
 ### Self-hosted
 
 Developer runs Gateway, Postgres, Redis, LiteLLM sidecar, and Console.
+The beta Gateway selects one process-wide runtime adapter with
+`FOUNTLAYER_GATEWAY_ADAPTER=demo|litellm|local`; route policies continue to
+control the routed provider/model, allowlists, and spend caps.
 
 ## Observability
 
@@ -97,6 +103,8 @@ The observability package also provides metadata-only span and metric records.
 Gateway emits spans for session creation, estimates, adapter calls, billing
 writes, and chat requests, plus metrics for estimated tokens, chat tokens,
 retail price, latency, denied requests, and adapter errors.
+Telemetry delivery is best-effort; a sink failure cannot change request or
+billing outcomes.
 
 ## Reliability
 

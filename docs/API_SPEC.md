@@ -25,8 +25,19 @@ tracing, and reconciliation without logging raw prompts or outputs.
 
 `POST /v1/chat/completions` accepts an optional `idempotency-key` header. When a
 successful billable chat response has already been recorded for the same
-session/key pair, the Gateway returns the original response and does not create
-another usage event or ledger entry set.
+session/key pair, the Gateway does not execute the adapter or create another
+usage event or ledger entry set. A same-process retry can replay the original
+response from memory. PostgreSQL mode durably coordinates Gateway instances:
+an in-flight duplicate returns `409 idempotency_in_progress`, reuse with a
+different parsed request returns `409 idempotency_conflict`, and a completed
+request whose response cache is unavailable returns
+`409 idempotency_already_completed` with the original `usage_event_id`.
+
+The durable record stores a canonical request hash and billing reference, not
+raw prompts or assistant output. Keys are scoped to the authenticated session
+and may contain at most 200 characters. The JavaScript SDK exposes the header as
+the optional second argument `{ idempotencyKey: "..." }` to `chat` and
+`streamChat`.
 
 ## POST /v1/sessions
 

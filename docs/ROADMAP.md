@@ -61,6 +61,15 @@ Done when:
 - Admin APIs and Console flows are covered by tests.
 - Runtime smoke is repeatable in a Docker-enabled environment.
 
+## Historical Foundation Milestones
+
+The `v0.3.0` through `v0.5.0` sections below describe foundations that have
+already been incorporated into `v0.5.0-beta.1`. They remain useful as design
+history. Their unfinished work is productionization: per-route multi-adapter
+routing, durable async queues, full cross-instance response replay, fixed-point
+accounting hardening, managed KMS/Vault integration, and complete operator
+workflows.
+
 ## `v0.3.0`: Credentials, Routing, and Provider Expansion
 
 Goal: support real provider routing without weakening key safety.

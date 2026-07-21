@@ -29,18 +29,19 @@ deployment.
 
 ## Primary Threats And Mitigations
 
-| Threat                                              | Impact                               | Current Mitigation                                                                                         |
-| --------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| Provider key appears in SDK, frontend, logs, or Git | Upstream account compromise          | Strict placeholder policy, `pnpm scan:keys`, metadata-only credential responses.                           |
-| Admin token exposed to browser                      | Full operator control                | Console uses server actions and server env only; never use `NEXT_PUBLIC_*` for admin tokens.               |
-| Session token replay across attribution             | Unauthorized metered calls           | Session token hashes are stored server-side; authenticated `/v1` requests must match captured attribution. |
-| Duplicate billing on client retry                   | Duplicate usage/ledger records       | `idempotency-key` returns prior successful response without duplicate writes.                              |
-| Adapter failure after payment precheck              | User charged without provider result | Usage events and ledger entries are written only after successful adapter response.                        |
-| Route to unapproved/high-cost model                 | Unexpected spend                     | Route model allowlists and max retail caps run before adapter execution.                                   |
-| Faucet abuse                                        | Free-credit drain                    | Faucet grants require balance, model allowlist, use-case allowlist, daily cap, expiration, and status.     |
-| Wallet overspend                                    | Negative balances                    | Wallet-funded writes atomically prevent negative balances.                                                 |
-| Health or telemetry leaks secrets                   | Credential or prompt exposure        | Health checks return component status only; telemetry/spans/metrics are metadata-only.                     |
-| End-user deletion breaks accounting                 | Ledger integrity loss                | Privacy purge anonymizes identifiers and metadata without deleting usage or ledger facts.                  |
+| Threat                                              | Impact                               | Current Mitigation                                                                                                 |
+| --------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| Provider key appears in SDK, frontend, logs, or Git | Upstream account compromise          | Strict placeholder policy, `pnpm scan:keys`, metadata-only credential responses.                                   |
+| Admin token exposed to browser                      | Full operator control                | Console uses server actions and server env only; never use `NEXT_PUBLIC_*` for admin tokens.                       |
+| Session token replay across attribution             | Unauthorized metered calls           | Session token hashes are stored server-side; authenticated `/v1` requests must match captured attribution.         |
+| Duplicate billing on client retry                   | Duplicate usage/ledger records       | `idempotency-key` uses a session-scoped request hash and PostgreSQL reservation completed atomically with billing. |
+| Adapter failure after payment precheck              | User charged without provider result | Usage events and ledger entries are written only after successful adapter response.                                |
+| Route to unapproved/high-cost model                 | Unexpected spend                     | Route model allowlists and max retail caps run before adapter execution.                                           |
+| Faucet abuse                                        | Free-credit drain                    | Faucet grants require balance, model allowlist, use-case allowlist, daily cap, expiration, and status.             |
+| Wallet overspend                                    | Negative balances                    | Wallet-funded writes atomically prevent negative balances.                                                         |
+| Health or telemetry leaks secrets                   | Credential or prompt exposure        | Health checks return component status only; telemetry/spans/metrics are metadata-only.                             |
+| Telemetry backend fails after billing               | Charged call appears failed          | Telemetry writes are best-effort and cannot alter the committed request outcome.                                   |
+| End-user deletion breaks accounting                 | Ledger integrity loss                | Privacy purge anonymizes identifiers and metadata without deleting usage or ledger facts.                          |
 
 ## Explicit Non-Goals For This Beta
 

@@ -57,6 +57,7 @@ import {
   type GatewayFaucetGrantCreateInput,
   type GatewayFaucetGrantUpdateInput,
   type GatewayGrantRecord,
+  type GatewayIdempotencyReservation,
   type GatewayRoutePolicyRecord,
   type GatewaySessionRecord,
   type GatewayStore,
@@ -132,6 +133,7 @@ const defaultRateLimits = {
   endUserBillableRequestsPerWindow: 120,
   sessionBillableRequestsPerWindow: 60,
 };
+const idempotencyLeaseMs = 15 * 60 * 1000;
 
 type RateLimitScope = "session" | "end_user";
 
@@ -837,6 +839,28 @@ function parseIdempotencyKey(value: string | string[] | undefined) {
     : undefined;
 }
 
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value) ?? "null";
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map(canonicalJson).join(",")}]`;
+  }
+
+  const entries = Object.entries(value)
+    .filter(([, item]) => item !== undefined)
+    .sort(([left], [right]) => left.localeCompare(right));
+
+  return `{${entries
+    .map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`)
+    .join(",")}}`;
+}
+
+function hashIdempotentRequest(value: unknown): string {
+  return createHash("sha256").update(canonicalJson(value)).digest("hex");
+}
+
 class DemoLocalAdapter implements LLMAdapter {
   async chat(
     input: Parameters<LLMAdapter["chat"]>[0],
@@ -1409,7 +1433,11 @@ async function recordTelemetry(
   name: string,
   attributes: Record<string, unknown>,
 ) {
-  await sink?.record(createTelemetryEvent(name, attributes));
+  try {
+    await sink?.record(createTelemetryEvent(name, attributes));
+  } catch {
+    // Observability is best-effort and must not change request or billing outcomes.
+  }
 }
 
 async function recordMetric(
@@ -1419,9 +1447,13 @@ async function recordMetric(
   attributes: Record<string, unknown>,
   unit?: string,
 ) {
-  await sink?.recordMetric?.(
-    createTelemetryMetric(name, value, attributes, { unit }),
-  );
+  try {
+    await sink?.recordMetric?.(
+      createTelemetryMetric(name, value, attributes, { unit }),
+    );
+  } catch {
+    // Observability is best-effort and must not change request or billing outcomes.
+  }
 }
 
 async function recordSpan(
@@ -1431,13 +1463,17 @@ async function recordSpan(
   status: "error" | "ok",
   attributes: Record<string, unknown>,
 ) {
-  await sink?.recordSpan?.(
-    createTelemetrySpan(name, {
-      attributes,
-      durationMs: Date.now() - startedAt,
-      status,
-    }),
-  );
+  try {
+    await sink?.recordSpan?.(
+      createTelemetrySpan(name, {
+        attributes,
+        durationMs: Date.now() - startedAt,
+        status,
+      }),
+    );
+  } catch {
+    // Observability is best-effort and must not change request or billing outcomes.
+  }
 }
 
 async function runDependencyHealthChecks(
@@ -1666,15 +1702,18 @@ export function buildGatewayServer(
 
   server.get("/v1/balance", async (request) => {
     const attribution = requireRequestAttribution(request);
-    const grants = await store.listActiveGrants(attribution);
+    const [grants, wallet] = await Promise.all([
+      store.listActiveGrants(attribution),
+      store.getWallet(attribution),
+    ]);
     const faucetBalance = grants.reduce(
       (total, grant) => total + Number(grant.remaining),
       0,
     );
 
     return {
-      currency: "USD",
-      wallet_balance: "0.00000000",
+      currency: wallet?.currency ?? "USD",
+      wallet_balance: wallet?.balance ?? "0.00000000",
       faucet_balance: formatMoney(faucetBalance),
       active_grants: grants.map((grant) => grant.id),
     };
@@ -1825,12 +1864,14 @@ export function buildGatewayServer(
     const idempotencyCacheKey = idempotencyKey
       ? `${auth.sessionId}:${idempotencyKey}`
       : undefined;
-    const cachedResponse = idempotencyCacheKey
-      ? idempotencyCache.get(idempotencyCacheKey)
-      : undefined;
 
-    if (cachedResponse) {
-      return cachedResponse;
+    if (idempotencyKey && idempotencyKey.length > 200) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_idempotency_key",
+        "Idempotency key must be 200 characters or fewer.",
+      );
     }
 
     const parsed = chatRequestSchema.safeParse(request.body);
@@ -1884,6 +1925,77 @@ export function buildGatewayServer(
       return reply;
     }
 
+    let idempotencyReservation: GatewayIdempotencyReservation | undefined;
+
+    if (idempotencyKey) {
+      const now = new Date();
+      idempotencyReservation = {
+        idempotencyKey,
+        lockedUntil: new Date(now.getTime() + idempotencyLeaseMs).toISOString(),
+        requestHash: hashIdempotentRequest(parsed.data),
+        reservationId: `idem_res_${randomUUID()}`,
+        sessionId: auth.sessionId,
+      };
+
+      try {
+        const idempotency = await store.beginIdempotentRequest({
+          ...idempotencyReservation,
+          now,
+        });
+
+        if (idempotency.status === "conflict") {
+          return jsonError(
+            reply,
+            409,
+            "idempotency_conflict",
+            "Idempotency key was already used for a different request.",
+          );
+        }
+
+        if (idempotency.status === "in_progress") {
+          return jsonError(
+            reply,
+            409,
+            "idempotency_in_progress",
+            "An equivalent request is already in progress.",
+          );
+        }
+
+        if (idempotency.status === "completed") {
+          const cachedResponse = idempotencyCacheKey
+            ? idempotencyCache.get(idempotencyCacheKey)
+            : undefined;
+
+          return cachedResponse
+            ? cachedResponse
+            : jsonError(
+                reply,
+                409,
+                "idempotency_already_completed",
+                "This request was already completed by another Gateway process or before restart.",
+                { usage_event_id: idempotency.usageEventId },
+              );
+        }
+      } catch {
+        return jsonError(
+          reply,
+          503,
+          "idempotency_unavailable",
+          "Idempotency coordination is unavailable.",
+        );
+      }
+    }
+
+    const releaseIdempotencyReservation = async () => {
+      if (idempotencyReservation) {
+        try {
+          await store.releaseIdempotentRequest(idempotencyReservation);
+        } catch {
+          // A failed release falls back to lease expiry and must not mask the request error.
+        }
+      }
+    };
+
     const sessionRateLimit = rateLimiter.consume({
       key: `session:${auth.sessionId}`,
       limit: rateLimits.sessionBillableRequestsPerWindow,
@@ -1892,6 +2004,7 @@ export function buildGatewayServer(
     });
 
     if (!sessionRateLimit.allowed) {
+      await releaseIdempotencyReservation();
       return jsonError(
         reply,
         429,
@@ -1914,6 +2027,7 @@ export function buildGatewayServer(
     });
 
     if (!endUserRateLimit.allowed) {
+      await releaseIdempotencyReservation();
       return jsonError(
         reply,
         429,
@@ -1952,6 +2066,7 @@ export function buildGatewayServer(
         : undefined;
 
     if (!paymentSource) {
+      await releaseIdempotencyReservation();
       await recordTelemetry(telemetrySink, "gateway.chat.denied", {
         appId: attribution.appId,
         channelId: attribution.channelId,
@@ -2033,6 +2148,7 @@ export function buildGatewayServer(
         },
       );
     } catch (error) {
+      await releaseIdempotencyReservation();
       await recordTelemetry(telemetrySink, "gateway.adapter.error", {
         appId: attribution.appId,
         channelId: attribution.channelId,
@@ -2148,6 +2264,7 @@ export function buildGatewayServer(
                 await store.recordBillableCall({
                   grantId: paymentSource.grant.id,
                   amount: estimate.retailPrice,
+                  idempotency: idempotencyReservation,
                   usageEvent,
                   ledgerEntries,
                 })
@@ -2158,6 +2275,7 @@ export function buildGatewayServer(
                 await store.recordWalletBillableCall({
                   walletId: paymentSource.wallet.id,
                   amount: estimate.retailPrice,
+                  idempotency: idempotencyReservation,
                   usageEvent,
                   ledgerEntries,
                 })
@@ -2282,6 +2400,7 @@ export function buildGatewayServer(
 
       return response;
     } catch (error) {
+      await releaseIdempotencyReservation();
       await recordSpan(
         telemetrySink,
         "gateway.billing.write",

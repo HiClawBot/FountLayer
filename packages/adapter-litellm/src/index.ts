@@ -36,7 +36,11 @@ type OpenAIChatCompletion = {
 };
 
 function chatCompletionsUrl(baseUrl: string): string {
-  return `${baseUrl.replace(/\/+$/, "")}/v1/chat/completions`;
+  const normalized = baseUrl.replace(/\/+$/, "");
+
+  return normalized.endsWith("/v1")
+    ? `${normalized}/chat/completions`
+    : `${normalized}/v1/chat/completions`;
 }
 
 function authHeaders(apiKey: string | undefined): Record<string, string> {

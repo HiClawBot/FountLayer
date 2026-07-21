@@ -164,6 +164,19 @@ create table ledger_entries (
   created_at timestamptz default now()
 );
 
+create table idempotency_records (
+  session_id text not null references sessions(id) on delete cascade,
+  idempotency_key text not null,
+  request_hash text not null,
+  reservation_id text not null,
+  status text not null default 'processing', -- processing, completed
+  locked_until timestamptz not null,
+  usage_event_id text references usage_events(id),
+  created_at timestamptz default now(),
+  completed_at timestamptz,
+  primary key(session_id, idempotency_key)
+);
+
 create index idx_usage_events_app_created on usage_events(app_id, created_at);
 create index idx_usage_events_channel_created on usage_events(channel_id, created_at);
 create index idx_usage_events_user_created on usage_events(end_user_id, created_at);
@@ -171,3 +184,4 @@ create index idx_ledger_entries_usage_event on ledger_entries(usage_event_id);
 create index idx_faucet_grants_scope on faucet_grants(app_id, channel_id, end_user_id, status);
 create index idx_sessions_token_hash on sessions(token_hash);
 create index idx_sessions_attribution on sessions(app_id, channel_id, end_user_id);
+create index idx_idempotency_records_usage_event on idempotency_records(usage_event_id);

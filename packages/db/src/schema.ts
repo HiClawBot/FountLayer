@@ -5,6 +5,7 @@ import {
   jsonb,
   numeric,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -308,4 +309,25 @@ export const ledgerEntries = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   },
   (table) => [index("idx_ledger_entries_usage_event").on(table.usageEventId)],
+);
+
+export const idempotencyRecords = pgTable(
+  "idempotency_records",
+  {
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => sessions.id, { onDelete: "cascade" }),
+    idempotencyKey: text("idempotency_key").notNull(),
+    requestHash: text("request_hash").notNull(),
+    reservationId: text("reservation_id").notNull(),
+    status: text("status").notNull().default("processing"),
+    lockedUntil: timestamp("locked_until", { withTimezone: true }).notNull(),
+    usageEventId: text("usage_event_id").references(() => usageEvents.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.sessionId, table.idempotencyKey] }),
+    index("idx_idempotency_records_usage_event").on(table.usageEventId),
+  ],
 );

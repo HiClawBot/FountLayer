@@ -132,6 +132,78 @@ describe("FountLayer SDK", () => {
     ]);
   });
 
+  it("sends validated idempotency keys on chat requests", async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const sdk = createFountLayer({
+      appId: "app_pdf_reader",
+      channelId: "channel_desktop",
+      endpoint: "http://localhost:3300",
+      fetchImpl: async (url, init) => {
+        calls.push({ url: String(url), init });
+
+        return String(url).endsWith("/v1/sessions")
+          ? new Response(
+              JSON.stringify({
+                session_id: "sess_123",
+                token: "fl_sess_123",
+                expires_at: "2026-06-18T00:00:00Z",
+              }),
+              { status: 201 },
+            )
+          : new Response(
+              JSON.stringify({
+                id: "req_123",
+                object: "chat.completion",
+                model: "demo-local-model",
+                choices: [
+                  {
+                    index: 0,
+                    message: { role: "assistant", content: "Summary." },
+                  },
+                ],
+                usage: {
+                  input_tokens: 1,
+                  output_tokens: 1,
+                  total_tokens: 2,
+                },
+                billing: {
+                  currency: "USD",
+                  upstream_cost: "0.00000001",
+                  retail_price: "0.00000001",
+                  paid_by: "faucet_grant",
+                },
+              }),
+              { status: 200 },
+            );
+      },
+    });
+    const session = await sdk.startSession({
+      endUserId: "user_hash_123",
+      useCase: "paper_summary",
+    });
+
+    await session.chat(
+      {
+        model: "vertical/paper-summary",
+        messages: [{ role: "user", content: "Summarize." }],
+      },
+      { idempotencyKey: " idem_sdk_1 " },
+    );
+
+    expect(calls[1]?.init?.headers).toMatchObject({
+      "idempotency-key": "idem_sdk_1",
+    });
+    await expect(
+      session.chat(
+        {
+          model: "vertical/paper-summary",
+          messages: [{ role: "user", content: "Summarize." }],
+        },
+        { idempotencyKey: " " },
+      ),
+    ).rejects.toThrow("non-empty");
+  });
+
   it("stores BYOK and local endpoint settings only in caller-provided local storage", () => {
     const storage = memoryStorage();
     const sdk = createFountLayer({

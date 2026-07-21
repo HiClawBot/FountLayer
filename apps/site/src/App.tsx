@@ -51,6 +51,14 @@ type Scenario = {
   steps: ScenarioStep[];
 };
 
+type DocsArticle = {
+  body: string;
+  bullets?: string[];
+  code?: string;
+  id: string;
+  title: string;
+};
+
 type SiteCopy = {
   brand: {
     logoAlt: string;
@@ -72,6 +80,20 @@ type SiteCopy = {
     steps: {
       label: string;
       value: string;
+    }[];
+    title: string;
+  };
+  docs: {
+    articles: DocsArticle[];
+    copy: string;
+    eyebrow: string;
+    groups: {
+      items: {
+        description: string;
+        href: string;
+        label: string;
+      }[];
+      title: string;
     }[];
     title: string;
   };
@@ -126,6 +148,7 @@ type SiteCopy = {
   nav: {
     brand: string;
     deploy: string;
+    docs: string;
     github: string;
     loop: string;
     scenarios: string;
@@ -189,6 +212,130 @@ const copy = {
       ],
       title: "Static by default, domain-ready when DNS is ready.",
     },
+    docs: {
+      articles: [
+        {
+          body: "FountLayer is self-hosted beta infrastructure. The smallest useful loop is SDK attribution, gateway policy, faucet funding, adapter execution, usage event, ledger entries, and console visibility.",
+          bullets: [
+            "Use it when an app needs metered LLM access across products, channels, or partners.",
+            "Keep provider keys on trusted servers only.",
+            "Treat app_id, channel_id, end_user_id, use_case, and mode as required request metadata.",
+          ],
+          id: "docs-overview",
+          title: "Overview",
+        },
+        {
+          body: "Start the local dependencies, apply the database schema, seed demo data, then run the gateway and console on the reserved local ports.",
+          code: [
+            "pnpm install",
+            "pnpm build",
+            "docker compose up -d postgres redis litellm",
+            "pnpm db:migrate",
+            "pnpm db:seed",
+            "pnpm --filter @fountlayer/gateway dev",
+            "pnpm --filter @fountlayer/console dev",
+          ].join("\n"),
+          id: "docs-quickstart",
+          title: "Quickstart",
+        },
+        {
+          body: "Applications call the SDK with a public app and channel identity, then start scoped sessions for each end user and use case.",
+          code: [
+            'import { createFountLayer } from "@fountlayer/sdk-js";',
+            "",
+            "const ai = createFountLayer({",
+            '  appId: "app_pdf_reader",',
+            '  channelId: "channel_desktop",',
+            '  endpoint: "https://gateway.example.com",',
+            "});",
+            "",
+            "const session = await ai.startSession({",
+            '  endUserId: "user_hash_123",',
+            '  useCase: "paper_summary",',
+            '  mode: "managed",',
+            "});",
+          ].join("\n"),
+          id: "docs-sdk",
+          title: "SDK attribution",
+        },
+        {
+          body: "The gateway accepts attributed chat requests, resolves a model route, checks faucet or wallet funding, and writes usage and ledger records after a successful billable response.",
+          bullets: [
+            "A billable success creates exactly one usage_event.",
+            "Every money movement creates balanced ledger_entries.",
+            "Faucet grants require balance, model allowlist, use-case allowlist, daily cap, and expiration.",
+          ],
+          id: "docs-metering",
+          title: "Metering and ledger",
+        },
+        {
+          body: "Run the runtime smoke check after the gateway, console, database, and local adapter are online. All ports stay inside the project policy range.",
+          code: [
+            "GATEWAY_BASE_URL=http://localhost:3300 \\",
+            "CONSOLE_BASE_URL=http://localhost:3301 \\",
+            "CONSOLE_GATEWAY_ADMIN_TOKEN=change_me_admin_token \\",
+            "pnpm smoke:runtime",
+          ].join("\n"),
+          id: "docs-verify",
+          title: "Verification",
+        },
+        {
+          body: "Operator setup belongs on the server side. Use placeholders in examples, store real provider credentials only in trusted runtime configuration, and never expose them to SDKs, frontend bundles, mobile apps, logs, or Git history.",
+          bullets: [
+            "Use /setup for local beta operator initialization.",
+            "Rotate admin tokens before any public deployment.",
+            "Log request metadata, routing, costs, and IDs, not prompts or model outputs.",
+          ],
+          id: "docs-security",
+          title: "Security boundary",
+        },
+      ],
+      copy: "A compact operator guide for running the beta loop, integrating the SDK, and verifying usage and ledger behavior.",
+      eyebrow: "Documentation",
+      groups: [
+        {
+          items: [
+            {
+              description: "Purpose and runtime shape.",
+              href: "#docs-overview",
+              label: "Overview",
+            },
+            {
+              description: "Local beta startup commands.",
+              href: "#docs-quickstart",
+              label: "Quickstart",
+            },
+            {
+              description: "Required request metadata.",
+              href: "#docs-sdk",
+              label: "SDK attribution",
+            },
+          ],
+          title: "Start",
+        },
+        {
+          items: [
+            {
+              description: "Usage events and wallet entries.",
+              href: "#docs-metering",
+              label: "Metering",
+            },
+            {
+              description: "Smoke checks for the loop.",
+              href: "#docs-verify",
+              label: "Verification",
+            },
+            {
+              description: "Provider key and logging rules.",
+              href: "#docs-security",
+              label: "Security",
+            },
+          ],
+          title: "Operate",
+        },
+      ],
+      title: "Docs for the distribution loop.",
+    },
     event: {
       label: "usage_event",
       retailLabel: "retail",
@@ -207,7 +354,7 @@ const copy = {
         },
         {
           label: "Verified tests",
-          value: "112 passed",
+          value: "132 passed",
         },
         {
           label: "Provider keys",
@@ -215,7 +362,7 @@ const copy = {
         },
       ],
       primaryCta: "Run the loop",
-      secondaryCta: "Publish on Pages",
+      secondaryCta: "Read docs",
       title: "FountLayer",
     },
     intro: {
@@ -255,6 +402,7 @@ const copy = {
     nav: {
       brand: "Brand",
       deploy: "Publish",
+      docs: "Docs",
       github: "GitHub",
       loop: "Loop",
       scenarios: "Scenarios",
@@ -524,6 +672,130 @@ const copy = {
       ],
       title: "默认静态发布，域名就绪后再切换。",
     },
+    docs: {
+      articles: [
+        {
+          body: "智泉层是自托管测试版基础设施。最小可用闭环包括开发包归因、网关策略、水龙头付费、适配器执行、用量事件、账本分录和控制台可见性。",
+          bullets: [
+            "当应用需要跨产品、渠道或伙伴分发模型能力时使用。",
+            "服务商密钥只放在可信服务端。",
+            "app_id、channel_id、end_user_id、use_case 和 mode 是必填请求元数据。",
+          ],
+          id: "docs-overview",
+          title: "概览",
+        },
+        {
+          body: "先启动本地依赖，应用数据库结构，写入演示数据，再在保留端口上运行网关和控制台。",
+          code: [
+            "pnpm install",
+            "pnpm build",
+            "docker compose up -d postgres redis litellm",
+            "pnpm db:migrate",
+            "pnpm db:seed",
+            "pnpm --filter @fountlayer/gateway dev",
+            "pnpm --filter @fountlayer/console dev",
+          ].join("\n"),
+          id: "docs-quickstart",
+          title: "快速开始",
+        },
+        {
+          body: "应用使用公开的应用和渠道身份创建开发包实例，再为每个终端用户和用途开启限定会话。",
+          code: [
+            'import { createFountLayer } from "@fountlayer/sdk-js";',
+            "",
+            "const ai = createFountLayer({",
+            '  appId: "app_pdf_reader",',
+            '  channelId: "channel_desktop",',
+            '  endpoint: "https://gateway.example.com",',
+            "});",
+            "",
+            "const session = await ai.startSession({",
+            '  endUserId: "user_hash_123",',
+            '  useCase: "paper_summary",',
+            '  mode: "managed",',
+            "});",
+          ].join("\n"),
+          id: "docs-sdk",
+          title: "开发包归因",
+        },
+        {
+          body: "网关接收带归因的对话请求，解析模型路由，检查水龙头或钱包资金，并在成功的可计费响应后写入用量和账本记录。",
+          bullets: [
+            "一次可计费成功调用只创建一条 usage_event。",
+            "每一笔资金移动都创建平衡的 ledger_entries。",
+            "水龙头赠额必须有余额、模型白名单、用途白名单、每日上限和到期时间。",
+          ],
+          id: "docs-metering",
+          title: "计量和账本",
+        },
+        {
+          body: "网关、控制台、数据库和本地适配器在线后运行运行时冒烟检查。所有端口保持在项目端口范围内。",
+          code: [
+            "GATEWAY_BASE_URL=http://localhost:3300 \\",
+            "CONSOLE_BASE_URL=http://localhost:3301 \\",
+            "CONSOLE_GATEWAY_ADMIN_TOKEN=change_me_admin_token \\",
+            "pnpm smoke:runtime",
+          ].join("\n"),
+          id: "docs-verify",
+          title: "验证",
+        },
+        {
+          body: "运营初始化属于服务端职责。示例只使用占位值，真实服务商凭据只能放在可信运行配置里，不能暴露到开发包、前端包、移动应用、日志或代码历史。",
+          bullets: [
+            "本地测试版使用 /setup 完成运营者初始化。",
+            "公开部署前必须轮换管理令牌。",
+            "日志记录请求元数据、路由、成本和编号，不记录提示词或模型输出。",
+          ],
+          id: "docs-security",
+          title: "安全边界",
+        },
+      ],
+      copy: "面向运营者和接入方的紧凑指南，用于跑通测试版闭环、接入开发包，并验证用量与账本行为。",
+      eyebrow: "文档",
+      groups: [
+        {
+          items: [
+            {
+              description: "用途和运行形态。",
+              href: "#docs-overview",
+              label: "概览",
+            },
+            {
+              description: "本地测试版启动命令。",
+              href: "#docs-quickstart",
+              label: "快速开始",
+            },
+            {
+              description: "必填请求元数据。",
+              href: "#docs-sdk",
+              label: "开发包归因",
+            },
+          ],
+          title: "开始",
+        },
+        {
+          items: [
+            {
+              description: "用量事件和钱包分录。",
+              href: "#docs-metering",
+              label: "计量",
+            },
+            {
+              description: "闭环冒烟检查。",
+              href: "#docs-verify",
+              label: "验证",
+            },
+            {
+              description: "服务商密钥和日志规则。",
+              href: "#docs-security",
+              label: "安全",
+            },
+          ],
+          title: "运维",
+        },
+      ],
+      title: "分发闭环使用文档。",
+    },
     event: {
       label: "用量事件",
       retailLabel: "零售价",
@@ -542,7 +814,7 @@ const copy = {
         },
         {
           label: "验证测试",
-          value: "112 项通过",
+          value: "132 项通过",
         },
         {
           label: "服务商密钥",
@@ -550,7 +822,7 @@ const copy = {
         },
       ],
       primaryCta: "运行闭环",
-      secondaryCta: "查看发布",
+      secondaryCta: "阅读文档",
       title: "智泉层",
     },
     intro: {
@@ -589,6 +861,7 @@ const copy = {
     nav: {
       brand: "品牌",
       deploy: "发布",
+      docs: "文档",
       github: "源码",
       loop: "闭环",
       scenarios: "场景",
@@ -926,6 +1199,7 @@ export function App() {
           <a href="#loop">{t.nav.loop}</a>
           <a href="#scenarios">{t.nav.scenarios}</a>
           <a href="#security">{t.nav.security}</a>
+          <a href="#docs">{t.nav.docs}</a>
           <a href="#deploy">{t.nav.deploy}</a>
         </nav>
         <div className="topbar-actions">
@@ -965,7 +1239,7 @@ export function App() {
                   <Play size={18} aria-hidden="true" />
                   {t.hero.primaryCta}
                 </a>
-                <a className="button secondary" href="#deploy">
+                <a className="button secondary" href="#docs">
                   <BookOpen size={18} aria-hidden="true" />
                   {t.hero.secondaryCta}
                 </a>
@@ -1174,6 +1448,57 @@ export function App() {
                 <span>{item}</span>
               </div>
             ))}
+          </div>
+        </section>
+
+        <section className="section docs-section" id="docs">
+          <div className="section-header">
+            <div>
+              <p className="section-kicker">{t.docs.eyebrow}</p>
+              <h2>{t.docs.title}</h2>
+            </div>
+            <p>{t.docs.copy}</p>
+          </div>
+
+          <div className="docs-layout">
+            <aside className="docs-sidebar" aria-label={t.docs.eyebrow}>
+              {t.docs.groups.map((group) => (
+                <div className="docs-sidebar-group" key={group.title}>
+                  <h3>{group.title}</h3>
+                  {group.items.map((item) => (
+                    <a href={item.href} key={item.href}>
+                      <strong>{item.label}</strong>
+                      <span>{item.description}</span>
+                    </a>
+                  ))}
+                </div>
+              ))}
+            </aside>
+
+            <div className="docs-content">
+              {t.docs.articles.map((article) => (
+                <article
+                  className="doc-article"
+                  id={article.id}
+                  key={article.id}
+                >
+                  <h3>{article.title}</h3>
+                  <p>{article.body}</p>
+                  {article.bullets ? (
+                    <ul>
+                      {article.bullets.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {article.code ? (
+                    <pre>
+                      <code>{article.code}</code>
+                    </pre>
+                  ) : null}
+                </article>
+              ))}
+            </div>
           </div>
         </section>
 

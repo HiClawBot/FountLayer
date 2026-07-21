@@ -85,6 +85,12 @@ importers:
       '@fountlayer/adapter-core':
         specifier: workspace:*
         version: link:../../packages/adapter-core
+      '@fountlayer/adapter-litellm':
+        specifier: workspace:*
+        version: link:../../packages/adapter-litellm
+      '@fountlayer/adapter-local':
+        specifier: workspace:*
+        version: link:../../packages/adapter-local
       '@fountlayer/credentials':
         specifier: workspace:*
         version: link:../../packages/credentials

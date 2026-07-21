@@ -2,7 +2,22 @@
 
 ## Unreleased
 
-No unreleased changes yet.
+### Added
+
+- Stock Gateway runtime adapter selection for demo, LiteLLM, and private/local
+  OpenAI-compatible endpoints.
+- JavaScript SDK `idempotencyKey` options for chat and streaming requests.
+- PostgreSQL idempotency records with concurrent reservation, request conflict,
+  lease recovery, and restart-safe duplicate billing prevention.
+
+### Changed
+
+- `/v1/balance` now returns the real end-user wallet balance from the active
+  Store.
+- Idempotency completion is atomic with funding, usage, and ledger writes;
+  durable records do not store raw prompts or completion bodies.
+- Telemetry delivery is best-effort and cannot change billable HTTP outcomes.
+- The initial database migration is safely rerunnable for beta upgrades.
 
 ## 0.5.0-beta.1 - 2026-07-03
 

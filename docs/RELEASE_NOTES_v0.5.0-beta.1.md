@@ -20,6 +20,12 @@ This beta is not a hosted managed-service production launch.
 - Server-side credential encryption helpers and Gateway credential create,
   rotate, and delete flows.
 - Route policy resolution with model allowlists and route spend caps.
+- Durable PostgreSQL idempotency reservations for concurrent and restarted
+  billable request retries, with same-process response replay and no persisted
+  prompt or completion bodies.
+- Stock Gateway runtime selection for demo, LiteLLM, or a private/local
+  OpenAI-compatible endpoint.
+- Real end-user wallet balances from both memory and PostgreSQL Stores.
 - Wallet-funded billable calls when faucet grants cannot pay.
 - Deterministic settlement reports and CSV export hashes.
 - Worker in-memory `settlement.export` queue handler.
@@ -61,7 +67,7 @@ This beta is not a hosted managed-service production launch.
 Latest local baseline on `codex/v0.5.0-beta`:
 
 ```txt
-pnpm test       # passed, 113 passed and 2 skipped
+pnpm test       # passed, 132 passed and 3 skipped
 pnpm lint       # passed
 pnpm format     # passed
 pnpm typecheck  # passed
@@ -82,6 +88,9 @@ GitHub Actions verification on the beta branch:
 
 ## Known Gaps
 
+- Full completion bodies are cached only in the active Gateway process. A
+  completed retry after restart returns `409 idempotency_already_completed`
+  with the original usage-event ID instead of replaying or rebilling it.
 - Managed-service production launch still requires provider terms review,
   privacy policy, terms of service, payment/tax review, settlement operations
   review, managed KMS/Vault backing, and production tenant/role controls.

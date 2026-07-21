@@ -73,8 +73,12 @@ REDIS_URL=redis://localhost:3379
 GATEWAY_BASE_URL=http://localhost:3300
 LITELLM_BASE_URL=http://localhost:3305
 LITELLM_MASTER_KEY=change_me
-FOUNTLAYER_JWT_SECRET=change_me
-ENCRYPTION_MASTER_KEY=change_me_32_bytes
+FOUNTLAYER_ADMIN_TOKEN=change_me_admin_token
+FOUNTLAYER_CREDENTIAL_MASTER_KEY=
+FOUNTLAYER_GATEWAY_STORE=memory
+FOUNTLAYER_GATEWAY_ADAPTER=demo
+LOCAL_OPENAI_BASE_URL=http://127.0.0.1:3314/v1
+LOCAL_OPENAI_API_KEY=local-placeholder
 ```
 
 Never commit real keys. `.env.example` must use placeholders only.
@@ -142,6 +146,7 @@ Create these tables first:
 - provider_credentials
 - routes
 - pricing_policies
+- idempotency_records
 
 Use `docs/DATA_MODEL.sql` as the canonical reference.
 

@@ -276,11 +276,33 @@ export type GatewayWalletMatch =
       reason: "wallet_not_found" | "insufficient_wallet_balance";
     };
 
+export type GatewayIdempotencyReservation = {
+  idempotencyKey: string;
+  lockedUntil: string;
+  requestHash: string;
+  reservationId: string;
+  sessionId: string;
+};
+
+export type GatewayIdempotencyBeginResult =
+  | { status: "acquired" }
+  | { status: "in_progress" }
+  | { status: "conflict" }
+  | { status: "completed"; usageEventId: string };
+
+export type GatewayIdempotencyRecord = GatewayIdempotencyReservation & {
+  completedAt?: string;
+  createdAt: string;
+  status: "completed" | "processing";
+  usageEventId?: string;
+};
+
 export type BillableCallRecord = {
   grantId: string;
   amount: string;
   usageEvent: UsageEventRecord;
   ledgerEntries: LedgerEntryRecord[];
+  idempotency?: GatewayIdempotencyReservation;
   now?: Date;
 };
 
@@ -360,6 +382,18 @@ export type GatewayStore = {
     attribution: AttributionContext;
     requestedAmount: string;
   }): Promise<GatewayWalletMatch>;
+  beginIdempotentRequest(
+    input: GatewayIdempotencyReservation & { now?: Date },
+  ): Promise<GatewayIdempotencyBeginResult>;
+  releaseIdempotentRequest(
+    input: Pick<
+      GatewayIdempotencyReservation,
+      "idempotencyKey" | "reservationId" | "sessionId"
+    >,
+  ): Promise<void>;
+  getWallet(
+    attribution: AttributionContext,
+  ): Promise<GatewayWalletRecord | undefined>;
   recordBillableCall(
     input: BillableCallRecord,
   ): Promise<BillableCallRecordResult>;
@@ -431,6 +465,7 @@ export type InMemoryGatewayState = {
   apps: Map<string, GatewayAppRecord>;
   channels: Map<string, GatewayChannelRecord>;
   faucetGrants: GatewayGrantRecord[];
+  idempotencyRecords: Map<string, GatewayIdempotencyRecord>;
   pricingPolicies: GatewayAdminPricingPolicyRecord[];
   providerCredentials: GatewayProviderCredentialRecord[];
   routePolicies: GatewayRoutePolicyRecord[];
@@ -507,6 +542,18 @@ type WalletRow = {
   owner_id: string;
   currency: string;
   balance: string;
+};
+
+type IdempotencyRow = {
+  completed_at: string | Date | null;
+  created_at: string | Date;
+  idempotency_key: string;
+  locked_until: string | Date;
+  request_hash: string;
+  reservation_id: string;
+  session_id: string;
+  status: GatewayIdempotencyRecord["status"];
+  usage_event_id: string | null;
 };
 
 type AdminAppRow = {
@@ -628,7 +675,9 @@ const defaultPricingPolicy: GatewayAdminPricingPolicyRecord = {
   maxTotalMarkupRate: "100%",
 };
 
-const defaultGrant: GatewayGrantRecord = {
+const defaultGrantLifetimeMs = 30 * 24 * 60 * 60 * 1000;
+
+const defaultGrant: Omit<GatewayGrantRecord, "expiresAt"> = {
   id: "grant_new_user",
   appId: "app_pdf_reader",
   channelId: "channel_desktop",
@@ -638,7 +687,6 @@ const defaultGrant: GatewayGrantRecord = {
   allowedModels: ["vertical/paper-summary", "demo-local-model"],
   allowedUseCases: ["paper_summary"],
   dailyCap: "0.25000000",
-  expiresAt: "2026-07-17T00:00:00Z",
   status: "active",
 };
 
@@ -650,7 +698,9 @@ const defaultUserWallet: GatewayWalletRecord = {
   currency: "USD",
 };
 
-export function createDefaultInMemoryGatewayState(): InMemoryGatewayState {
+export function createDefaultInMemoryGatewayState(
+  now = new Date(),
+): InMemoryGatewayState {
   return {
     adminApps: new Map([[defaultAdminApp.id, { ...defaultAdminApp }]]),
     adminChannels: new Map([
@@ -663,8 +713,12 @@ export function createDefaultInMemoryGatewayState(): InMemoryGatewayState {
         ...defaultGrant,
         allowedModels: [...defaultGrant.allowedModels],
         allowedUseCases: [...defaultGrant.allowedUseCases],
+        expiresAt: new Date(
+          now.getTime() + defaultGrantLifetimeMs,
+        ).toISOString(),
       },
     ],
+    idempotencyRecords: new Map(),
     pricingPolicies: [{ ...defaultPricingPolicy }],
     providerCredentials: [],
     routePolicies: [
@@ -791,6 +845,217 @@ function mapWalletRow(row: WalletRow): GatewayWalletRecord {
     balance: row.balance,
     currency: row.currency,
   };
+}
+
+function getMemoryWallet(
+  state: InMemoryGatewayState,
+  attribution: AttributionContext,
+): GatewayWalletRecord | undefined {
+  return [...state.wallets.values()].find(
+    (candidate) =>
+      candidate.ownerType === "end_user" &&
+      candidate.ownerId === attribution.endUserId,
+  );
+}
+
+function memoryIdempotencyKey(sessionId: string, idempotencyKey: string) {
+  return `${sessionId}\0${idempotencyKey}`;
+}
+
+function requireMemoryIdempotencyReservation(
+  state: InMemoryGatewayState,
+  input: GatewayIdempotencyReservation | undefined,
+): void {
+  if (!input) {
+    return;
+  }
+
+  const record = state.idempotencyRecords.get(
+    memoryIdempotencyKey(input.sessionId, input.idempotencyKey),
+  );
+
+  if (
+    !record ||
+    record.status !== "processing" ||
+    record.requestHash !== input.requestHash ||
+    record.reservationId !== input.reservationId
+  ) {
+    throw new Error("Idempotency reservation is no longer active.");
+  }
+}
+
+function completeMemoryIdempotencyReservation(
+  state: InMemoryGatewayState,
+  input: GatewayIdempotencyReservation | undefined,
+  usageEventId: string,
+): void {
+  if (!input) {
+    return;
+  }
+
+  const key = memoryIdempotencyKey(input.sessionId, input.idempotencyKey);
+  const record = state.idempotencyRecords.get(key);
+
+  if (!record) {
+    throw new Error("Idempotency reservation disappeared before completion.");
+  }
+
+  state.idempotencyRecords.set(key, {
+    ...record,
+    completedAt: new Date().toISOString(),
+    status: "completed",
+    usageEventId,
+  });
+}
+
+async function getPostgresWallet(
+  sql: FountLayerSql,
+  attribution: AttributionContext,
+): Promise<GatewayWalletRecord | undefined> {
+  const rows = await sql<WalletRow[]>`
+    select
+      id,
+      owner_type,
+      owner_id,
+      currency,
+      balance_numeric::text as balance
+    from wallets
+    where owner_type = 'end_user'
+      and owner_id = ${attribution.endUserId}
+    limit 1
+  `;
+
+  return rows[0] ? mapWalletRow(rows[0]) : undefined;
+}
+
+async function beginPostgresIdempotentRequest(
+  sql: FountLayerSql,
+  input: GatewayIdempotencyReservation & { now?: Date },
+): Promise<GatewayIdempotencyBeginResult> {
+  return sql.begin(async (transaction) => {
+    const now = input.now ?? new Date();
+    const inserted = await transaction<IdempotencyRow[]>`
+      insert into idempotency_records (
+        session_id,
+        idempotency_key,
+        request_hash,
+        reservation_id,
+        status,
+        locked_until
+      )
+      values (
+        ${input.sessionId},
+        ${input.idempotencyKey},
+        ${input.requestHash},
+        ${input.reservationId},
+        'processing',
+        ${input.lockedUntil}
+      )
+      on conflict (session_id, idempotency_key) do nothing
+      returning *
+    `;
+
+    if (inserted.length > 0) {
+      return { status: "acquired" };
+    }
+
+    const rows = await transaction<IdempotencyRow[]>`
+      select *
+      from idempotency_records
+      where session_id = ${input.sessionId}
+        and idempotency_key = ${input.idempotencyKey}
+      for update
+    `;
+    const existing = rows[0];
+
+    if (!existing) {
+      throw new Error("Idempotency record disappeared during acquisition.");
+    }
+
+    if (existing.request_hash !== input.requestHash) {
+      return { status: "conflict" };
+    }
+
+    if (existing.status === "completed") {
+      if (!existing.usage_event_id) {
+        throw new Error("Completed idempotency record has no usage event.");
+      }
+
+      return {
+        status: "completed",
+        usageEventId: existing.usage_event_id,
+      };
+    }
+
+    if (Date.parse(toIso(existing.locked_until)) > now.getTime()) {
+      return { status: "in_progress" };
+    }
+
+    await transaction`
+      update idempotency_records
+      set
+        reservation_id = ${input.reservationId},
+        locked_until = ${input.lockedUntil}
+      where session_id = ${input.sessionId}
+        and idempotency_key = ${input.idempotencyKey}
+        and status = 'processing'
+    `;
+
+    return { status: "acquired" };
+  });
+}
+
+async function requirePostgresIdempotencyReservation(
+  sql: FountLayerTransactionSql,
+  input: GatewayIdempotencyReservation | undefined,
+): Promise<void> {
+  if (!input) {
+    return;
+  }
+
+  const rows = await sql<Array<{ reservation_id: string }>>`
+    select reservation_id
+    from idempotency_records
+    where session_id = ${input.sessionId}
+      and idempotency_key = ${input.idempotencyKey}
+      and request_hash = ${input.requestHash}
+      and reservation_id = ${input.reservationId}
+      and status = 'processing'
+      and locked_until > now()
+    for update
+  `;
+
+  if (!rows[0]) {
+    throw new Error("Idempotency reservation is no longer active.");
+  }
+}
+
+async function completePostgresIdempotencyReservation(
+  sql: FountLayerTransactionSql,
+  input: GatewayIdempotencyReservation | undefined,
+  usageEventId: string,
+): Promise<void> {
+  if (!input) {
+    return;
+  }
+
+  const rows = await sql<Array<{ usage_event_id: string }>>`
+    update idempotency_records
+    set
+      status = 'completed',
+      usage_event_id = ${usageEventId},
+      completed_at = now()
+    where session_id = ${input.sessionId}
+      and idempotency_key = ${input.idempotencyKey}
+      and request_hash = ${input.requestHash}
+      and reservation_id = ${input.reservationId}
+      and status = 'processing'
+    returning usage_event_id
+  `;
+
+  if (!rows[0]) {
+    throw new Error("Idempotency reservation could not be completed.");
+  }
 }
 
 function percent(value: string): string {
@@ -1266,11 +1531,7 @@ export function createInMemoryGatewayStore(
     },
 
     async findPayingWallet({ attribution, requestedAmount }) {
-      const wallet = [...state.wallets.values()].find(
-        (candidate) =>
-          candidate.ownerType === "end_user" &&
-          candidate.ownerId === attribution.endUserId,
-      );
+      const wallet = getMemoryWallet(state, attribution);
 
       if (!wallet) {
         return {
@@ -1292,7 +1553,67 @@ export function createInMemoryGatewayStore(
       };
     },
 
+    async getWallet(attribution) {
+      const wallet = getMemoryWallet(state, attribution);
+
+      return wallet ? { ...wallet } : undefined;
+    },
+
+    async beginIdempotentRequest(input) {
+      const key = memoryIdempotencyKey(input.sessionId, input.idempotencyKey);
+      const existing = state.idempotencyRecords.get(key);
+      const now = input.now ?? new Date();
+
+      if (!existing) {
+        state.idempotencyRecords.set(key, {
+          ...input,
+          createdAt: now.toISOString(),
+          status: "processing",
+        });
+        return { status: "acquired" };
+      }
+
+      if (existing.requestHash !== input.requestHash) {
+        return { status: "conflict" };
+      }
+
+      if (existing.status === "completed") {
+        if (!existing.usageEventId) {
+          throw new Error("Completed idempotency record has no usage event.");
+        }
+
+        return {
+          status: "completed",
+          usageEventId: existing.usageEventId,
+        };
+      }
+
+      if (Date.parse(existing.lockedUntil) > now.getTime()) {
+        return { status: "in_progress" };
+      }
+
+      state.idempotencyRecords.set(key, {
+        ...existing,
+        lockedUntil: input.lockedUntil,
+        reservationId: input.reservationId,
+      });
+      return { status: "acquired" };
+    },
+
+    async releaseIdempotentRequest(input) {
+      const key = memoryIdempotencyKey(input.sessionId, input.idempotencyKey);
+      const existing = state.idempotencyRecords.get(key);
+
+      if (
+        existing?.status === "processing" &&
+        existing.reservationId === input.reservationId
+      ) {
+        state.idempotencyRecords.delete(key);
+      }
+    },
+
     async recordBillableCall(input) {
+      requireMemoryIdempotencyReservation(state, input.idempotency);
       const grant = state.faucetGrants.find(
         (candidate) => candidate.id === input.grantId,
       );
@@ -1337,6 +1658,11 @@ export function createInMemoryGatewayStore(
       state.faucetGrants[index] = updatedGrant;
       state.usageEvents.push(input.usageEvent);
       state.ledgerEntries.push(...input.ledgerEntries);
+      completeMemoryIdempotencyReservation(
+        state,
+        input.idempotency,
+        input.usageEvent.id,
+      );
 
       return {
         usageEvent: input.usageEvent,
@@ -1346,6 +1672,7 @@ export function createInMemoryGatewayStore(
     },
 
     async recordWalletBillableCall(input) {
+      requireMemoryIdempotencyReservation(state, input.idempotency);
       const wallet = state.wallets.get(input.walletId);
 
       if (!wallet) {
@@ -1364,6 +1691,11 @@ export function createInMemoryGatewayStore(
       state.wallets.set(wallet.id, updatedWallet);
       state.usageEvents.push(input.usageEvent);
       state.ledgerEntries.push(...input.ledgerEntries);
+      completeMemoryIdempotencyReservation(
+        state,
+        input.idempotency,
+        input.usageEvent.id,
+      );
 
       return {
         usageEvent: input.usageEvent,
@@ -2247,19 +2579,7 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
     },
 
     async findPayingWallet({ attribution, requestedAmount }) {
-      const rows = await sql<WalletRow[]>`
-        select
-          id,
-          owner_type,
-          owner_id,
-          currency,
-          balance_numeric::text as balance
-        from wallets
-        where owner_type = 'end_user'
-          and owner_id = ${attribution.endUserId}
-        limit 1
-      `;
-      const wallet = rows[0] ? mapWalletRow(rows[0]) : undefined;
+      const wallet = await getPostgresWallet(sql, attribution);
 
       if (!wallet) {
         return {
@@ -2281,8 +2601,30 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
       };
     },
 
+    async getWallet(attribution) {
+      return getPostgresWallet(sql, attribution);
+    },
+
+    async beginIdempotentRequest(input) {
+      return beginPostgresIdempotentRequest(sql, input);
+    },
+
+    async releaseIdempotentRequest(input) {
+      await sql`
+        delete from idempotency_records
+        where session_id = ${input.sessionId}
+          and idempotency_key = ${input.idempotencyKey}
+          and reservation_id = ${input.reservationId}
+          and status = 'processing'
+      `;
+    },
+
     async recordBillableCall(input) {
       return sql.begin(async (transaction) => {
+        await requirePostgresIdempotencyReservation(
+          transaction,
+          input.idempotency,
+        );
         const attribution = {
           appId: input.usageEvent.appId,
           channelId: input.usageEvent.channelId,
@@ -2348,6 +2690,11 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
 
         await insertUsageEvent(transaction, input.usageEvent);
         await insertLedgerEntries(transaction, input.ledgerEntries);
+        await completePostgresIdempotencyReservation(
+          transaction,
+          input.idempotency,
+          input.usageEvent.id,
+        );
 
         return {
           usageEvent: input.usageEvent,
@@ -2359,6 +2706,10 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
 
     async recordWalletBillableCall(input) {
       return sql.begin(async (transaction) => {
+        await requirePostgresIdempotencyReservation(
+          transaction,
+          input.idempotency,
+        );
         const lockedRows = await transaction<WalletRow[]>`
           select
             id,
@@ -2402,6 +2753,11 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
 
         await insertUsageEvent(transaction, input.usageEvent);
         await insertLedgerEntries(transaction, input.ledgerEntries);
+        await completePostgresIdempotencyReservation(
+          transaction,
+          input.idempotency,
+          input.usageEvent.id,
+        );
 
         return {
           usageEvent: input.usageEvent,

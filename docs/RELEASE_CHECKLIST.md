@@ -21,7 +21,8 @@
 - [x] Session tokens are stored as hashes only in the Gateway path.
 - [x] Managed mode uses server-side placeholders only in this release.
 - [x] BYOK local mode does not upload keys.
-- [x] Hosted BYOK is not implemented; docs require explicit opt-in before adding it.
+- [x] Hosted BYOK credential writes use server-side encryption and remain disabled
+      unless the operator explicitly sets `FOUNTLAYER_ALLOW_HOSTED_BYOK=true`.
 - [x] Per-app/per-user faucet budget checks exist for the MVP grant-funded path.
 - [x] Free faucet grants have balance, model allowlist, use-case allowlist, daily cap, and expiration.
 

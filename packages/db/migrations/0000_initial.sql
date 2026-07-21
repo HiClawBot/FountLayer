@@ -1,13 +1,13 @@
 -- FountLayer MVP Data Model
 
-create table developers (
+create table if not exists developers (
   id text primary key,
   name text not null,
   email text unique,
   created_at timestamptz default now()
 );
 
-create table apps (
+create table if not exists apps (
   id text primary key,
   developer_id text not null references developers(id),
   name text not null,
@@ -20,7 +20,7 @@ create table apps (
   created_at timestamptz default now()
 );
 
-create table channels (
+create table if not exists channels (
   id text primary key,
   app_id text not null references apps(id),
   name text not null,
@@ -30,7 +30,7 @@ create table channels (
   created_at timestamptz default now()
 );
 
-create table end_users (
+create table if not exists end_users (
   id text primary key,
   app_id text not null references apps(id),
   external_user_hash text not null,
@@ -40,7 +40,7 @@ create table end_users (
   unique(app_id, external_user_hash)
 );
 
-create table wallets (
+create table if not exists wallets (
   id text primary key,
   owner_type text not null,
   owner_id text not null,
@@ -49,7 +49,7 @@ create table wallets (
   created_at timestamptz default now()
 );
 
-create table model_prices (
+create table if not exists model_prices (
   id text primary key,
   provider text not null,
   model text not null,
@@ -63,7 +63,7 @@ create table model_prices (
   unique(provider, model, effective_at)
 );
 
-create table routes (
+create table if not exists routes (
   id text primary key,
   app_id text not null references apps(id),
   alias text not null,
@@ -72,7 +72,7 @@ create table routes (
   created_at timestamptz default now()
 );
 
-create table pricing_policies (
+create table if not exists pricing_policies (
   id text primary key,
   app_id text references apps(id),
   name text not null,
@@ -85,7 +85,7 @@ create table pricing_policies (
   created_at timestamptz default now()
 );
 
-create table provider_credentials (
+create table if not exists provider_credentials (
   id text primary key,
   owner_type text not null,
   owner_id text not null,
@@ -99,7 +99,7 @@ create table provider_credentials (
   created_at timestamptz default now()
 );
 
-create table sessions (
+create table if not exists sessions (
   id text primary key,
   app_id text not null references apps(id),
   channel_id text not null references channels(id),
@@ -112,7 +112,7 @@ create table sessions (
   created_at timestamptz default now()
 );
 
-create table faucet_grants (
+create table if not exists faucet_grants (
   id text primary key,
   sponsor_type text not null,
   sponsor_id text,
@@ -130,7 +130,7 @@ create table faucet_grants (
   created_at timestamptz default now()
 );
 
-create table usage_events (
+create table if not exists usage_events (
   id text primary key,
   request_id text not null unique,
   app_id text not null references apps(id),
@@ -153,7 +153,7 @@ create table usage_events (
   created_at timestamptz default now()
 );
 
-create table ledger_entries (
+create table if not exists ledger_entries (
   id text primary key,
   usage_event_id text references usage_events(id),
   wallet_id text references wallets(id),
@@ -164,10 +164,24 @@ create table ledger_entries (
   created_at timestamptz default now()
 );
 
-create index idx_usage_events_app_created on usage_events(app_id, created_at);
-create index idx_usage_events_channel_created on usage_events(channel_id, created_at);
-create index idx_usage_events_user_created on usage_events(end_user_id, created_at);
-create index idx_ledger_entries_usage_event on ledger_entries(usage_event_id);
-create index idx_faucet_grants_scope on faucet_grants(app_id, channel_id, end_user_id, status);
-create index idx_sessions_token_hash on sessions(token_hash);
-create index idx_sessions_attribution on sessions(app_id, channel_id, end_user_id);
+create table if not exists idempotency_records (
+  session_id text not null references sessions(id) on delete cascade,
+  idempotency_key text not null,
+  request_hash text not null,
+  reservation_id text not null,
+  status text not null default 'processing',
+  locked_until timestamptz not null,
+  usage_event_id text references usage_events(id),
+  created_at timestamptz default now(),
+  completed_at timestamptz,
+  primary key(session_id, idempotency_key)
+);
+
+create index if not exists idx_usage_events_app_created on usage_events(app_id, created_at);
+create index if not exists idx_usage_events_channel_created on usage_events(channel_id, created_at);
+create index if not exists idx_usage_events_user_created on usage_events(end_user_id, created_at);
+create index if not exists idx_ledger_entries_usage_event on ledger_entries(usage_event_id);
+create index if not exists idx_faucet_grants_scope on faucet_grants(app_id, channel_id, end_user_id, status);
+create index if not exists idx_sessions_token_hash on sessions(token_hash);
+create index if not exists idx_sessions_attribution on sessions(app_id, channel_id, end_user_id);
+create index if not exists idx_idempotency_records_usage_event on idempotency_records(usage_event_id);

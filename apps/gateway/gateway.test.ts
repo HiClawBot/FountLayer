@@ -54,6 +54,13 @@ async function createSessionHeaders(
 }
 
 describe("gateway minimum API", () => {
+  it("keeps the in-memory demo grant valid for 30 days from initialization", () => {
+    const now = new Date("2030-01-01T00:00:00Z");
+    const state = createDefaultInMemoryGatewayState(now);
+
+    expect(state.faucetGrants[0]?.expiresAt).toBe("2030-01-31T00:00:00.000Z");
+  });
+
   it("serves a health check without attribution", async () => {
     const server = buildGatewayServer();
 
@@ -1196,6 +1203,39 @@ describe("gateway minimum API", () => {
     expect(serializedTelemetry).not.toContain("Demo summary");
   });
 
+  it("keeps telemetry failures from changing billable request outcomes", async () => {
+    const state = createDefaultInMemoryGatewayState();
+    const server = buildGatewayServer(createInMemoryGatewayStore(state), {
+      adminTokenHashes: [hashTestToken(adminToken)],
+      telemetrySink: {
+        record() {
+          throw new Error("telemetry event unavailable");
+        },
+        recordMetric() {
+          throw new Error("telemetry metric unavailable");
+        },
+        recordSpan() {
+          throw new Error("telemetry span unavailable");
+        },
+      },
+    });
+    const headers = await createSessionHeaders(server);
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/chat/completions",
+      headers,
+      payload: {
+        model: "vertical/paper-summary",
+        messages: [{ role: "user", content: "Summarize this paper." }],
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().billing.usage_event_id).toMatch(/^ue_/);
+    expect(state.usageEvents).toHaveLength(1);
+    expect(state.ledgerEntries).toHaveLength(4);
+  });
+
   it("retries adapter failures without duplicating usage or ledger records", async () => {
     let attempts = 0;
     const server = buildGatewayServer(undefined, {
@@ -1497,6 +1537,11 @@ describe("gateway minimum API", () => {
       adminTokenHashes: [hashTestToken(adminToken)],
     });
     const headers = await createSessionHeaders(server);
+    const beforeBalance = await server.inject({
+      method: "GET",
+      url: "/v1/balance",
+      headers,
+    });
     const estimate = await server.inject({
       method: "POST",
       url: "/v1/estimate",
@@ -1515,6 +1560,11 @@ describe("gateway minimum API", () => {
         messages: [{ role: "user", content: "Summarize this paper." }],
       },
     });
+    const afterBalance = await server.inject({
+      method: "GET",
+      url: "/v1/balance",
+      headers,
+    });
     const usageEvents = await server.inject({
       method: "GET",
       url: "/admin/usage-events",
@@ -1527,9 +1577,13 @@ describe("gateway minimum API", () => {
     });
 
     expect(estimate.json().payment_source).toBe("wallet");
+    expect(beforeBalance.json().wallet_balance).toBe("1.00000000");
     expect(response.statusCode).toBe(200);
     expect(response.json().billing.paid_by).toBe("wallet");
     expect(Number(response.json().billing.wallet_balance)).toBeLessThan(1);
+    expect(afterBalance.json().wallet_balance).toBe(
+      response.json().billing.wallet_balance,
+    );
     expect(usageEvents.json().usage_events).toHaveLength(1);
     expect(usageEvents.json().usage_events[0].faucetGrantId).toBeUndefined();
     expect(ledger.json().ledger_entries).toHaveLength(4);
@@ -1697,5 +1751,283 @@ describe("gateway minimum API", () => {
     );
     expect(usageEvents.json().usage_events).toHaveLength(1);
     expect(ledger.json().ledger_entries).toHaveLength(4);
+  });
+
+  it("rejects concurrent duplicates before a second adapter call", async () => {
+    const state = createDefaultInMemoryGatewayState();
+    let adapterCalls = 0;
+    let releaseAdapter!: () => void;
+    let signalAdapterStarted!: () => void;
+    const adapterStarted = new Promise<void>((resolve) => {
+      signalAdapterStarted = resolve;
+    });
+    const adapterGate = new Promise<void>((resolve) => {
+      releaseAdapter = resolve;
+    });
+    const server = buildGatewayServer(createInMemoryGatewayStore(state), {
+      adapter: {
+        async chat(input) {
+          adapterCalls += 1;
+          signalAdapterStarted();
+          await adapterGate;
+          return {
+            id: input.requestId ?? "adapter_response",
+            model: input.model,
+            content: "Concurrent response.",
+            finishReason: "stop",
+            usage: {
+              cachedInputTokens: 0,
+              inputTokens: 4,
+              outputTokens: 2,
+              totalTokens: 6,
+              usageEstimated: false,
+            },
+            raw: {},
+          };
+        },
+        async *streamChat() {
+          yield { done: true };
+        },
+      },
+    });
+    const headers = await createSessionHeaders(server);
+    const request = {
+      method: "POST" as const,
+      url: "/v1/chat/completions",
+      headers: {
+        ...headers,
+        "idempotency-key": "idem_concurrent",
+      },
+      payload: {
+        model: "vertical/paper-summary",
+        messages: [{ role: "user", content: "Concurrent request." }],
+      },
+    };
+    const firstPromise = server.inject(request);
+
+    await adapterStarted;
+    const duplicate = await server.inject(request);
+    releaseAdapter();
+    const first = await firstPromise;
+
+    expect(first.statusCode).toBe(200);
+    expect(duplicate.statusCode).toBe(409);
+    expect(duplicate.json().error.code).toBe("idempotency_in_progress");
+    expect(adapterCalls).toBe(1);
+    expect(state.usageEvents).toHaveLength(1);
+    expect(state.ledgerEntries).toHaveLength(4);
+  });
+
+  it("rejects reuse of an idempotency key for a different request", async () => {
+    const server = buildGatewayServer();
+    const headers = await createSessionHeaders(server);
+    const request = {
+      method: "POST" as const,
+      url: "/v1/chat/completions",
+      headers: {
+        ...headers,
+        "idempotency-key": "idem_conflict",
+      },
+    };
+    const first = await server.inject({
+      ...request,
+      payload: {
+        model: "vertical/paper-summary",
+        messages: [{ role: "user", content: "First request." }],
+      },
+    });
+    const conflict = await server.inject({
+      ...request,
+      payload: {
+        model: "vertical/paper-summary",
+        messages: [{ role: "user", content: "Different request." }],
+      },
+    });
+
+    expect(first.statusCode).toBe(200);
+    expect(conflict.statusCode).toBe(409);
+    expect(conflict.json().error.code).toBe("idempotency_conflict");
+  });
+
+  it("blocks a completed duplicate after the response cache is lost", async () => {
+    const state = createDefaultInMemoryGatewayState();
+    const store = createInMemoryGatewayStore(state);
+    const firstServer = buildGatewayServer(store);
+    const headers = await createSessionHeaders(firstServer);
+    const request = {
+      method: "POST" as const,
+      url: "/v1/chat/completions",
+      headers: {
+        ...headers,
+        "idempotency-key": "idem_restart",
+      },
+      payload: {
+        model: "vertical/paper-summary",
+        messages: [{ role: "user", content: "Restart-safe request." }],
+      },
+    };
+    const first = await firstServer.inject(request);
+
+    await firstServer.close();
+    const restartedServer = buildGatewayServer(store);
+    const duplicate = await restartedServer.inject(request);
+
+    expect(first.statusCode).toBe(200);
+    expect(duplicate.statusCode).toBe(409);
+    expect(duplicate.json().error.code).toBe("idempotency_already_completed");
+    expect(duplicate.json().error.details.usage_event_id).toBe(
+      first.json().billing.usage_event_id,
+    );
+    expect(state.usageEvents).toHaveLength(1);
+    expect(state.ledgerEntries).toHaveLength(4);
+  });
+
+  it("releases an idempotency reservation after adapter failure", async () => {
+    let adapterCalls = 0;
+    const server = buildGatewayServer(undefined, {
+      adapter: {
+        async chat(input) {
+          adapterCalls += 1;
+
+          if (adapterCalls === 1) {
+            throw new Error("temporary adapter failure");
+          }
+
+          return {
+            id: input.requestId ?? "adapter_response",
+            model: input.model,
+            content: "Recovered response.",
+            finishReason: "stop",
+            usage: {
+              cachedInputTokens: 0,
+              inputTokens: 4,
+              outputTokens: 2,
+              totalTokens: 6,
+              usageEstimated: false,
+            },
+            raw: {},
+          };
+        },
+        async *streamChat() {
+          yield { done: true };
+        },
+      },
+    });
+    const headers = await createSessionHeaders(server);
+    const request = {
+      method: "POST" as const,
+      url: "/v1/chat/completions",
+      headers: {
+        ...headers,
+        "idempotency-key": "idem_retry_after_failure",
+      },
+      payload: {
+        model: "vertical/paper-summary",
+        messages: [{ role: "user", content: "Retry after failure." }],
+      },
+    };
+    const failed = await server.inject(request);
+    const recovered = await server.inject(request);
+
+    expect(failed.statusCode).toBe(502);
+    expect(recovered.statusCode).toBe(200);
+    expect(adapterCalls).toBe(2);
+  });
+
+  it("keeps reservation-release failures from masking adapter errors", async () => {
+    const state = createDefaultInMemoryGatewayState();
+    const store = createInMemoryGatewayStore(state);
+    store.releaseIdempotentRequest = async () => {
+      throw new Error("reservation store unavailable");
+    };
+    const server = buildGatewayServer(store, {
+      adminTokenHashes: [hashTestToken(adminToken)],
+      adapter: {
+        async chat() {
+          throw new Error("provider unavailable");
+        },
+      },
+    });
+    const headers = await createSessionHeaders(server);
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/chat/completions",
+      headers: {
+        ...headers,
+        "idempotency-key": "idem_release_unavailable",
+      },
+      payload: {
+        model: "vertical/paper-summary",
+        messages: [{ role: "user", content: "Summarize this paper." }],
+      },
+    });
+
+    expect(response.statusCode).toBe(502);
+    expect(response.json().error.code).toBe("adapter_error");
+    expect(state.usageEvents).toHaveLength(0);
+    expect(state.ledgerEntries).toHaveLength(0);
+  });
+
+  it("rejects idempotency keys longer than 200 characters", async () => {
+    const server = buildGatewayServer();
+    const headers = await createSessionHeaders(server);
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/chat/completions",
+      headers: {
+        ...headers,
+        "idempotency-key": "x".repeat(201),
+      },
+      payload: {
+        model: "vertical/paper-summary",
+        messages: [{ role: "user", content: "Too long." }],
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe("invalid_idempotency_key");
+  });
+
+  it("allows an expired idempotency lease to be safely reacquired", async () => {
+    const state = createDefaultInMemoryGatewayState();
+    const store = createInMemoryGatewayStore(state);
+    const first = await store.beginIdempotentRequest({
+      idempotencyKey: "idem_lease",
+      lockedUntil: "2030-01-01T00:01:00.000Z",
+      now: new Date("2030-01-01T00:00:00.000Z"),
+      requestHash: "hash_1",
+      reservationId: "reservation_1",
+      sessionId: "sess_1",
+    });
+    const inProgress = await store.beginIdempotentRequest({
+      idempotencyKey: "idem_lease",
+      lockedUntil: "2030-01-01T00:01:30.000Z",
+      now: new Date("2030-01-01T00:00:30.000Z"),
+      requestHash: "hash_1",
+      reservationId: "reservation_2",
+      sessionId: "sess_1",
+    });
+    const reacquired = await store.beginIdempotentRequest({
+      idempotencyKey: "idem_lease",
+      lockedUntil: "2030-01-01T00:03:00.000Z",
+      now: new Date("2030-01-01T00:02:00.000Z"),
+      requestHash: "hash_1",
+      reservationId: "reservation_3",
+      sessionId: "sess_1",
+    });
+
+    await store.releaseIdempotentRequest({
+      idempotencyKey: "idem_lease",
+      reservationId: "reservation_1",
+      sessionId: "sess_1",
+    });
+
+    expect(first.status).toBe("acquired");
+    expect(inProgress.status).toBe("in_progress");
+    expect(reacquired.status).toBe("acquired");
+    expect(state.idempotencyRecords.values().next().value).toMatchObject({
+      reservationId: "reservation_3",
+      status: "processing",
+    });
   });
 });

@@ -85,6 +85,10 @@ export type ChatCompletionResponse = {
   };
 };
 
+export type ChatRequestOptions = {
+  idempotencyKey?: string;
+};
+
 export type LocalEndpointConfig = {
   baseUrl: string;
   apiKey?: string;
@@ -203,16 +207,23 @@ export class FountLayerSession {
     public readonly token: string,
   ) {}
 
-  chat(input: ChatRequest): Promise<ChatCompletionResponse> {
+  chat(
+    input: ChatRequest,
+    options: ChatRequestOptions = {},
+  ): Promise<ChatCompletionResponse> {
     return this.client.request<ChatCompletionResponse>(
       "/v1/chat/completions",
       this.context,
       this.token,
       input,
+      options,
     );
   }
 
-  async *streamChat(input: ChatRequest): AsyncIterable<string> {
+  async *streamChat(
+    input: ChatRequest,
+    options: ChatRequestOptions = {},
+  ): AsyncIterable<string> {
     const response = await this.client.rawRequest(
       "/v1/chat/completions",
       this.context,
@@ -221,6 +232,7 @@ export class FountLayerSession {
         ...input,
         stream: true,
       },
+      options,
     );
 
     if (!response.body) {
@@ -379,8 +391,9 @@ export class FountLayerClient {
     context: AttributionContext,
     token: string | undefined,
     body?: RequestBody | ChatRequest,
+    options: ChatRequestOptions = {},
   ): Promise<T> {
-    return this.rawRequest(path, context, token, body).then(
+    return this.rawRequest(path, context, token, body, options).then(
       parseJsonResponse<T>,
     );
   }
@@ -390,13 +403,25 @@ export class FountLayerClient {
     context: AttributionContext,
     token: string | undefined,
     body?: RequestBody | ChatRequest,
+    options: ChatRequestOptions = {},
   ): Promise<Response> {
+    const idempotencyKey = options.idempotencyKey?.trim();
+
+    if (options.idempotencyKey !== undefined && !idempotencyKey) {
+      throw new Error("Idempotency key must be a non-empty string.");
+    }
+
+    if (idempotencyKey && idempotencyKey.length > 200) {
+      throw new Error("Idempotency key must be 200 characters or fewer.");
+    }
+
     return this.fetchImpl(`${this.endpoint}${path}`, {
       method: body ? "POST" : "GET",
       headers: {
         "content-type": "application/json",
         ...attributionHeaders(context),
         ...(token ? { authorization: `Bearer ${token}` } : {}),
+        ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
     });

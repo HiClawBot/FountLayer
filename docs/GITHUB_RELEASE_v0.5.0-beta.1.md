@@ -24,8 +24,11 @@ This is not a hosted managed-service production launch.
 - Console `/setup` workflow and Usage & Ledger filters.
 - Server-side encrypted provider credential storage helpers with metadata-only
   responses.
-- Route model allowlists, route spend caps, idempotency replay, rate limits,
-  adapter retry/circuit breaker controls, and metadata-only observability.
+- Route model allowlists, route spend caps, durable PostgreSQL idempotency,
+  rate limits, adapter retry/circuit breaker controls, and metadata-only
+  observability.
+- Stock demo, LiteLLM, and private/local OpenAI-compatible runtime adapter
+  selection plus real Store-backed wallet balance reads.
 - Strict key scan: `pnpm scan:keys`.
 - GitHub Pages static project site.
 
@@ -34,7 +37,7 @@ This is not a hosted managed-service production launch.
 Latest local verification:
 
 ```txt
-pnpm test       # 113 passed, 2 skipped
+pnpm test       # 132 passed, 3 skipped
 pnpm lint       # passed
 pnpm format     # passed
 pnpm typecheck  # passed
@@ -65,6 +68,9 @@ pnpm smoke:runtime
 
 ## Known Gaps
 
+- Full completion bodies are cached only in the active Gateway process. A
+  completed retry after restart returns the original usage-event reference in
+  a deterministic `409` response instead of replaying or rebilling it.
 - Hosted managed-service production launch still requires provider terms
   review, privacy policy, terms of service, payment/tax review, settlement
   operations review, managed KMS/Vault backing, and production tenant/role

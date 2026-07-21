@@ -139,11 +139,13 @@ describeDb("gateway postgres store", () => {
       useCase: "paper_summary",
       mode: "managed",
     });
+    const beforeBalance = await session.getBalance();
 
     const result = await session.chat({
       model: "vertical/paper-summary",
       messages: [{ role: "user", content: "Summarize this paper." }],
     });
+    const afterBalance = await session.getBalance();
     const usageRows = await sql<Array<{ count: string }>>`
       select count(*)::text as count from usage_events
     `;
@@ -158,8 +160,93 @@ describeDb("gateway postgres store", () => {
 
     expect(result.billing.paid_by).toBe("wallet");
     expect(result.billing.usage_event_id).toMatch(/^ue_/);
+    expect(beforeBalance.wallet_balance).toBe("1.00000000");
+    expect(afterBalance.wallet_balance).toBe(result.billing.wallet_balance);
     expect(usageRows[0]?.count).toBe("1");
     expect(ledgerRows[0]?.count).toBe("4");
     expect(Number(walletRows[0]?.balance)).toBeLessThan(1);
+  });
+
+  it("blocks a completed idempotent request after Gateway restart", async () => {
+    if (!server || !sql) {
+      throw new Error("Postgres test server was not initialized.");
+    }
+
+    const sdk = createFountLayer({
+      appId: "app_pdf_reader",
+      channelId: "channel_desktop",
+      endpoint: "http://gateway.test",
+      fetchImpl: async (url, init) => {
+        const injected = await server!.inject({
+          method: init?.method ?? "GET",
+          url: String(url).replace("http://gateway.test", ""),
+          headers: init?.headers as Record<string, string>,
+          payload: init?.body ? JSON.parse(String(init.body)) : undefined,
+        });
+
+        return new Response(injected.body, {
+          status: injected.statusCode,
+          headers: {
+            "content-type":
+              injected.headers["content-type"]?.toString() ??
+              "application/json",
+          },
+        });
+      },
+    });
+    const session = await sdk.startSession({
+      endUserId: "user_hash_123",
+      useCase: "paper_summary",
+      mode: "managed",
+    });
+    const request = {
+      method: "POST" as const,
+      url: "/v1/chat/completions",
+      headers: {
+        authorization: `Bearer ${session.token}`,
+        "idempotency-key": "idem_postgres_restart",
+        "x-fl-app-id": "app_pdf_reader",
+        "x-fl-channel-id": "channel_desktop",
+        "x-fl-end-user-id": "user_hash_123",
+        "x-fl-mode": "managed",
+        "x-fl-use-case": "paper_summary",
+      },
+      payload: {
+        model: "vertical/paper-summary",
+        messages: [{ role: "user", content: "Restart-safe request." }],
+      },
+    };
+    const first = await server.inject(request);
+
+    await server.close();
+    server = buildGatewayServer(createPostgresGatewayStore(sql));
+    const duplicate = await server.inject(request);
+    const usageRows = await sql<Array<{ count: string }>>`
+      select count(*)::text as count from usage_events
+    `;
+    const ledgerRows = await sql<Array<{ count: string }>>`
+      select count(*)::text as count from ledger_entries
+    `;
+    const idempotencyRows = await sql<
+      Array<{ status: string; usage_event_id: string | null }>
+    >`
+      select status, usage_event_id
+      from idempotency_records
+      where idempotency_key = 'idem_postgres_restart'
+    `;
+
+    expect(first.statusCode).toBe(200);
+    expect(duplicate.statusCode).toBe(409);
+    expect(duplicate.json().error.code).toBe("idempotency_already_completed");
+    expect(duplicate.json().error.details.usage_event_id).toBe(
+      first.json().billing.usage_event_id,
+    );
+    expect(usageRows[0]?.count).toBe("1");
+    expect(ledgerRows[0]?.count).toBe("4");
+    expect(idempotencyRows).toHaveLength(1);
+    expect(idempotencyRows[0]).toMatchObject({
+      status: "completed",
+      usage_event_id: first.json().billing.usage_event_id,
+    });
   });
 });

@@ -101,6 +101,7 @@ paths:
         - $ref: "#/components/parameters/EndUserId"
         - $ref: "#/components/parameters/UseCase"
         - $ref: "#/components/parameters/Mode"
+        - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
         required: true
         content:
@@ -110,30 +111,275 @@ paths:
       responses:
         "200":
           description: Chat completion
+        "409":
+          description: Idempotency key is in progress, conflicts with another request, or was completed without a locally replayable response
+
+  /admin/apps:
+    get:
+      summary: List applications
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/Search"
+      responses:
+        "200":
+          description: Applications with page metadata
+    post:
+      summary: Create an application
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminAppCreate"
+      responses:
+        "201":
+          description: Application created
+
+  /admin/apps/{id}:
+    patch:
+      summary: Update an application
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ResourceId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminAppUpdate"
+      responses:
+        "200":
+          description: Application updated
+        "404":
+          description: Application not found
+
+  /admin/channels:
+    get:
+      summary: List channels
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/Search"
+      responses:
+        "200":
+          description: Channels with page metadata
+    post:
+      summary: Create a channel
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminChannelCreate"
+      responses:
+        "201":
+          description: Channel created
+
+  /admin/channels/{id}:
+    patch:
+      summary: Update a channel
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ResourceId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminChannelUpdate"
+      responses:
+        "200":
+          description: Channel updated
+        "404":
+          description: Channel not found
+
+  /admin/faucet-grants:
+    get:
+      summary: List faucet grants
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/Search"
+        - $ref: "#/components/parameters/CreatedFrom"
+        - $ref: "#/components/parameters/CreatedTo"
+      responses:
+        "200":
+          description: Faucet grants with page metadata
+    post:
+      summary: Create a faucet grant
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FaucetGrantCreate"
+      responses:
+        "201":
+          description: Faucet grant created
+
+  /admin/faucet-grants/{id}:
+    patch:
+      summary: Update a faucet grant
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ResourceId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FaucetGrantUpdate"
+      responses:
+        "200":
+          description: Faucet grant updated
+        "404":
+          description: Faucet grant not found
+
+  /admin/routes:
+    get:
+      summary: List route policies
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/Search"
+      responses:
+        "200":
+          description: Route policies with page metadata
+    post:
+      summary: Create a route policy
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminRouteCreate"
+      responses:
+        "201":
+          description: Route policy created
+
+  /admin/routes/{id}:
+    patch:
+      summary: Update a route policy
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ResourceId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminRouteUpdate"
+      responses:
+        "200":
+          description: Route policy updated
+        "404":
+          description: Route policy not found
+
+  /admin/pricing-policies:
+    get:
+      summary: List pricing policies
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/Search"
+      responses:
+        "200":
+          description: Pricing policies with page metadata
+    post:
+      summary: Create a pricing policy
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PricingPolicyCreate"
+      responses:
+        "201":
+          description: Pricing policy created
+
+  /admin/pricing-policies/{id}:
+    patch:
+      summary: Update a pricing policy
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ResourceId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PricingPolicyUpdate"
+      responses:
+        "200":
+          description: Pricing policy updated
+        "404":
+          description: Pricing policy not found
 
   /admin/usage-events:
     get:
-      summary: MVP admin usage event view
+      summary: List usage events
       security:
         - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/Search"
+        - $ref: "#/components/parameters/CreatedFrom"
+        - $ref: "#/components/parameters/CreatedTo"
       responses:
         "200":
-          description: Usage events
+          description: Usage events with page metadata
 
   /admin/ledger:
     get:
-      summary: MVP admin ledger view
+      summary: List ledger entries
       security:
         - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/Search"
+        - $ref: "#/components/parameters/CreatedFrom"
+        - $ref: "#/components/parameters/CreatedTo"
       responses:
         "200":
-          description: Ledger entries
+          description: Ledger entries with page metadata
 
   /admin/provider-credentials:
     get:
       summary: List provider credential metadata
       security:
         - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/Search"
       responses:
         "200":
           description: Credential metadata only
@@ -273,8 +519,257 @@ components:
       schema:
         type: string
         enum: [managed, developer_key, byok, local]
+    IdempotencyKey:
+      in: header
+      name: idempotency-key
+      required: false
+      description: Coordinates a session-scoped billable request. Same-process completed retries replay the response; durable in-progress, conflicting, or completed duplicates return 409 without rebilling.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 200
+    ResourceId:
+      in: path
+      name: id
+      required: true
+      schema: { type: string, minLength: 1 }
+    Limit:
+      in: query
+      name: limit
+      required: false
+      schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+    Offset:
+      in: query
+      name: offset
+      required: false
+      schema: { type: integer, minimum: 0, default: 0 }
+    Search:
+      in: query
+      name: q
+      required: false
+      description: Case-insensitive endpoint-specific text search.
+      schema: { type: string }
+    CreatedFrom:
+      in: query
+      name: created_from
+      required: false
+      schema: { type: string, format: date-time }
+    CreatedTo:
+      in: query
+      name: created_to
+      required: false
+      schema: { type: string, format: date-time }
 
   schemas:
+    Money:
+      type: string
+      pattern: "^\\d+(\\.\\d{1,8})?$"
+
+    AdminStatus:
+      type: string
+      enum: [active, disabled]
+
+    FaucetGrantStatus:
+      type: string
+      enum: [active, exhausted, expired, revoked]
+
+    AdminAppCreate:
+      type: object
+      additionalProperties: false
+      required: [developerId, developerName, id, name]
+      properties:
+        developerId: { type: string, minLength: 1 }
+        developerName: { type: string, minLength: 1 }
+        id: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1 }
+        defaultPricingPolicyId: { type: string, minLength: 1 }
+        defaultRouteId: { type: string, minLength: 1 }
+        status:
+          $ref: "#/components/schemas/AdminStatus"
+
+    AdminAppUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1 }
+        defaultPricingPolicyId: { type: string, minLength: 1 }
+        defaultRouteId: { type: string, minLength: 1 }
+        status:
+          $ref: "#/components/schemas/AdminStatus"
+
+    AdminChannelCreate:
+      type: object
+      additionalProperties: false
+      required: [appId, id, name, type]
+      properties:
+        appId: { type: string, minLength: 1 }
+        id: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1 }
+        type: { type: string, minLength: 1 }
+        status:
+          $ref: "#/components/schemas/AdminStatus"
+
+    AdminChannelUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1 }
+        type: { type: string, minLength: 1 }
+        status:
+          $ref: "#/components/schemas/AdminStatus"
+
+    AdminRouteCreate:
+      type: object
+      additionalProperties: false
+      required: [adapter, alias, appId, id, model, modelAllowlist, provider]
+      properties:
+        adapter: { type: string, minLength: 1 }
+        alias: { type: string, minLength: 1 }
+        appId: { type: string, minLength: 1 }
+        fallbackModels:
+          type: array
+          items: { type: string, minLength: 1 }
+        id: { type: string, minLength: 1 }
+        latencyPreference: { type: string, minLength: 1 }
+        maxRetailPrice:
+          $ref: "#/components/schemas/Money"
+        model: { type: string, minLength: 1 }
+        modelAllowlist:
+          type: array
+          minItems: 1
+          items: { type: string, minLength: 1 }
+        provider: { type: string, minLength: 1 }
+        status:
+          $ref: "#/components/schemas/AdminStatus"
+
+    AdminRouteUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        adapter: { type: string, minLength: 1 }
+        alias: { type: string, minLength: 1 }
+        appId: { type: string, minLength: 1 }
+        fallbackModels:
+          type: array
+          items: { type: string, minLength: 1 }
+        latencyPreference: { type: string, minLength: 1 }
+        maxRetailPrice:
+          $ref: "#/components/schemas/Money"
+        model: { type: string, minLength: 1 }
+        modelAllowlist:
+          type: array
+          minItems: 1
+          items: { type: string, minLength: 1 }
+        provider: { type: string, minLength: 1 }
+        status:
+          $ref: "#/components/schemas/AdminStatus"
+
+    FaucetGrantCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - allowedModels
+        - allowedUseCases
+        - appId
+        - channelId
+        - dailyCap
+        - endUserId
+        - expiresAt
+        - id
+        - remaining
+      properties:
+        allowedModels:
+          type: array
+          minItems: 1
+          items: { type: string, minLength: 1 }
+        allowedUseCases:
+          type: array
+          minItems: 1
+          items: { type: string, minLength: 1 }
+        amount:
+          $ref: "#/components/schemas/Money"
+        appId: { type: string, minLength: 1 }
+        channelId: { type: string, minLength: 1 }
+        dailyCap:
+          $ref: "#/components/schemas/Money"
+        endUserId: { type: string, minLength: 1 }
+        expiresAt: { type: string, format: date-time }
+        id: { type: string, minLength: 1 }
+        remaining:
+          $ref: "#/components/schemas/Money"
+        sponsorId: { type: string, minLength: 1 }
+        sponsorType: { type: string, minLength: 1 }
+        status:
+          $ref: "#/components/schemas/FaucetGrantStatus"
+        walletId: { type: string, minLength: 1 }
+
+    FaucetGrantUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        allowedModels:
+          type: array
+          minItems: 1
+          items: { type: string, minLength: 1 }
+        allowedUseCases:
+          type: array
+          minItems: 1
+          items: { type: string, minLength: 1 }
+        amount:
+          $ref: "#/components/schemas/Money"
+        dailyCap:
+          $ref: "#/components/schemas/Money"
+        expiresAt: { type: string, format: date-time }
+        remaining:
+          $ref: "#/components/schemas/Money"
+        status:
+          $ref: "#/components/schemas/FaucetGrantStatus"
+
+    PricingPolicyCreate:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        appId: { type: string, minLength: 1 }
+        channelMarkupRate:
+          $ref: "#/components/schemas/Money"
+        developerMarkupRate:
+          $ref: "#/components/schemas/Money"
+        id: { type: string, minLength: 1 }
+        maxTotalMarkupRate:
+          $ref: "#/components/schemas/Money"
+        name: { type: string, minLength: 1 }
+        paymentFeeReserveRate:
+          $ref: "#/components/schemas/Money"
+        platformFeeRate:
+          $ref: "#/components/schemas/Money"
+        riskReserveRate:
+          $ref: "#/components/schemas/Money"
+
+    PricingPolicyUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        appId: { type: string, minLength: 1 }
+        channelMarkupRate:
+          $ref: "#/components/schemas/Money"
+        developerMarkupRate:
+          $ref: "#/components/schemas/Money"
+        maxTotalMarkupRate:
+          $ref: "#/components/schemas/Money"
+        name: { type: string, minLength: 1 }
+        paymentFeeReserveRate:
+          $ref: "#/components/schemas/Money"
+        platformFeeRate:
+          $ref: "#/components/schemas/Money"
+        riskReserveRate:
+          $ref: "#/components/schemas/Money"
+
     AttributionContext:
       type: object
       required: [appId, channelId, endUserId, useCase, mode]

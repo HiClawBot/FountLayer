@@ -21,6 +21,9 @@ describe("gateway runtime config", () => {
     });
 
     expect(config).toMatchObject({
+      adapter: {
+        mode: "demo",
+      },
       allowHostedByokCredentials: false,
       credentialEncryption: {
         keyVersion: "test-v1",
@@ -59,6 +62,51 @@ describe("gateway runtime config", () => {
     });
 
     expect(config.allowHostedByokCredentials).toBe(true);
+  });
+
+  it("loads LiteLLM adapter configuration", () => {
+    const config = loadGatewayRuntimeConfig({
+      FOUNTLAYER_GATEWAY_ADAPTER: "litellm",
+      LITELLM_BASE_URL: "http://localhost:3305/v1/",
+      LITELLM_MASTER_KEY: "litellm-placeholder",
+    });
+
+    expect(config.adapter).toEqual({
+      apiKey: "litellm-placeholder",
+      baseUrl: "http://localhost:3305/v1",
+      mode: "litellm",
+    });
+  });
+
+  it("loads private local adapter configuration", () => {
+    const config = loadGatewayRuntimeConfig({
+      FOUNTLAYER_GATEWAY_ADAPTER: "local",
+      LOCAL_OPENAI_API_KEY: "local-placeholder",
+      LOCAL_OPENAI_BASE_URL: "http://192.168.1.20:3314/v1/",
+    });
+
+    expect(config.adapter).toEqual({
+      apiKey: "local-placeholder",
+      baseUrl: "http://192.168.1.20:3314/v1",
+      mode: "local",
+    });
+  });
+
+  it("rejects public endpoints for local adapter mode", () => {
+    expect(() =>
+      loadGatewayRuntimeConfig({
+        FOUNTLAYER_GATEWAY_ADAPTER: "local",
+        LOCAL_OPENAI_BASE_URL: "https://api.example.com/v1",
+      }),
+    ).toThrow("localhost, a private LAN address, or a .local host");
+  });
+
+  it("rejects invalid adapter modes", () => {
+    expect(() =>
+      loadGatewayRuntimeConfig({
+        FOUNTLAYER_GATEWAY_ADAPTER: "unknown",
+      }),
+    ).toThrow("Invalid FOUNTLAYER_GATEWAY_ADAPTER");
   });
 
   it("rejects invalid ports", () => {
@@ -158,6 +206,18 @@ describe("gateway runtime config", () => {
     ).toThrow("requires FOUNTLAYER_CREDENTIAL_MASTER_KEY");
   });
 
+  it("rejects the demo adapter in production", () => {
+    expect(() =>
+      loadGatewayRuntimeConfig({
+        DATABASE_URL: "postgres://user:pass@db.example/fountlayer",
+        FOUNTLAYER_ADMIN_TOKEN_SHA256: hashToken("fl_admin_prod"),
+        FOUNTLAYER_CREDENTIAL_MASTER_KEY: credentialMasterKeyEnv(),
+        FOUNTLAYER_DEPLOYMENT_ENV: "production",
+        FOUNTLAYER_GATEWAY_STORE: "postgres",
+      }),
+    ).toThrow("requires FOUNTLAYER_GATEWAY_ADAPTER=litellm or local");
+  });
+
   it("loads production config when required controls are set", () => {
     const adminHash = hashToken("fl_admin_prod");
     const config = loadGatewayRuntimeConfig({
@@ -165,6 +225,7 @@ describe("gateway runtime config", () => {
       FOUNTLAYER_ADMIN_TOKEN_SHA256: adminHash,
       FOUNTLAYER_CREDENTIAL_MASTER_KEY: credentialMasterKeyEnv(),
       FOUNTLAYER_DEPLOYMENT_ENV: "production",
+      FOUNTLAYER_GATEWAY_ADAPTER: "local",
       FOUNTLAYER_GATEWAY_STORE: "postgres",
       GATEWAY_HOST: "127.0.0.1",
       GATEWAY_PORT: "3390",
@@ -180,6 +241,10 @@ describe("gateway runtime config", () => {
       host: "127.0.0.1",
       isProduction: true,
       port: 3390,
+      adapter: {
+        baseUrl: "http://127.0.0.1:3314",
+        mode: "local",
+      },
       storeMode: "postgres",
     });
   });

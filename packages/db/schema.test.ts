@@ -6,6 +6,7 @@ import {
   apps,
   channels,
   faucetGrants,
+  idempotencyRecords,
   ledgerEntries,
   sessions,
   usageEvents,
@@ -32,8 +33,9 @@ describe("database migration", () => {
       "sessions",
       "routes",
       "pricing_policies",
+      "idempotency_records",
     ]) {
-      expect(migrationSql).toContain(`create table ${tableName}`);
+      expect(migrationSql).toContain(`create table if not exists ${tableName}`);
     }
   });
 
@@ -61,17 +63,19 @@ describe("database migration", () => {
   });
 
   it("stores session tokens as hashes with full attribution and expiration", () => {
-    expect(migrationSql).toContain("create table sessions");
+    expect(migrationSql).toContain("create table if not exists sessions");
     expect(migrationSql).toContain("token_hash text not null unique");
     expect(migrationSql).toContain("expires_at timestamptz not null");
     expect(migrationSql).toContain("revoked_at timestamptz");
     expect(migrationSql).toContain(
-      "create index idx_sessions_token_hash on sessions(token_hash)",
+      "create index if not exists idx_sessions_token_hash on sessions(token_hash)",
     );
   });
 
   it("stores provider credentials as encrypted server-side material plus safe metadata", () => {
-    expect(migrationSql).toContain("create table provider_credentials");
+    expect(migrationSql).toContain(
+      "create table if not exists provider_credentials",
+    );
     expect(migrationSql).toContain("encrypted_api_key text not null");
     expect(migrationSql).toContain(
       "key_version text not null default 'local-v1'",
@@ -80,6 +84,18 @@ describe("database migration", () => {
       "display text not null default 'configured'",
     );
   });
+
+  it("stores durable idempotency reservations without prompt or response content", () => {
+    expect(migrationSql).toContain(
+      "create table if not exists idempotency_records",
+    );
+    expect(migrationSql).toContain("primary key(session_id, idempotency_key)");
+    expect(migrationSql).toContain("request_hash text not null");
+    expect(migrationSql).toContain("reservation_id text not null");
+    expect(migrationSql).toContain("locked_until timestamptz not null");
+    expect(migrationSql).not.toContain("prompt_text");
+    expect(migrationSql).not.toContain("response_body");
+  });
 });
 
 describe("drizzle schema exports", () => {
@@ -87,6 +103,7 @@ describe("drizzle schema exports", () => {
     expect(apps).toBeDefined();
     expect(channels).toBeDefined();
     expect(faucetGrants).toBeDefined();
+    expect(idempotencyRecords).toBeDefined();
     expect(sessions).toBeDefined();
     expect(usageEvents).toBeDefined();
     expect(ledgerEntries).toBeDefined();

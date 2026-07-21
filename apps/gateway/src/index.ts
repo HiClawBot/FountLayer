@@ -4,6 +4,7 @@ import { createCredentialCipher } from "@fountlayer/credentials";
 import { createDatabaseSql } from "@fountlayer/db";
 
 import { loadGatewayRuntimeConfig } from "./config.js";
+import { createGatewayRuntimeAdapter } from "./runtime-adapter.js";
 import { buildGatewayServer } from "./server.js";
 import { createPostgresGatewayStore } from "./store.js";
 
@@ -22,6 +23,7 @@ if (isDirectRun(import.meta.url)) {
     sql ? createPostgresGatewayStore(sql) : undefined,
     {
       adminTokenHashes: config.adminTokenHashes,
+      adapter: createGatewayRuntimeAdapter(config.adapter),
       allowHostedByokCredentials: config.allowHostedByokCredentials,
       credentialCipher,
       logger: true,
@@ -40,3 +42,4 @@ if (isDirectRun(import.meta.url)) {
 
 export { buildGatewayServer };
 export { createPostgresGatewayStore } from "./store.js";
+export { createGatewayRuntimeAdapter } from "./runtime-adapter.js";

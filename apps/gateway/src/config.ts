@@ -7,8 +7,19 @@ import type { GatewayRateLimitOptions } from "./server.js";
 
 export type GatewayStoreMode = "memory" | "postgres";
 
+export type GatewayRuntimeAdapterConfig =
+  | {
+      mode: "demo";
+    }
+  | {
+      apiKey?: string;
+      baseUrl: string;
+      mode: "litellm" | "local";
+    };
+
 export type GatewayRuntimeConfig = {
   adminTokenHashes: string[];
+  adapter: GatewayRuntimeAdapterConfig;
   allowHostedByokCredentials: boolean;
   credentialEncryption?: {
     keyVersion: string;
@@ -67,6 +78,96 @@ function parseStoreMode(env: GatewayEnv): GatewayStoreMode {
   }
 
   return storeMode;
+}
+
+function parseHttpUrl(value: string, key: string): string {
+  let parsed: URL;
+
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`${key} must be a valid URL.`);
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(`${key} must use http or https.`);
+  }
+
+  return value.replace(/\/+$/, "");
+}
+
+function isPrivateIpv4(hostname: string): boolean {
+  const octets = hostname.split(".").map((part) => Number(part));
+
+  if (
+    octets.length !== 4 ||
+    octets.some((part) => !Number.isInteger(part) || part < 0 || part > 255)
+  ) {
+    return false;
+  }
+
+  const [first, second] = octets;
+
+  return (
+    first === 10 ||
+    first === 127 ||
+    (first === 172 && second !== undefined && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168)
+  );
+}
+
+function isLocalHostname(hostname: string): boolean {
+  const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+
+  return (
+    normalized === "localhost" ||
+    normalized === "::1" ||
+    normalized.endsWith(".local") ||
+    isPrivateIpv4(normalized)
+  );
+}
+
+function parseAdapterConfig(env: GatewayEnv): GatewayRuntimeAdapterConfig {
+  const mode = env.FOUNTLAYER_GATEWAY_ADAPTER ?? "demo";
+
+  if (mode === "demo") {
+    return { mode };
+  }
+
+  if (mode === "litellm") {
+    return {
+      apiKey: env.LITELLM_MASTER_KEY?.trim() || undefined,
+      baseUrl: parseHttpUrl(
+        env.LITELLM_BASE_URL ?? "http://localhost:3305",
+        "LITELLM_BASE_URL",
+      ),
+      mode,
+    };
+  }
+
+  if (mode === "local") {
+    const baseUrl = parseHttpUrl(
+      env.LOCAL_OPENAI_BASE_URL ?? "http://127.0.0.1:3314",
+      "LOCAL_OPENAI_BASE_URL",
+    );
+    const hostname = new URL(baseUrl).hostname;
+
+    if (!isLocalHostname(hostname)) {
+      throw new Error(
+        "LOCAL_OPENAI_BASE_URL must point to localhost, a private LAN address, or a .local host.",
+      );
+    }
+
+    return {
+      apiKey: env.LOCAL_OPENAI_API_KEY?.trim() || undefined,
+      baseUrl,
+      mode,
+    };
+  }
+
+  throw new Error(
+    `Invalid FOUNTLAYER_GATEWAY_ADAPTER: ${mode}. Expected demo, litellm, or local.`,
+  );
 }
 
 function parsePositiveInteger(
@@ -182,6 +283,12 @@ function assertProductionSafe(env: GatewayEnv, config: GatewayRuntimeConfig) {
       "Production Gateway runtime requires FOUNTLAYER_CREDENTIAL_MASTER_KEY for encrypted credential storage.",
     );
   }
+
+  if (config.adapter.mode === "demo") {
+    throw new Error(
+      "Production Gateway runtime requires FOUNTLAYER_GATEWAY_ADAPTER=litellm or local.",
+    );
+  }
 }
 
 export function loadGatewayRuntimeConfig(
@@ -191,6 +298,7 @@ export function loadGatewayRuntimeConfig(
     env.FOUNTLAYER_DEPLOYMENT_ENV ?? env.NODE_ENV ?? "development";
   const config: GatewayRuntimeConfig = {
     adminTokenHashes: adminTokenHashesFromEnv(env),
+    adapter: parseAdapterConfig(env),
     allowHostedByokCredentials: parseBooleanFlag(
       env,
       "FOUNTLAYER_ALLOW_HOSTED_BYOK",

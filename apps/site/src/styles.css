@@ -71,6 +71,27 @@ code {
   padding: 0.08rem 0.32rem;
 }
 
+pre {
+  background: #111113;
+  border-radius: 8px;
+  color: #f7f7f4;
+  font-family: "SFMono-Regular", "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.88rem;
+  line-height: 1.7;
+  margin: 1rem 0 0;
+  overflow-x: auto;
+  padding: 1rem;
+}
+
+pre code {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  display: block;
+  font-size: inherit;
+  padding: 0;
+}
+
 .site-shell {
   min-height: 100dvh;
   overflow-x: hidden;
@@ -196,6 +217,7 @@ code {
 .lab-layout,
 .capability-grid,
 .security-section,
+.docs-layout,
 .deploy-section {
   margin: 0 auto;
   max-width: 1360px;
@@ -751,6 +773,99 @@ h3 {
   padding: 0.85rem 0;
 }
 
+.docs-section {
+  background: rgba(255, 255, 255, 0.44);
+  border-bottom: 1px solid var(--line);
+}
+
+.docs-layout {
+  align-items: start;
+  display: grid;
+  gap: clamp(1.4rem, 3vw, 2.4rem);
+  grid-template-columns: minmax(230px, 0.34fr) minmax(0, 1fr);
+}
+
+.docs-sidebar {
+  border-left: 2px solid var(--charcoal);
+  padding-left: 1rem;
+  position: sticky;
+  top: 6.2rem;
+}
+
+.docs-sidebar-group + .docs-sidebar-group {
+  margin-top: 1.35rem;
+}
+
+.docs-sidebar h3 {
+  color: var(--accent);
+  font-size: 0.78rem;
+  margin-bottom: 0.62rem;
+  text-transform: uppercase;
+}
+
+.docs-sidebar a {
+  border-bottom: 1px solid rgba(17, 17, 19, 0.08);
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.62rem 0;
+}
+
+.docs-sidebar a:hover strong {
+  color: var(--accent);
+}
+
+.docs-sidebar strong {
+  color: var(--charcoal);
+  font-size: 0.94rem;
+}
+
+.docs-sidebar span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.docs-content {
+  display: grid;
+  gap: 1.4rem;
+}
+
+.doc-article {
+  border-top: 1px solid var(--line);
+  scroll-margin-top: 6rem;
+  padding-top: 1.4rem;
+}
+
+.doc-article:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.doc-article h3 {
+  font-size: clamp(1.35rem, 2.2vw, 2rem);
+  margin-bottom: 0.55rem;
+}
+
+.doc-article p,
+.doc-article li {
+  color: var(--muted);
+  line-height: 1.76;
+  max-width: 82ch;
+}
+
+.doc-article p {
+  margin-bottom: 0;
+}
+
+.doc-article ul {
+  margin: 0.9rem 0 0;
+  padding-left: 1.15rem;
+}
+
+.doc-article li + li {
+  margin-top: 0.38rem;
+}
+
 .deploy-section {
   align-items: start;
   display: grid;
@@ -850,8 +965,13 @@ h3 {
   .section-header,
   .lab-layout,
   .security-section,
+  .docs-layout,
   .deploy-section {
     grid-template-columns: 1fr;
+  }
+
+  .docs-sidebar {
+    position: static;
   }
 
   .lab-panel {

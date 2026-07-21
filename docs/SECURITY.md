@@ -36,8 +36,11 @@ Provider API keys must never appear in SDK source code, frontend bundles, mobile
   usage events or ledger entries.
 - Gateway responses include `x-fl-request-id` so operators can correlate
   metadata-only logs without exposing raw prompts, outputs, or secrets.
-- Billable chat requests may use `idempotency-key` to make client retries return
-  the first successful response without duplicate usage or ledger records.
+- Billable chat requests may use `idempotency-key`. PostgreSQL-backed
+  reservations coordinate concurrent requests and Gateway instances, while
+  completion is committed atomically with usage and ledger writes. Durable
+  records contain request hashes and billing references, never raw prompts or
+  assistant output.
 - Route policy model allowlists and route spend caps are checked before adapter
   execution, usage event creation, or ledger entry creation.
 - Wallet-funded calls must atomically prevent negative balances. Calls rejected
@@ -45,6 +48,8 @@ Provider API keys must never appear in SDK source code, frontend bundles, mobile
 - Gateway telemetry is metadata-only. Prompt text, assistant output, provider
   keys, authorization headers, session tokens, and raw adapter payloads must not
   be emitted.
+- Telemetry sink failures are best-effort and cannot change authorization,
+  adapter, billing, idempotency, or HTTP outcomes.
 - Gateway spans and metrics use the same sanitizer as telemetry events and must
   not carry prompt text, assistant output, provider keys, auth headers, session
   tokens, or raw adapter payloads.

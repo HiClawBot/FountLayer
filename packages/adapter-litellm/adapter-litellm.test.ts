@@ -10,7 +10,7 @@ describe("LiteLLM adapter", () => {
   it("sends OpenAI-compatible requests and maps provider usage", async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     const adapter = new LiteLLMAdapter({
-      baseUrl: "http://localhost:3305",
+      baseUrl: "http://localhost:3305/v1/",
       apiKey: "test-placeholder",
       fetchImpl: async (url, init) => {
         calls.push({ url: String(url), init });

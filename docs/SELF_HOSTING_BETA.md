@@ -41,9 +41,14 @@ The Compose stack starts:
 
 ```bash
 pnpm install
+pnpm build
 pnpm db:migrate
 pnpm db:seed
 ```
+
+The beta migration is rerunnable. Existing beta databases can run
+`pnpm db:migrate` again to add the durable `idempotency_records` table before
+starting the updated Gateway.
 
 ## Start Gateway
 
@@ -51,14 +56,36 @@ For local beta testing:
 
 ```bash
 FOUNTLAYER_ADMIN_TOKEN=change_me_admin_token \
+FOUNTLAYER_GATEWAY_ADAPTER=litellm \
 FOUNTLAYER_GATEWAY_STORE=postgres \
 FOUNTLAYER_CREDENTIAL_MASTER_KEY=base64:CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQk= \
+LITELLM_BASE_URL=http://localhost:3305 \
+LITELLM_MASTER_KEY=change_me \
 pnpm --filter @fountlayer/gateway dev
 ```
 
 For production-like testing, replace the plaintext admin token with
 `FOUNTLAYER_ADMIN_TOKEN_SHA256`, use a non-local `DATABASE_URL`, and generate a
 fresh 32-byte `FOUNTLAYER_CREDENTIAL_MASTER_KEY`.
+
+`FOUNTLAYER_GATEWAY_ADAPTER` selects one adapter for the Gateway process:
+`demo` for zero-provider-key development, `litellm` for the Compose sidecar, or
+`local` for a direct OpenAI-compatible endpoint. Production mode rejects
+`demo`. Direct local mode uses `LOCAL_OPENAI_BASE_URL` and optional
+`LOCAL_OPENAI_API_KEY`, and only accepts localhost, private-LAN, or `.local`
+targets.
+
+## Idempotent Billable Requests
+
+Pass a unique `idempotency-key` on retryable chat calls. With the PostgreSQL
+Store, all Gateway instances sharing the database coordinate the same
+session/key pair. Concurrent duplicates and conflicting payloads return `409`;
+completed requests never run or bill twice. Only the active process caches the
+full response, so a completed retry after restart returns
+`idempotency_already_completed` with the original usage-event ID.
+
+The durable record contains a request hash and billing reference, not prompt or
+completion bodies. Do not reuse keys across distinct logical requests.
 
 ## Start Console
 

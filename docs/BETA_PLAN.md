@@ -36,7 +36,7 @@ Implemented foundation:
 
 Verified locally:
 
-- `pnpm test` - 113 passed, 2 skipped.
+- `pnpm test` - 132 passed, 3 skipped.
 - `pnpm lint`
 - `pnpm format`
 - `pnpm typecheck`

@@ -61,6 +61,7 @@ default.
 git clone https://github.com/YOUR_ORG/fountlayer.git
 cd fountlayer
 pnpm install
+pnpm build
 cp .env.example .env
 pnpm test
 pnpm --filter @fountlayer/gateway dev
@@ -79,11 +80,16 @@ must stay inside `3300-3399`.
 
 ```bash
 pnpm install
+pnpm build
 cp .env.example .env
 docker compose up -d postgres redis litellm
 pnpm db:migrate
 pnpm db:seed
-FOUNTLAYER_GATEWAY_STORE=postgres pnpm --filter @fountlayer/gateway dev
+FOUNTLAYER_GATEWAY_ADAPTER=litellm \
+FOUNTLAYER_GATEWAY_STORE=postgres \
+LITELLM_BASE_URL=http://localhost:3305 \
+LITELLM_MASTER_KEY=change_me \
+pnpm --filter @fountlayer/gateway dev
 ```
 
 In another terminal, start the Console with the same local admin token:
@@ -105,7 +111,9 @@ pnpm smoke:runtime
 
 For production-like testing, set `FOUNTLAYER_DEPLOYMENT_ENV=production`,
 `FOUNTLAYER_GATEWAY_STORE=postgres`, hashed admin tokens, a non-local
-`DATABASE_URL`, and `FOUNTLAYER_CREDENTIAL_MASTER_KEY`.
+`DATABASE_URL`, `FOUNTLAYER_CREDENTIAL_MASTER_KEY`, and
+`FOUNTLAYER_GATEWAY_ADAPTER=litellm` or `local`. The `demo` adapter is rejected
+in production mode.
 
 ## Current Local Loop
 
@@ -235,6 +243,19 @@ with sufficient balance. Wallet-funded successful calls still create exactly one
 usage event and balanced ledger entries, and wallet deduction prevents negative
 balances.
 
+Billable retries can carry a session-scoped idempotency key. PostgreSQL-backed
+Gateway instances coordinate in-flight and completed requests without storing
+prompt or completion bodies. Same-process retries can replay the original
+response; after cache loss, a completed retry returns the original usage-event
+reference without running or billing the request again.
+
+The stock Gateway selects one runtime adapter per process with
+`FOUNTLAYER_GATEWAY_ADAPTER`: `demo` (development default), `litellm`, or
+`local`. LiteLLM mode reads `LITELLM_BASE_URL` and `LITELLM_MASTER_KEY`. Direct
+local mode reads `LOCAL_OPENAI_BASE_URL` and optional `LOCAL_OPENAI_API_KEY`;
+the endpoint must resolve to localhost, a private LAN address, or a `.local`
+host.
+
 ## SDK Example
 
 ```ts
@@ -251,11 +272,14 @@ const session = await ai.startSession({
   useCase: "paper_summary",
 });
 
-const result = await session.chat({
-  model: "vertical/paper-summary",
-  messages: [{ role: "user", content: "Summarize this paper." }],
-  stream: true,
-});
+const result = await session.chat(
+  {
+    model: "vertical/paper-summary",
+    messages: [{ role: "user", content: "Summarize this paper." }],
+    stream: true,
+  },
+  { idempotencyKey: "paper-summary-document-123" },
+);
 ```
 
 ## Gateway Request Headers

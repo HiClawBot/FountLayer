@@ -25,9 +25,13 @@ Scope: `v0.5.0-beta.1` self-hosted operator beta.
 - [x] Route policies enforce model allowlists and route spend caps before
       adapter execution.
 - [x] Wallet-funded calls prevent negative balances.
+- [x] PostgreSQL idempotency reservations coordinate concurrent/restarted
+      billable requests and complete atomically with usage and ledger writes.
+- [x] Durable idempotency records exclude raw prompts and response bodies.
 - [x] Metadata-only telemetry, spans, metrics, and health checks avoid prompts,
       outputs, auth headers, provider keys, session tokens, and thrown
       connection-string errors.
+- [x] Telemetry sink failures cannot change billable request outcomes.
 - [x] Privacy purge and anonymization preserve accounting records.
 - [x] Local service port settings stay inside `3300-3399`.
 - [x] Docker Compose runtime smoke passes in a Docker-enabled environment:
