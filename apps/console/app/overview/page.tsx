@@ -36,12 +36,16 @@ export default async function OverviewPage() {
     {
       label: "Usage Events",
       value: String(usageEvents.length),
-      detail: source === "gateway" ? "live Gateway data" : "static fallback",
+      detail:
+        source === "gateway" ? "live Gateway data" : "Gateway unavailable",
     },
     {
       label: "Ledger Entries",
       value: String(ledgerEntries.length),
-      detail: "debits equal credits",
+      detail:
+        source === "gateway"
+          ? "debits equal credits"
+          : "runtime data not loaded",
     },
   ];
 
@@ -50,6 +54,7 @@ export default async function OverviewPage() {
       <PageHeader
         title="Overview"
         eyebrow="App, channel, faucet, usage, and ledger state for the MVP distribution loop."
+        source={source}
       />
       <section className="metrics">
         {overviewMetrics.map((metric) => (

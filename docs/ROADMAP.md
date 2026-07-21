@@ -8,8 +8,8 @@ and the current support contract is in
 - PostgreSQL-backed Gateway Store exists.
 - Gateway sessions are persisted as token hashes.
 - Authenticated `/v1` requests enforce session attribution matching.
-- Console can read Gateway Admin API data; static fallback must become an explicit
-  non-authoritative sample/degraded state before release.
+- Console reads Gateway Admin API data and fails closed to an explicit unavailable
+  empty state; it never presents sample records as runtime state.
 - Admin auth, credential encryption, route policies, wallet-funded calls,
   settlement exports, metadata-only observability, reliability controls,
   privacy retention, and dependency health checks exist as beta foundations.

@@ -10,7 +10,8 @@ export default async function FaucetPage() {
     <div className="page">
       <PageHeader
         title="Faucet"
-        eyebrow={`Bounded credits for app-native AI trials. Source: ${source}.`}
+        eyebrow="Bounded credits for app-native AI trials."
+        source={source}
       />
       <Panel title="Active Grants">
         <div className="table-wrap">

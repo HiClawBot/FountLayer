@@ -10,7 +10,8 @@ export default async function AppsPage() {
     <div className="page">
       <PageHeader
         title="Apps"
-        eyebrow={`Registered software products using FountLayer. Source: ${source}.`}
+        eyebrow="Registered software products using FountLayer."
+        source={source}
       />
       <Panel title="App Registry">
         <div className="table-wrap">

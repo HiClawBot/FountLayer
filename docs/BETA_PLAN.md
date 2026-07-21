@@ -39,11 +39,17 @@ Implemented foundation:
   grants, pricing policies, credentials, usage events, and ledger entries.
 - Admin create/update APIs for apps, channels, routes, faucet grants, and
   pricing policies, with a tested billable setup path.
+- Bounded browser-local PDF.js extraction with fixture-backed tests and no raw PDF
+  upload to the Gateway.
+- Fail-closed Console runtime views that show an explicit unavailable empty state
+  instead of sample records.
 - Strict provider-key scan script.
 
 Verified locally:
 
-- `pnpm test` - 150 passed, 4 optional PostgreSQL tests skipped locally.
+- `pnpm test` - 164 passed, 6 optional PostgreSQL tests skipped in the default run.
+- `FOUNTLAYER_RUN_DB_TESTS=1 ... pnpm vitest run apps/gateway/gateway.db.test.ts`
+  - 6 PostgreSQL migration, isolation, restart, and accounting tests passed.
 - `pnpm lint`
 - `pnpm format`
 - `pnpm typecheck`
@@ -63,7 +69,6 @@ Verified on GitHub Actions for the beta branch:
 
 Current blockers before tagging the external beta:
 
-- Remove unsupported BYOK/local/streaming surfaces and add real bounded PDF extraction.
 - Ship pinned production images/Compose, a real-upstream golden smoke, and recovery drills.
 
 ## Beta Definition
@@ -172,8 +177,7 @@ Goal: move Console from mostly read-only to minimally operational.
 - [x] Add filters for usage and ledger by app, channel, end user hash, status,
       and date range.
 - [x] Keep all admin tokens server-side only.
-- Preserve static fallback only for offline docs/demo rendering, not as a
-  hidden runtime dependency.
+- [x] Replace static runtime fallback with an explicit unavailable empty state.
 
 Exit gate:
 

@@ -10,7 +10,8 @@ export default async function CredentialsPage() {
     <div className="page">
       <PageHeader
         title="Credentials"
-        eyebrow={`Provider credentials are server-side or local-only. Source: ${source}.`}
+        eyebrow="Encrypted provider credential metadata and ownership scope."
+        source={source}
       />
       <Panel title="Credential Inventory">
         <div className="table-wrap">

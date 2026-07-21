@@ -3,25 +3,36 @@ import { RefreshCcw, Settings } from "lucide-react";
 export function PageHeader({
   title,
   eyebrow,
+  source,
 }: {
   title: string;
   eyebrow: string;
+  source?: "gateway" | "unavailable";
 }) {
   return (
-    <header className="page-header">
-      <div>
-        <h1>{title}</h1>
-        <p>{eyebrow}</p>
-      </div>
-      <div className="toolbar">
-        <button className="icon-button" title="Refresh" type="button">
-          <RefreshCcw size={17} aria-hidden="true" />
-        </button>
-        <button className="icon-button" title="Settings" type="button">
-          <Settings size={17} aria-hidden="true" />
-        </button>
-      </div>
-    </header>
+    <>
+      <header className="page-header">
+        <div>
+          <h1>{title}</h1>
+          <p>{eyebrow}</p>
+        </div>
+        <div className="toolbar">
+          <button className="icon-button" title="Refresh" type="button">
+            <RefreshCcw size={17} aria-hidden="true" />
+          </button>
+          <button className="icon-button" title="Settings" type="button">
+            <Settings size={17} aria-hidden="true" />
+          </button>
+        </div>
+      </header>
+      {source === "unavailable" ? (
+        <div className="runtime-alert" role="alert">
+          Gateway runtime data is unavailable. No sample records are shown;
+          check the Gateway URL, admin token, and dependency health before
+          making changes.
+        </div>
+      ) : null}
+    </>
   );
 }
 

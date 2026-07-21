@@ -10,7 +10,8 @@ export default async function PricingPage() {
     <div className="page">
       <PageHeader
         title="Pricing"
-        eyebrow={`Managed mode pricing policy and markup controls. Source: ${source}.`}
+        eyebrow="Managed-mode platform fee and reserve policy."
+        source={source}
       />
       <Panel title="Pricing Policies">
         <div className="table-wrap">

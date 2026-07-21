@@ -27,6 +27,11 @@ const navItems = [
 ];
 
 export function ConsoleShell({ children }: { children: React.ReactNode }) {
+  const gatewayBaseUrl =
+    process.env.CONSOLE_GATEWAY_BASE_URL ??
+    process.env.GATEWAY_BASE_URL ??
+    "http://localhost:3300";
+
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -47,7 +52,7 @@ export function ConsoleShell({ children }: { children: React.ReactNode }) {
         </nav>
         <div className="brand">
           <CircuitBoard size={20} aria-hidden="true" />
-          <span>Gateway http://localhost:3300</span>
+          <span>Gateway {gatewayBaseUrl}</span>
         </div>
         <form action={logoutConsoleOperator}>
           <button className="logout-button" type="submit">

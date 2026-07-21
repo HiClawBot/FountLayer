@@ -10,7 +10,8 @@ export default async function ChannelsPage() {
     <div className="page">
       <PageHeader
         title="Channels"
-        eyebrow={`Distribution sources attached to apps. Source: ${source}.`}
+        eyebrow="Distribution sources attached to apps."
+        source={source}
       />
       <Panel title="Channel Registry">
         <div className="table-wrap">

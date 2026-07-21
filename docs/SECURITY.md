@@ -81,6 +81,10 @@ Provider API keys must never appear in SDK source code, frontend bundles, mobile
 - Per-app ticket-signing keys, API key rotation UI, and production-grade tenant
   authentication are still planned work. The single-operator beta uses one
   independent ticket issuer secret shared only by trusted backends and Gateway.
+- The document demo parses PDFs locally with PDF.js and sends only extracted text after
+  explicit estimate or summarize actions. It rejects files over 10 MB, PDFs over 40
+  pages, extracted text over 80,000 characters, and unreadable, encrypted, image-only,
+  empty, or unsupported files before any Gateway request.
 
 ## Credential Boundary
 

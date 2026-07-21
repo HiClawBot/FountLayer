@@ -2837,6 +2837,42 @@ export function buildGatewayServer(
       );
     }
 
+    const [routes, pricingPolicies] = await Promise.all([
+      parsed.defaultRouteId ? store.listRoutes() : Promise.resolve([]),
+      parsed.defaultPricingPolicyId
+        ? store.listPricingPolicies()
+        : Promise.resolve([]),
+    ]);
+
+    if (
+      parsed.defaultRouteId &&
+      !routes.some(
+        (route) => route.id === parsed.defaultRouteId && route.appId === id,
+      )
+    ) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_default_route_scope",
+        "Default route must belong to the app being updated.",
+      );
+    }
+
+    if (
+      parsed.defaultPricingPolicyId &&
+      !pricingPolicies.some(
+        (policy) =>
+          policy.id === parsed.defaultPricingPolicyId && policy.appId === id,
+      )
+    ) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_default_pricing_scope",
+        "Default pricing policy must belong to the app being updated.",
+      );
+    }
+
     try {
       const app = await store.updateApp(id, parsed);
 

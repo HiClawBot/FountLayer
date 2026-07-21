@@ -10,7 +10,8 @@ export default async function RoutesPage() {
     <div className="page">
       <PageHeader
         title="Routes"
-        eyebrow={`Model aliases and adapter targets. Source: ${source}.`}
+        eyebrow="Model aliases and adapter targets."
+        source={source}
       />
       <Panel title="Route Table">
         <div className="table-wrap">

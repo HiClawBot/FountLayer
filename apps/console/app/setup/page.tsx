@@ -2,6 +2,7 @@ import { Plus } from "lucide-react";
 
 import { PageHeader, Panel } from "../../components/ui";
 import {
+  activateConsoleAppDefaults,
   createConsoleApp,
   createConsoleChannel,
   createConsoleCredential,
@@ -48,7 +49,8 @@ export default async function SetupPage() {
     <div className="page">
       <PageHeader
         title="Setup"
-        eyebrow={`Create the minimum operator records for a self-hosted app path. Source: ${source}.`}
+        eyebrow="Create the minimum operator records for a self-hosted app path."
+        source={source}
       />
       <div className="setup-grid">
         <Panel title="App">
@@ -174,6 +176,25 @@ export default async function SetupPage() {
             />
             <div className="form-actions">
               <SubmitButton label="Create policy" />
+            </div>
+          </form>
+        </Panel>
+
+        <Panel title="Activate App Defaults">
+          <form action={activateConsoleAppDefaults} className="form-grid">
+            <Field label="App ID" name="appId" placeholder="app_acme" />
+            <Field
+              label="Default Route ID"
+              name="defaultRouteId"
+              placeholder="route_acme_default"
+            />
+            <Field
+              label="Default Pricing Policy ID"
+              name="defaultPricingPolicyId"
+              placeholder="policy_acme"
+            />
+            <div className="form-actions">
+              <SubmitButton label="Activate defaults" />
             </div>
           </form>
         </Panel>

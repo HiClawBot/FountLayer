@@ -1,9 +1,22 @@
 "use client";
 
-import { Calculator, FileText, Send, WalletCards } from "lucide-react";
+import {
+  Calculator,
+  FileCheck2,
+  FileText,
+  Send,
+  ShieldCheck,
+  WalletCards,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { createFountLayer } from "@fountlayer/sdk-js";
+
+import {
+  documentLimits,
+  extractDocument,
+  type ExtractedDocument,
+} from "../lib/extract-document";
 
 const gatewayEndpoint =
   process.env.NEXT_PUBLIC_GATEWAY_BASE_URL ?? "http://localhost:3300";
@@ -18,6 +31,9 @@ export function DemoReader() {
   const [summary, setSummary] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [documentInfo, setDocumentInfo] = useState<
+    Omit<ExtractedDocument, "text"> | undefined
+  >();
   const sdk = useMemo(
     () =>
       createFountLayer({
@@ -33,7 +49,31 @@ export function DemoReader() {
       return;
     }
 
-    setDocumentText(await file.text());
+    setBusy(true);
+    setError("");
+    setSummary("");
+
+    try {
+      const extracted = await extractDocument(file);
+
+      setDocumentText(extracted.text);
+      setDocumentInfo({
+        characterCount: extracted.characterCount,
+        fileName: extracted.fileName,
+        kind: extracted.kind,
+        pageCount: extracted.pageCount,
+      });
+      setEstimate("0.00000000");
+    } catch (caught) {
+      setDocumentInfo(undefined);
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Document extraction failed.",
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function startDemoSession() {
@@ -119,18 +159,49 @@ export function DemoReader() {
           <div className="panel-header">
             <h1>Document</h1>
             <input
-              accept=".txt,.md,text/plain,text/markdown"
+              accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
               aria-label="Document file"
+              disabled={busy}
               onChange={(event) => void loadFile(event.target.files?.[0])}
               type="file"
             />
           </div>
           <div className="panel-body">
+            <div className="privacy-note">
+              <ShieldCheck size={17} aria-hidden="true" />
+              <span>
+                PDF parsing stays in this browser. Only bounded extracted text
+                is sent when you estimate or summarize.
+              </span>
+            </div>
+            {documentInfo ? (
+              <div className="document-status" aria-live="polite">
+                <FileCheck2 size={17} aria-hidden="true" />
+                <span>
+                  <strong>{documentInfo.fileName}</strong> · {documentInfo.kind}
+                  {documentInfo.pageCount
+                    ? ` · ${documentInfo.pageCount} pages`
+                    : ""}
+                  {` · ${documentInfo.characterCount.toLocaleString()} characters`}
+                </span>
+              </div>
+            ) : null}
             <textarea
               aria-label="Document text"
-              onChange={(event) => setDocumentText(event.target.value)}
+              maxLength={documentLimits.maxCharacters}
+              onChange={(event) => {
+                setDocumentText(event.target.value);
+                setDocumentInfo(undefined);
+                setSummary("");
+                setEstimate("0.00000000");
+              }}
               value={documentText}
             />
+            <div className="limit-note">
+              PDF limit: {documentLimits.maxPdfPages} pages /{" "}
+              {documentLimits.maxBytes / 1024 / 1024} MB · Text limit:{" "}
+              {documentLimits.maxCharacters.toLocaleString()} characters
+            </div>
             <div className="row">
               <button
                 className="button secondary"

@@ -111,6 +111,36 @@ input {
   gap: 14px;
 }
 
+.privacy-note,
+.document-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  border: 1px solid #cddfd9;
+  border-radius: 7px;
+  padding: 10px 12px;
+  background: var(--soft);
+  color: #25463f;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.privacy-note svg,
+.document-status svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.document-status {
+  border-color: var(--line);
+  background: #fffdf8;
+  color: var(--muted);
+}
+
+.document-status strong {
+  color: var(--ink);
+}
+
 textarea {
   width: 100%;
   min-height: 360px;
@@ -120,6 +150,12 @@ textarea {
   padding: 14px;
   color: var(--ink);
   background: #fffdf8;
+}
+
+.limit-note {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .row {

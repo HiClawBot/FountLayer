@@ -1,3 +1,5 @@
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { TextEncoder } from "node:util";
 
 import { describe, expect, it } from "vitest";
@@ -93,6 +95,84 @@ describe("LiteLLM adapter", () => {
 
     expect(output.usage.usageEstimated).toBe(true);
     expect(output.usage.inputTokens).toBeGreaterThan(0);
+  });
+
+  it("uses the real fetch transport against an OpenAI-compatible HTTP upstream", async () => {
+    let receivedAuthorization: string | undefined;
+    let receivedBody: Record<string, unknown> | undefined;
+    let receivedUrl: string | undefined;
+    const server = createServer(async (request, response) => {
+      const chunks: Buffer[] = [];
+
+      for await (const chunk of request) {
+        chunks.push(Buffer.from(chunk));
+      }
+
+      receivedAuthorization = request.headers.authorization;
+      receivedBody = JSON.parse(
+        Buffer.concat(chunks).toString("utf8"),
+      ) as Record<string, unknown>;
+      receivedUrl = request.url;
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(
+        JSON.stringify({
+          id: "chatcmpl_network_fixture",
+          model: "fixture-model",
+          choices: [
+            {
+              message: { content: "Network-backed fixture summary." },
+              finish_reason: "stop",
+            },
+          ],
+          usage: {
+            prompt_tokens: 12,
+            completion_tokens: 4,
+            total_tokens: 16,
+          },
+        }),
+      );
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", resolve);
+    });
+
+    try {
+      const address = server.address() as AddressInfo;
+      const adapter = new LiteLLMAdapter({
+        apiKey: "network-fixture-placeholder",
+        baseUrl: `http://127.0.0.1:${address.port}`,
+      });
+      const output = await adapter.chat({
+        model: "fixture-model",
+        messages,
+        metadata: { routeAlias: "vertical/paper-summary" },
+      });
+
+      expect(receivedUrl).toBe("/v1/chat/completions");
+      expect(receivedAuthorization).toBe("Bearer network-fixture-placeholder");
+      expect(receivedBody).toMatchObject({
+        messages,
+        model: "fixture-model",
+        stream: false,
+      });
+      expect(output).toMatchObject({
+        content: "Network-backed fixture summary.",
+        id: "chatcmpl_network_fixture",
+        model: "fixture-model",
+        usage: {
+          inputTokens: 12,
+          outputTokens: 4,
+          totalTokens: 16,
+          usageEstimated: false,
+        },
+      });
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
   });
 
   it("parses OpenAI-compatible event streams", async () => {

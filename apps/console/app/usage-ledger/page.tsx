@@ -85,7 +85,8 @@ export default async function UsageLedgerPage({
     <div className="page">
       <PageHeader
         title="Usage & Ledger"
-        eyebrow={`Token flow and append-only money movement records. Source: ${source}.`}
+        eyebrow="Token flow and append-only money movement records."
+        source={source}
       />
       <Panel title="Filters">
         <form className="filter-grid">

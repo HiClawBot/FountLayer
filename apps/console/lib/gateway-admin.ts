@@ -1,13 +1,3 @@
-import {
-  apps as fallbackApps,
-  channels as fallbackChannels,
-  credentials as fallbackCredentials,
-  faucetGrants as fallbackFaucetGrants,
-  ledgerEntries as fallbackLedgerEntries,
-  pricingPolicies as fallbackPricingPolicies,
-  routes as fallbackRoutes,
-  usageEvents as fallbackUsageEvents,
-} from "./console-data";
 import { revalidatePath } from "next/cache";
 
 import { requireConsoleOperator } from "./console-auth-server";
@@ -105,7 +95,7 @@ export type ConsoleRuntimeData = {
   routes: ConsoleRoute[];
   usageEvents: ConsoleUsageEvent[];
   ledgerEntries: ConsoleLedgerEntry[];
-  source: "gateway" | "fallback";
+  source: "gateway" | "unavailable";
 };
 
 export type ConsoleRuntimeOptions = {
@@ -153,17 +143,17 @@ const gatewayAdminToken =
   process.env.GATEWAY_ADMIN_TOKEN ??
   "";
 
-function fallbackRuntimeData(): ConsoleRuntimeData {
+export function createUnavailableRuntimeData(): ConsoleRuntimeData {
   return {
-    apps: fallbackApps,
-    channels: fallbackChannels,
-    credentials: fallbackCredentials,
-    faucetGrants: fallbackFaucetGrants,
-    pricingPolicies: fallbackPricingPolicies,
-    routes: fallbackRoutes,
-    usageEvents: fallbackUsageEvents,
-    ledgerEntries: fallbackLedgerEntries as ConsoleLedgerEntry[],
-    source: "fallback",
+    apps: [],
+    channels: [],
+    credentials: [],
+    faucetGrants: [],
+    pricingPolicies: [],
+    routes: [],
+    usageEvents: [],
+    ledgerEntries: [],
+    source: "unavailable",
   };
 }
 
@@ -186,7 +176,11 @@ async function fetchJson<T>(path: string): Promise<T> {
   return (await response.json()) as T;
 }
 
-async function writeAdminJson(path: string, body: Record<string, unknown>) {
+async function writeAdminJson(
+  path: string,
+  body: Record<string, unknown>,
+  method: "PATCH" | "POST" = "POST",
+) {
   await requireConsoleOperator();
 
   if (!gatewayAdminToken) {
@@ -200,7 +194,7 @@ async function writeAdminJson(path: string, body: Record<string, unknown>) {
       authorization: `Bearer ${gatewayAdminToken}`,
       "content-type": "application/json",
     },
-    method: "POST",
+    method,
     signal: AbortSignal.timeout(1200),
   });
 
@@ -247,6 +241,22 @@ export async function createConsoleApp(formData: FormData) {
     id: formString(formData, "id"),
     name: formString(formData, "name"),
   });
+  revalidateConsoleSetup();
+}
+
+export async function activateConsoleAppDefaults(formData: FormData) {
+  "use server";
+
+  const appId = formString(formData, "appId");
+
+  await writeAdminJson(
+    `/admin/apps/${encodeURIComponent(appId)}`,
+    {
+      defaultPricingPolicyId: formString(formData, "defaultPricingPolicyId"),
+      defaultRouteId: formString(formData, "defaultRouteId"),
+    },
+    "PATCH",
+  );
   revalidateConsoleSetup();
 }
 
@@ -408,6 +418,6 @@ export async function getConsoleRuntimeData(
       source: "gateway",
     };
   } catch {
-    return fallbackRuntimeData();
+    return createUnavailableRuntimeData();
   }
 }

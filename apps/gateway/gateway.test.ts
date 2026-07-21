@@ -507,6 +507,35 @@ describe("gateway minimum API", () => {
     expect(route.statusCode).toBe(201);
     expect(grant.statusCode).toBe(201);
 
+    const crossAppDefaults = await server.inject({
+      method: "PATCH",
+      url: "/admin/apps/app_beta",
+      headers: adminHeaders,
+      payload: {
+        defaultPricingPolicyId: "policy_default",
+        defaultRouteId: "route_paper_summary",
+      },
+    });
+
+    expect(crossAppDefaults.statusCode).toBe(400);
+    expect(crossAppDefaults.json().error.code).toBe(
+      "invalid_default_route_scope",
+    );
+
+    const crossAppPricing = await server.inject({
+      method: "PATCH",
+      url: "/admin/apps/app_beta",
+      headers: adminHeaders,
+      payload: {
+        defaultPricingPolicyId: "policy_default",
+      },
+    });
+
+    expect(crossAppPricing.statusCode).toBe(400);
+    expect(crossAppPricing.json().error.code).toBe(
+      "invalid_default_pricing_scope",
+    );
+
     const appUpdate = await server.inject({
       method: "PATCH",
       url: "/admin/apps/app_beta",

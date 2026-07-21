@@ -237,12 +237,13 @@ Local port allocation:
 
 The Console reads Gateway Admin API usage, ledger, app, channel, faucet, route,
 credential-metadata, and pricing data from `CONSOLE_GATEWAY_BASE_URL` or
-`GATEWAY_BASE_URL`. The current sample fallback is not authoritative runtime data and
-must become an explicit degraded state before release. The `/setup` page creates apps,
-channels, routes, faucet grants, pricing policies, and credential metadata through
-server-side Admin API actions. `/admin/*` requires an admin bearer token, but the
-Console is protected by a single-operator login: its proxy gates every page, while
-runtime reads and Server Actions recheck the signed session or automation bearer token.
+`GATEWAY_BASE_URL`. If the Gateway cannot be reached, the Console shows an explicit
+unavailable state and empty runtime collections; it never substitutes sample records.
+The `/setup` page creates apps, channels, routes, faucet grants, pricing policies, app
+defaults, and credential metadata through server-side Admin API actions. `/admin/*`
+requires an admin bearer token, but the Console is protected by a single-operator login:
+its proxy gates every page, while runtime reads and Server Actions recheck the signed
+session or automation bearer token.
 Configure the Gateway with `FOUNTLAYER_ADMIN_TOKEN_SHA256` or
 `FOUNTLAYER_ADMIN_TOKEN`, and configure the Console server with
 `CONSOLE_GATEWAY_ADMIN_TOKEN`, `CONSOLE_OPERATOR_TOKEN_SHA256`, and an independent
@@ -392,7 +393,9 @@ does not yet prove a production commercial loop:
   production launch.
 - The repository is not ready for external beta exposure until the P0 gates in
   [the beta plan](docs/BETA_PLAN.md) and capability matrix are complete.
-- Real PDF extraction and production application images remain release blockers.
+- The document demo performs bounded browser-local PDF.js extraction: 10 MB, 40 pages,
+  and 80,000 extracted characters. Raw PDF bytes are not sent to the Gateway.
+- Pinned production application images remain a release blocker.
 - Developer/channel revenue-share markups remain disabled until payout wallets and
   settlement obligations are implemented.
 - Docker Compose runtime validation passed in GitHub Actions for the beta

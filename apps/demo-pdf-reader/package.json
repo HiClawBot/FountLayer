@@ -14,6 +14,7 @@
     "@fountlayer/session-ticket": "workspace:*",
     "lucide-react": "^1.20.0",
     "next": "^16.2.9",
+    "pdfjs-dist": "6.1.200",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },

@@ -126,6 +126,16 @@ button {
   max-width: 680px;
 }
 
+.runtime-alert {
+  border: 1px solid #d7bfa8;
+  border-radius: 7px;
+  padding: 12px 14px;
+  background: #fbf2e8;
+  color: #704424;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .toolbar {
   display: flex;
   gap: 8px;
