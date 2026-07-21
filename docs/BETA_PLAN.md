@@ -1,10 +1,15 @@
 # FountLayer Beta Plan
 
-Target: `v0.5.0-beta.1`
+Target: `v0.5.0-beta.2`
 
-FountLayer is ready to move into a self-hosted beta track. The beta should be
-positioned as an operator build for developers who want to run their own
-Gateway. It is not a hosted managed-service launch.
+FountLayer is implementing a self-hosted external beta for developers who want to run
+their own Gateway. It is not yet ready for external exposure and is not a hosted
+managed-service launch. The current support contract lives in
+[`BETA_CAPABILITIES.md`](BETA_CAPABILITIES.md).
+
+The completed checklist below records foundation work from earlier milestones. It does
+not override the current P0 release gates or imply that every stored/configured control
+is wired into the stock runtime.
 
 ## Current Assessment
 
@@ -54,10 +59,15 @@ Verified on GitHub Actions for the beta branch:
   <https://github.com/HiClawBot/FountLayer/actions/workflows/pages.yml?query=branch%3Acodex%2Fv0.5.0-beta>
 - Public site: <https://hiclawbot.github.io/FountLayer/>
 
-Current blocker before tagging beta:
+Current blockers before tagging the external beta:
 
-- None from the code/release gate. Tagging `v0.5.0-beta.1` is now a maintainer
-  publishing action.
+- Authenticate every Console page and Server Action behind the single-operator boundary.
+- Replace public identifier-only session creation with app-scoped short-lived tickets.
+- Add tenant-safe identity/wallet/session/credential migrations and upgrade tests.
+- Settle fixed-point monetary amounts from adapter-reported actual usage.
+- Remove unsupported BYOK/local/streaming surfaces and add real bounded PDF extraction.
+- Ship pinned production images/Compose, a real-upstream golden smoke, and recovery drills.
+- Remediate production dependency advisories and add the audit to CI.
 
 ## Beta Definition
 
@@ -72,7 +82,7 @@ Current blocker before tagging beta:
 5. Run one billable call that produces exactly one usage event and balanced
    ledger entries.
 6. Verify that denied calls do not create usage or ledger records.
-7. Export or queue a settlement report.
+7. Verify the authenticated Console shows the same attribution, usage, and ledger facts.
 8. Confirm no real provider key appears in SDK, frontend, logs, docs, or Git
    history.
 

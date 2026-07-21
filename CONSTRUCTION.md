@@ -2,6 +2,10 @@
 
 This document is written for human developers and AI coding agents such as Codex. It defines the build order, non-negotiable constraints, architecture, data model, APIs, tests, and Definition of Done.
 
+> This is a target construction blueprint, not the current external support contract.
+> Use [`docs/BETA_CAPABILITIES.md`](docs/BETA_CAPABILITIES.md) for supported,
+> experimental, and unavailable beta behavior.
+
 ## 0. Build Principle
 
 Build the smallest complete loop first:

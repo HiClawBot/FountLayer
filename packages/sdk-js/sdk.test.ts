@@ -1,5 +1,3 @@
-import { TextEncoder } from "node:util";
-
 import { describe, expect, it } from "vitest";
 
 import { createFountLayer } from "./src/index";
@@ -268,20 +266,15 @@ describe("FountLayer SDK", () => {
     );
   });
 
-  it("streams raw SSE data from the gateway", async () => {
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(encoder.encode("data: hello\n\n"));
-        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-        controller.close();
-      },
-    });
+  it("fails closed before sending an unsupported streaming chat request", async () => {
+    const calls: string[] = [];
     const sdk = createFountLayer({
       appId: "app_pdf_reader",
       channelId: "channel_desktop",
       endpoint: "http://localhost:3300",
       fetchImpl: async (url) => {
+        calls.push(String(url));
+
         if (String(url).endsWith("/v1/sessions")) {
           return new Response(
             JSON.stringify({
@@ -293,22 +286,23 @@ describe("FountLayer SDK", () => {
           );
         }
 
-        return new Response(stream, { status: 200 });
+        throw new Error("Streaming must fail before a chat request is sent.");
       },
     });
     const session = await sdk.startSession({
       endUserId: "user_hash_123",
       useCase: "paper_summary",
     });
-    const chunks: string[] = [];
-
-    for await (const chunk of session.streamChat({
-      model: "vertical/paper-summary",
-      messages: [{ role: "user", content: "Hello" }],
-    })) {
-      chunks.push(chunk);
-    }
-
-    expect(chunks).toEqual(["hello"]);
+    await expect(
+      (async () => {
+        for await (const _chunk of session.streamChat({
+          model: "vertical/paper-summary",
+          messages: [{ role: "user", content: "Hello" }],
+        })) {
+          void _chunk;
+        }
+      })(),
+    ).rejects.toThrow("Streaming is unavailable in the external beta");
+    expect(calls).toEqual(["http://localhost:3300/v1/sessions"]);
   });
 });

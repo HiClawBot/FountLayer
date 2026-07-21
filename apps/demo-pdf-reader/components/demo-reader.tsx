@@ -3,21 +3,15 @@
 import { Calculator, FileText, Send, WalletCards } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { createFountLayer, type FountLayerMode } from "@fountlayer/sdk-js";
+import { createFountLayer } from "@fountlayer/sdk-js";
 
 const gatewayEndpoint =
   process.env.NEXT_PUBLIC_GATEWAY_BASE_URL ?? "http://localhost:3300";
 
-const modes: FountLayerMode[] = ["managed", "byok", "local"];
-
 export function DemoReader() {
-  const [mode, setMode] = useState<FountLayerMode>("managed");
+  const mode = "managed" as const;
   const [documentText, setDocumentText] = useState(
     "FountLayer is an open LLM last-mile distribution layer for apps. It routes app-native AI requests through attribution, faucet credits, metering, and balanced ledger entries.",
-  );
-  const [apiKey, setApiKey] = useState("");
-  const [localEndpoint, setLocalEndpoint] = useState(
-    "http://127.0.0.1:3314/v1",
   );
   const [estimate, setEstimate] = useState<string>("0.00000000");
   const [balance, setBalance] = useState<string>("0.00000000");
@@ -39,30 +33,10 @@ export function DemoReader() {
       return;
     }
 
-    if (
-      file.type === "application/pdf" ||
-      file.name.toLowerCase().endsWith(".pdf")
-    ) {
-      setDocumentText(
-        `PDF: ${file.name}\nSize: ${file.size} bytes\n\n${await file.text()}`,
-      );
-      return;
-    }
-
     setDocumentText(await file.text());
   }
 
   async function startDemoSession() {
-    if (mode === "byok" && apiKey) {
-      sdk.setUserApiKey(apiKey);
-    }
-
-    if (mode === "local") {
-      sdk.setLocalEndpoint({
-        baseUrl: localEndpoint,
-      });
-    }
-
     return sdk.startSession({
       endUserId: "user_hash_123",
       useCase: "paper_summary",
@@ -124,19 +98,10 @@ export function DemoReader() {
       <header className="topbar">
         <div className="brand">
           <FileText size={22} aria-hidden="true" />
-          <span>PDF Reader AI</span>
+          <span>Document Reader AI</span>
         </div>
-        <div className="mode-switch" aria-label="AI access mode">
-          {modes.map((item) => (
-            <button
-              className={item === mode ? "active" : ""}
-              key={item}
-              onClick={() => setMode(item)}
-              type="button"
-            >
-              {item}
-            </button>
-          ))}
+        <div className="mode-status" aria-label="AI access mode">
+          Managed beta
         </div>
       </header>
       <main className="content">
@@ -144,7 +109,7 @@ export function DemoReader() {
           <div className="panel-header">
             <h1>Document</h1>
             <input
-              accept=".txt,.md,.pdf,application/pdf,text/*"
+              accept=".txt,.md,text/plain,text/markdown"
               aria-label="Document file"
               onChange={(event) => void loadFile(event.target.files?.[0])}
               type="file"
@@ -156,28 +121,6 @@ export function DemoReader() {
               onChange={(event) => setDocumentText(event.target.value)}
               value={documentText}
             />
-            {mode === "byok" ? (
-              <div className="input-row">
-                <label htmlFor="byok">BYOK key</label>
-                <input
-                  id="byok"
-                  onChange={(event) => setApiKey(event.target.value)}
-                  placeholder="Stored locally"
-                  type="password"
-                  value={apiKey}
-                />
-              </div>
-            ) : null}
-            {mode === "local" ? (
-              <div className="input-row">
-                <label htmlFor="local-endpoint">Local endpoint</label>
-                <input
-                  id="local-endpoint"
-                  onChange={(event) => setLocalEndpoint(event.target.value)}
-                  value={localEndpoint}
-                />
-              </div>
-            ) : null}
             <div className="row">
               <button
                 className="button secondary"

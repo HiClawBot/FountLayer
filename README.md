@@ -3,7 +3,11 @@
 **Open-source LLM last-mile distribution layer for apps.**  
 中文名建议：**智泉层**
 
-FountLayer lets any app safely embed LLM capabilities with managed models, developer-owned keys, end-user BYOK, local/LAN models, faucet credits, usage metering, attribution, and revenue-sharing ledgers.
+FountLayer lets apps embed managed LLM capabilities with attribution, controlled test
+credits, usage metering, and balanced ledger records. The first external beta supports
+one self-hosted managed-mode path; developer-key, BYOK, local/LAN, streaming, payments,
+and settlement remain experimental foundations. See the
+[external beta capability matrix](docs/BETA_CAPABILITIES.md).
 
 > FountLayer is not a chatbot UI and not an API-key reseller. It is an infrastructure layer for app-native AI distribution.
 
@@ -22,7 +26,7 @@ FountLayer Gateway
   ↓
 Faucet + Pricing + Budget Guard
   ↓
-LLM Adapter: Managed / Developer Key / BYOK / Local
+LLM Adapter: Managed via LiteLLM (external beta)
   ↓
 Usage Events + Ledger Entries
   ↓
@@ -42,14 +46,14 @@ Developer Console + Revenue Sharing
 | Usage Event  | Token-level record of an LLM request.                                                                           |
 | Ledger Entry | Money movement record for wallet debit, platform fee, developer margin, channel commission, subsidy, or refund. |
 
-## Four AI Access Modes
+## AI Access Modes
 
-| Mode            | Description                                                                             | Good for                                     |
-| --------------- | --------------------------------------------------------------------------------------- | -------------------------------------------- |
-| `managed`       | End users use AI without entering API keys. Requests go through the FountLayer Gateway. | Consumer apps and low-friction onboarding.   |
-| `developer_key` | The app developer supplies provider keys and pricing policies.                          | SaaS, vertical apps, enterprise tools.       |
-| `byok`          | End users bring their own API keys. Default should be local-only storage.               | Power users and privacy-sensitive users.     |
-| `local`         | End users connect a local or LAN OpenAI-compatible endpoint.                            | Offline, private, low-cost, self-hosted use. |
+| Mode            | External beta status | Description                                                                                     |
+| --------------- | -------------------- | ----------------------------------------------------------------------------------------------- |
+| `managed`       | Supported            | Requests use the operator-configured LiteLLM/OpenAI-compatible upstream.                        |
+| `developer_key` | Experimental         | Credential and protocol foundations exist; no public end-to-end path is offered.                |
+| `byok`          | Unavailable          | SDK local-storage helpers exist, but the stock request path does not use the stored key.        |
+| `local`         | Unavailable          | SDK endpoint helpers exist, but the stock browser request path does not route to that endpoint. |
 
 ## Local Quickstart
 
@@ -112,7 +116,7 @@ pnpm smoke:runtime
 For production-like testing, set `FOUNTLAYER_DEPLOYMENT_ENV=production`,
 `FOUNTLAYER_GATEWAY_STORE=postgres`, hashed admin tokens, a non-local
 `DATABASE_URL`, `FOUNTLAYER_CREDENTIAL_MASTER_KEY`, and
-`FOUNTLAYER_GATEWAY_ADAPTER=litellm` or `local`. The `demo` adapter is rejected
+`FOUNTLAYER_GATEWAY_ADAPTER=litellm`. The `demo` adapter is rejected
 in production mode.
 
 ## Current Local Loop
@@ -199,7 +203,7 @@ Local port allocation:
 | ------ | ---------------------------------------- |
 | `3300` | Gateway                                  |
 | `3301` | Console                                  |
-| `3302` | Demo PDF Reader                          |
+| `3302` | Demo Document Reader                     |
 | `3303` | Project website dev server               |
 | `3304` | Project website preview server           |
 | `3305` | LiteLLM proxy                            |
@@ -207,12 +211,14 @@ Local port allocation:
 | `3332` | PostgreSQL                               |
 | `3379` | Redis                                    |
 
-The Console reads live Gateway Admin API usage, ledger, app, channel, faucet,
-route, credential-metadata, and pricing data from `CONSOLE_GATEWAY_BASE_URL` or
-`GATEWAY_BASE_URL`, and falls back to local sample data when the Gateway is
-unavailable. The `/setup` page creates apps, channels, routes, faucet grants,
-pricing policies, and credential metadata through server-side Admin API
-actions. In `v0.5.0-beta.1`, `/admin/*` requires an admin bearer token.
+The Console reads Gateway Admin API usage, ledger, app, channel, faucet, route,
+credential-metadata, and pricing data from `CONSOLE_GATEWAY_BASE_URL` or
+`GATEWAY_BASE_URL`. The current sample fallback is not authoritative runtime data and
+must become an explicit degraded state before release. The `/setup` page creates apps,
+channels, routes, faucet grants, pricing policies, and credential metadata through
+server-side Admin API actions. `/admin/*` requires an admin bearer token, but the
+Console itself must not be exposed until Wave 1 operator authentication protects every
+page and action.
 Configure the Gateway with `FOUNTLAYER_ADMIN_TOKEN_SHA256` or
 `FOUNTLAYER_ADMIN_TOKEN`, and configure the Console server with
 `CONSOLE_GATEWAY_ADMIN_TOKEN`. Do not expose this token through `NEXT_PUBLIC_*`
@@ -226,10 +232,10 @@ startup also requires `FOUNTLAYER_CREDENTIAL_MASTER_KEY`, a 32-byte credential
 encryption master key such as `base64:<32-byte-random-key>`, plus an optional
 `FOUNTLAYER_CREDENTIAL_KEY_VERSION`.
 
-BYOK stays local-only by default. SDK local endpoint configuration accepts only
-localhost, private LAN, or `.local` URLs. Hosted end-user BYOK credential writes
-are disabled unless the Gateway is explicitly started with
-`FOUNTLAYER_ALLOW_HOSTED_BYOK=true`.
+BYOK and local endpoint helpers are experimental storage/configuration primitives in
+this release. They do not change the stock SDK request destination or authenticate an
+upstream. Hosted end-user BYOK writes remain disabled by default; do not enable or
+advertise them for the external beta.
 
 Gateway billable chat calls are protected by simple windowed caps. Tune
 `FOUNTLAYER_BILLABLE_RATE_WINDOW_MS`,
@@ -249,12 +255,10 @@ prompt or completion bodies. Same-process retries can replay the original
 response; after cache loss, a completed retry returns the original usage-event
 reference without running or billing the request again.
 
-The stock Gateway selects one runtime adapter per process with
-`FOUNTLAYER_GATEWAY_ADAPTER`: `demo` (development default), `litellm`, or
-`local`. LiteLLM mode reads `LITELLM_BASE_URL` and `LITELLM_MASTER_KEY`. Direct
-local mode reads `LOCAL_OPENAI_BASE_URL` and optional `LOCAL_OPENAI_API_KEY`;
-the endpoint must resolve to localhost, a private LAN address, or a `.local`
-host.
+The stock Gateway can select `demo` (development only), `litellm`, or `local` per
+process. The external beta contract supports `litellm` only. LiteLLM mode reads
+`LITELLM_BASE_URL` and `LITELLM_MASTER_KEY`; the other adapters remain internal or
+experimental until their product contracts and release tests are complete.
 
 ## SDK Example
 
@@ -276,7 +280,6 @@ const result = await session.chat(
   {
     model: "vertical/paper-summary",
     messages: [{ role: "user", content: "Summarize this paper." }],
-    stream: true,
   },
   { idempotencyKey: "paper-summary-document-123" },
 );
@@ -325,30 +328,37 @@ fountlayer/
 
 ## Implemented Foundation Scope
 
-The current beta foundation proves the full commercial loop:
+The current foundation proves the accounting shape of the managed test-credit loop. It
+does not yet prove a production commercial loop:
 
 - SDK can call the Gateway.
-- Gateway can route through the local demo adapter, LiteLLM adapter package, or
-  OpenAI-compatible local adapter package.
+- Gateway can select the development demo adapter or server-configured LiteLLM/local
+  adapter packages; only LiteLLM is in the external beta contract.
 - Requests include app/channel/end-user/use-case attribution.
 - Faucet credits can be issued, limited, and deducted.
 - Usage events and ledger entries are created for every successful call.
 - Developer console can show usage, cost, revenue, gross margin, and channel commission.
-- SDK helpers support local-only BYOK and local endpoint configuration.
+- SDK helpers can store local-only BYOK/local endpoint configuration, but those values do
+  not participate in the stock request path and are not supported beta execution modes.
 - PostgreSQL-backed Gateway mode persists sessions, grants, usage, ledger,
   credentials metadata, wallets, routes, and pricing policies.
 - Admin APIs require bearer-token authentication and return credential metadata
   only.
 - Server-side credential writes encrypt provider keys before persistence.
-- Wallet-funded calls, route policies, settlement exports, metadata-only
-  observability, reliability controls, and privacy retention helpers are
-  implemented as beta foundations.
+- Wallet-funded calls, route policies, settlement exports, metadata-only observability,
+  reliability controls, and privacy retention helpers exist as foundations. Several are
+  not wired into the stock production runtime and are not public beta promises.
 - Provider API keys never appear in SDK, frontend bundles, mobile apps, logs, or the Git repository.
 
 ## Current Limitations
 
 - `v0.5.0-beta.1` is a self-hosted operator beta, not a hosted managed-service
   production launch.
+- The repository is not ready for external beta exposure until the P0 gates in
+  [the beta plan](docs/BETA_PLAN.md) and capability matrix are complete.
+- Console operator authentication, app-scoped session tickets, tenant-safe migrations,
+  actual-usage fixed-point pricing, real PDF extraction, and production application
+  images remain release blockers.
 - Docker Compose runtime validation passed in GitHub Actions for the beta
   release gate; maintainers can repeat it locally where Docker is available.
 - Managed-service operations still need formal provider terms review,

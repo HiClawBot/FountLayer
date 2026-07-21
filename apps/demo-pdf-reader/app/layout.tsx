@@ -3,8 +3,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "FountLayer PDF Reader Demo",
-  description: "SDK-backed PDF reader demo for the FountLayer MVP loop.",
+  title: "FountLayer Document Reader Demo",
+  description:
+    "Managed-mode document reader demo for the FountLayer beta loop.",
 };
 
 export default function RootLayout({

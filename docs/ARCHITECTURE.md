@@ -2,6 +2,10 @@
 
 FountLayer is divided into SDK, Gateway, Faucet Engine, Pricing Engine, Routing Engine, Adapter Layer, Usage Metering, Ledger, Console, and optional Billing integrations.
 
+This document includes target-state components. The current external release contract is
+defined by [`BETA_CAPABILITIES.md`](BETA_CAPABILITIES.md); a component shown here is not
+necessarily wired into the stock beta runtime.
+
 ## Component Diagram
 
 ```txt

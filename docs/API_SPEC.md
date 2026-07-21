@@ -1,5 +1,9 @@
 # API Spec
 
+External beta note: only managed, non-streaming chat is supported. The broader schema
+retains target/experimental mode and stream fields for compatibility; consult
+[`BETA_CAPABILITIES.md`](BETA_CAPABILITIES.md) before exposing a client feature.
+
 The public Gateway API should be OpenAI-compatible where possible while adding FountLayer attribution and billing metadata.
 
 ## Required Headers

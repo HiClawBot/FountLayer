@@ -220,56 +220,15 @@ export class FountLayerSession {
     );
   }
 
-  async *streamChat(
+  streamChat(
     input: ChatRequest,
     options: ChatRequestOptions = {},
   ): AsyncIterable<string> {
-    const response = await this.client.rawRequest(
-      "/v1/chat/completions",
-      this.context,
-      this.token,
-      {
-        ...input,
-        stream: true,
-      },
-      options,
+    void input;
+    void options;
+    throw new Error(
+      "Streaming is unavailable in the external beta. Use chat() for a non-streaming completion.",
     );
-
-    if (!response.body) {
-      throw new Error("Streaming response did not include a body.");
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-
-      if (done) {
-        break;
-      }
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split(/\r?\n/);
-      buffer = lines.pop() ?? "";
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-
-        if (!trimmed.startsWith("data:")) {
-          continue;
-        }
-
-        const data = trimmed.slice("data:".length).trim();
-
-        if (data === "[DONE]") {
-          return;
-        }
-
-        yield data;
-      }
-    }
   }
 
   getBalance(): Promise<BalanceResponse> {

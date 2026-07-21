@@ -1,13 +1,15 @@
 # FountLayer Roadmap
 
-This roadmap now tracks the path from the beta construction branch to
-`v0.5.0-beta.1`. The direct beta execution checklist is in
-[Beta Plan](./BETA_PLAN.md).
+This roadmap tracks the path from the beta construction branch to
+`v0.5.0-beta.2`. The direct execution checklist is in [Beta Plan](./BETA_PLAN.md),
+and the current support contract is in
+[External Beta Capabilities](./BETA_CAPABILITIES.md).
 
 - PostgreSQL-backed Gateway Store exists.
 - Gateway sessions are persisted as token hashes.
 - Authenticated `/v1` requests enforce session attribution matching.
-- Console can read live Gateway Admin API data with static fallback.
+- Console can read Gateway Admin API data; static fallback must become an explicit
+  non-authoritative sample/degraded state before release.
 - Admin auth, credential encryption, route policies, wallet-funded calls,
   settlement exports, metadata-only observability, reliability controls,
   privacy retention, and dependency health checks exist as beta foundations.
