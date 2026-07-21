@@ -50,7 +50,7 @@ type OpenAIUsageLike = {
 };
 
 function numberField(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value)
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
     ? value
     : undefined;
 }
@@ -88,7 +88,10 @@ export function mapOpenAIUsage(
     numberField(usage.input_tokens) ?? numberField(usage.prompt_tokens);
   const outputTokens =
     numberField(usage.output_tokens) ?? numberField(usage.completion_tokens);
-  const cachedInputTokens = numberField(usage.cached_input_tokens) ?? 0;
+  const cachedInputTokens = Math.min(
+    inputTokens ?? 0,
+    numberField(usage.cached_input_tokens) ?? 0,
+  );
 
   if (inputTokens === undefined || outputTokens === undefined) {
     return estimateAdapterUsage(input, outputContent);

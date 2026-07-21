@@ -70,14 +70,15 @@ export async function seedDatabase(
       `;
 
       await transaction`
-        insert into wallets (id, owner_type, owner_id, currency, balance_numeric)
+        insert into wallets (id, app_id, owner_type, owner_id, currency, balance_numeric)
         values
-          ('wallet_platform_revenue', 'platform', 'platform', 'USD', 0),
-          ('wallet_platform_cost', 'platform', 'platform_cost', 'USD', 0),
-          ('wallet_provider_payable', 'provider_payable', 'demo', 'USD', 0),
-          ('wallet_faucet_new_user', 'platform', 'grant_new_user', 'USD', 1.00000000),
-          ('wallet_user_demo', 'end_user', 'user_hash_123', 'USD', 0)
+          ('wallet_platform_revenue', 'app_pdf_reader', 'platform', 'platform', 'USD', 0),
+          ('wallet_platform_cost', 'app_pdf_reader', 'platform', 'platform_cost', 'USD', 0),
+          ('wallet_provider_payable', 'app_pdf_reader', 'provider_payable', 'demo', 'USD', 0),
+          ('wallet_faucet_new_user', 'app_pdf_reader', 'platform', 'grant_new_user', 'USD', 1.00000000),
+          ('wallet_user_demo', 'app_pdf_reader', 'end_user', 'user_hash_123', 'USD', 0)
         on conflict (id) do update set
+          app_id = excluded.app_id,
           owner_type = excluded.owner_type,
           owner_id = excluded.owner_id,
           currency = excluded.currency,

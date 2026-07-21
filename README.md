@@ -341,6 +341,7 @@ fountlayer/
 │   ├── protocol/          # Shared OpenAPI schema and types
 │   ├── db/                # Drizzle schema, migration, and seed data
 │   ├── credentials/       # Server-side credential encryption helpers
+│   ├── money/             # Exact fixed-point money and rate arithmetic
 │   ├── pricing/           # Model price registry and estimator
 │   ├── faucet/            # Faucet grant matching and deduction
 │   ├── ledger/            # Double-entry ledger helpers
@@ -372,6 +373,11 @@ does not yet prove a production commercial loop:
   not participate in the stock request path and are not supported beta execution modes.
 - PostgreSQL-backed Gateway mode persists sessions, grants, usage, ledger,
   credentials metadata, wallets, routes, and pricing policies.
+- Checksum-journaled forward migrations enforce app-scoped session, user, wallet,
+  credential, usage, and ledger relationships.
+- Monetary values are calculated with 8-decimal fixed-point arithmetic; the final
+  charge is recomputed from validated adapter token usage and Store-backed prices and
+  policy, rather than copied from the pre-call estimate.
 - Admin APIs require bearer-token authentication and return credential metadata
   only.
 - Server-side credential writes encrypt provider keys before persistence.
@@ -386,8 +392,9 @@ does not yet prove a production commercial loop:
   production launch.
 - The repository is not ready for external beta exposure until the P0 gates in
   [the beta plan](docs/BETA_PLAN.md) and capability matrix are complete.
-- Tenant-safe migrations, actual-usage fixed-point pricing, real PDF extraction,
-  and production application images remain release blockers.
+- Real PDF extraction and production application images remain release blockers.
+- Developer/channel revenue-share markups remain disabled until payout wallets and
+  settlement obligations are implemented.
 - Docker Compose runtime validation passed in GitHub Actions for the beta
   release gate; maintainers can repeat it locally where Docker is available.
 - Managed-service operations still need formal provider terms review,

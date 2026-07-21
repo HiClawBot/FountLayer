@@ -21,6 +21,7 @@ import {
   createBalancedLedgerEntries,
   createUsageEvent,
 } from "@fountlayer/ledger";
+import { addMoney, compareMoney } from "@fountlayer/money";
 import {
   createTelemetryEvent,
   createTelemetryMetric,
@@ -28,12 +29,13 @@ import {
   type TelemetrySink,
 } from "@fountlayer/observability";
 import {
-  demoModelPrices,
   estimateChatTokens,
-  findModelPrice,
   priceByokRequest,
   priceLocalRequest,
   priceManagedRequest,
+  type ModelPrice,
+  type PricingPolicy,
+  type TokenEstimate,
 } from "@fountlayer/pricing";
 import {
   type AttributionContext,
@@ -187,6 +189,7 @@ type PaymentSource =
     };
 
 type ProviderCredentialCreateBody = {
+  appId: string;
   apiKey: string;
   budgetDaily?: string;
   budgetMonthly?: string;
@@ -409,16 +412,18 @@ function parseProviderCredentialCreateBody(
     return undefined;
   }
 
+  const appId = requiredBodyString(body, "appId");
   const ownerType = requiredBodyString(body, "ownerType");
   const ownerId = requiredBodyString(body, "ownerId");
   const provider = requiredBodyString(body, "provider");
   const apiKey = requiredBodyString(body, "apiKey");
 
-  if (!ownerType || !ownerId || !provider || !apiKey) {
+  if (!appId || !ownerType || !ownerId || !provider || !apiKey) {
     return undefined;
   }
 
   return {
+    appId,
     apiKey,
     budgetDaily: optionalMoneyString(body, "budgetDaily"),
     budgetMonthly: optionalMoneyString(body, "budgetMonthly"),
@@ -671,13 +676,14 @@ function parsePricingPolicyCreateBody(
 
   const id = requiredBodyString(body, "id");
   const name = requiredBodyString(body, "name");
+  const appId = requiredBodyString(body, "appId");
 
-  if (!id || !name) {
+  if (!appId || !id || !name) {
     return undefined;
   }
 
   return {
-    appId: optionalBodyString(body, "appId"),
+    appId,
     channelMarkupRate:
       optionalDecimalString(body, "channelMarkupRate") ?? "0.000000",
     developerMarkupRate:
@@ -1303,10 +1309,6 @@ function assertAttributionMatch(
   return true;
 }
 
-function formatMoney(amount: number): string {
-  return Math.max(0, amount).toFixed(8);
-}
-
 function requireRequestAttribution(
   request: FastifyRequest,
 ): AttributionContext {
@@ -1325,30 +1327,45 @@ function requireRequestAuth(request: FastifyRequest): AuthContext {
   return request.auth;
 }
 
-function resolvePriceBreakdown(
-  attribution: AttributionContext,
-  request: {
-    messages: Array<{ content: string }>;
-  },
-  routePolicy: GatewayRoutePolicyRecord,
-  tokenEstimate = estimateChatTokens(request.messages),
-) {
-  const modelPrice = findModelPrice(
-    demoModelPrices,
-    routePolicy.provider,
-    routePolicy.model,
-  );
+type PricingSnapshot = {
+  modelPrice: ModelPrice;
+  policy: PricingPolicy;
+};
 
-  if (!modelPrice) {
+async function loadPricingSnapshot(
+  store: GatewayStore,
+  attribution: AttributionContext,
+  routePolicy: GatewayRoutePolicyRecord,
+): Promise<PricingSnapshot | undefined> {
+  const [modelPrice, policy] = await Promise.all([
+    store.getModelPrice(routePolicy.provider, routePolicy.model),
+    store.getPricingPolicy(attribution.appId),
+  ]);
+
+  if (
+    !modelPrice ||
+    !policy ||
+    compareMoney(policy.developerMarkupRate, "0") !== 0 ||
+    compareMoney(policy.channelMarkupRate, "0") !== 0
+  ) {
     return undefined;
   }
 
+  return { modelPrice, policy };
+}
+
+function resolvePriceBreakdown(
+  attribution: AttributionContext,
+  pricing: PricingSnapshot,
+  tokenEstimate: TokenEstimate,
+) {
   return attribution.mode === "byok"
     ? priceByokRequest(tokenEstimate)
     : attribution.mode === "local"
       ? priceLocalRequest(tokenEstimate)
       : priceManagedRequest({
-          modelPrice,
+          modelPrice: pricing.modelPrice,
+          policy: pricing.policy,
           tokenEstimate,
         });
 }
@@ -1421,7 +1438,7 @@ async function rejectRouteSpendCap(
 ): Promise<boolean> {
   if (
     routePolicy.maxRetailPrice === undefined ||
-    Number(retailPrice) <= Number(routePolicy.maxRetailPrice)
+    compareMoney(retailPrice, routePolicy.maxRetailPrice) <= 0
   ) {
     return false;
   }
@@ -1791,15 +1808,12 @@ export function buildGatewayServer(
       store.listActiveGrants(attribution),
       store.getWallet(attribution),
     ]);
-    const faucetBalance = grants.reduce(
-      (total, grant) => total + Number(grant.remaining),
-      0,
-    );
+    const faucetBalance = addMoney(...grants.map((grant) => grant.remaining));
 
     return {
       currency: wallet?.currency ?? "USD",
       wallet_balance: wallet?.balance ?? "0.00000000",
-      faucet_balance: formatMoney(faucetBalance),
+      faucet_balance: faucetBalance,
       active_grants: grants.map((grant) => grant.id),
     };
   });
@@ -1845,13 +1859,16 @@ export function buildGatewayServer(
       return reply;
     }
 
-    const estimate = resolvePriceBreakdown(
-      attribution,
-      parsed.data,
-      routePolicy,
-    );
+    const pricing = await loadPricingSnapshot(store, attribution, routePolicy);
+    const estimate = pricing
+      ? resolvePriceBreakdown(
+          attribution,
+          pricing,
+          estimateChatTokens(parsed.data.messages),
+        )
+      : undefined;
 
-    if (!estimate) {
+    if (!pricing || !estimate) {
       return jsonError(
         reply,
         400,
@@ -1983,13 +2000,16 @@ export function buildGatewayServer(
       return reply;
     }
 
-    const estimate = resolvePriceBreakdown(
-      attribution,
-      parsed.data,
-      routePolicy,
-    );
+    const pricing = await loadPricingSnapshot(store, attribution, routePolicy);
+    const estimate = pricing
+      ? resolvePriceBreakdown(
+          attribution,
+          pricing,
+          estimateChatTokens(parsed.data.messages),
+        )
+      : undefined;
 
-    if (!estimate) {
+    if (!pricing || !estimate) {
       return jsonError(
         reply,
         400,
@@ -2168,19 +2188,20 @@ export function buildGatewayServer(
           attribution,
           requestedAmount: estimate.retailPrice,
         });
-    const paymentSource: PaymentSource | undefined = faucetMatch.matched
-      ? {
-          type: "faucet_grant",
-          grant: faucetMatch.grant,
-        }
-      : walletMatch?.matched
+    const preflightPaymentSource: PaymentSource | undefined =
+      faucetMatch.matched
         ? {
-            type: "wallet",
-            wallet: walletMatch.wallet,
+            type: "faucet_grant",
+            grant: faucetMatch.grant,
           }
-        : undefined;
+        : walletMatch?.matched
+          ? {
+              type: "wallet",
+              wallet: walletMatch.wallet,
+            }
+          : undefined;
 
-    if (!paymentSource) {
+    if (!preflightPaymentSource) {
       await releaseIdempotencyReservation();
       await recordTelemetry(telemetrySink, "gateway.chat.denied", {
         appId: attribution.appId,
@@ -2329,6 +2350,134 @@ export function buildGatewayServer(
       );
     }
 
+    const settledPrice = resolvePriceBreakdown(
+      attribution,
+      pricing,
+      output.usage,
+    );
+    const recordProviderCostFailure = async (reason: string) => {
+      const usageEvent = createUsageEvent({
+        id: `ue_${randomUUID()}`,
+        requestId,
+        attribution,
+        provider: routePolicy.provider,
+        model: output.model,
+        routeId: routePolicy.id,
+        inputTokens: output.usage.inputTokens,
+        outputTokens: output.usage.outputTokens,
+        cachedInputTokens: output.usage.cachedInputTokens,
+        usageEstimated: output.usage.usageEstimated,
+        upstreamCost: settledPrice.upstreamCost,
+        wholesalePrice: settledPrice.wholesalePrice,
+        retailPrice: settledPrice.retailPrice,
+        status: "failed",
+      });
+      const ledgerEntries = createBalancedLedgerEntries({
+        usageEventId: usageEvent.id,
+        wallets: defaultWallets,
+        upstreamCost: usageEvent.upstreamCost,
+        retailPrice: "0.00000000",
+        metadata: {
+          requestId,
+          appId: attribution.appId,
+          channelId: attribution.channelId,
+          endUserId: attribution.endUserId,
+          routeId: routePolicy.id,
+          billingFailureReason: reason,
+        },
+      });
+
+      await store.recordProviderCostCall({
+        idempotency: idempotencyReservation,
+        usageEvent,
+        ledgerEntries,
+      });
+
+      return usageEvent;
+    };
+
+    if (
+      routePolicy.maxRetailPrice !== undefined &&
+      compareMoney(settledPrice.retailPrice, routePolicy.maxRetailPrice) > 0
+    ) {
+      try {
+        const failedUsageEvent = await recordProviderCostFailure(
+          "actual_usage_exceeded_route_cap",
+        );
+
+        return jsonError(
+          reply,
+          402,
+          "actual_usage_exceeded_route_cap",
+          "Actual provider usage exceeded the route retail-price cap; no user credits were deducted.",
+          { usage_event_id: failedUsageEvent.id },
+        );
+      } catch {
+        return jsonError(
+          reply,
+          500,
+          "billing_record_failed",
+          "Provider usage completed, but its cost record could not be persisted.",
+        );
+      }
+    }
+
+    const settledFaucetMatch = await store.findPayingGrant({
+      attribution,
+      model: parsed.data.model,
+      requestedAmount: settledPrice.retailPrice,
+    });
+    const settledWalletMatch = settledFaucetMatch.matched
+      ? undefined
+      : await store.findPayingWallet({
+          attribution,
+          requestedAmount: settledPrice.retailPrice,
+        });
+    const paymentSource: PaymentSource | undefined = settledFaucetMatch.matched
+      ? {
+          type: "faucet_grant",
+          grant: settledFaucetMatch.grant,
+        }
+      : settledWalletMatch?.matched
+        ? {
+            type: "wallet",
+            wallet: settledWalletMatch.wallet,
+          }
+        : undefined;
+
+    if (!paymentSource) {
+      try {
+        const failedUsageEvent = await recordProviderCostFailure(
+          "actual_usage_insufficient_balance",
+        );
+
+        await recordTelemetry(telemetrySink, "gateway.chat.denied", {
+          appId: attribution.appId,
+          channelId: attribution.channelId,
+          endUserId: attribution.endUserId,
+          mode: attribution.mode,
+          reason: "actual_usage_insufficient_balance",
+          retailPrice: settledPrice.retailPrice,
+          routeId: routePolicy.id,
+          useCase: attribution.useCase,
+        });
+        return jsonError(
+          reply,
+          402,
+          "actual_usage_insufficient_balance",
+          "Actual provider usage exceeded the available balance; no user credits were deducted.",
+          { usage_event_id: failedUsageEvent.id },
+        );
+      } catch {
+        return jsonError(
+          reply,
+          500,
+          "billing_record_failed",
+          "Provider usage completed, but its cost record could not be persisted.",
+        );
+      }
+    }
+
     const usageEvent = createUsageEvent({
       id: `ue_${randomUUID()}`,
       requestId,
@@ -2340,9 +2489,9 @@ export function buildGatewayServer(
       outputTokens: output.usage.outputTokens,
       cachedInputTokens: output.usage.cachedInputTokens,
       usageEstimated: output.usage.usageEstimated,
-      upstreamCost: estimate.upstreamCost,
-      wholesalePrice: estimate.wholesalePrice,
-      retailPrice: estimate.retailPrice,
+      upstreamCost: settledPrice.upstreamCost,
+      wholesalePrice: settledPrice.wholesalePrice,
+      retailPrice: settledPrice.retailPrice,
       faucetGrantId:
         paymentSource.type === "faucet_grant"
           ? paymentSource.grant.id
@@ -2359,6 +2508,8 @@ export function buildGatewayServer(
       },
       upstreamCost: usageEvent.upstreamCost,
       retailPrice: usageEvent.retailPrice,
+      developerMargin: settledPrice.developerMarkup,
+      channelCommission: settledPrice.channelMarkup,
       metadata: {
         requestId,
         appId: attribution.appId,
@@ -2378,7 +2529,7 @@ export function buildGatewayServer(
               faucet_remaining: (
                 await store.recordBillableCall({
                   grantId: paymentSource.grant.id,
-                  amount: estimate.retailPrice,
+                  amount: settledPrice.retailPrice,
                   idempotency: idempotencyReservation,
                   usageEvent,
                   ledgerEntries,
@@ -2389,7 +2540,7 @@ export function buildGatewayServer(
               wallet_balance: (
                 await store.recordWalletBillableCall({
                   walletId: paymentSource.wallet.id,
-                  amount: estimate.retailPrice,
+                  amount: settledPrice.retailPrice,
                   idempotency: idempotencyReservation,
                   usageEvent,
                   ledgerEntries,
@@ -2499,7 +2650,7 @@ export function buildGatewayServer(
           total_tokens: output.usage.totalTokens,
         },
         billing: {
-          currency: estimate.currency,
+          currency: settledPrice.currency,
           upstream_cost: usageEvent.upstreamCost,
           retail_price: usageEvent.retailPrice,
           paid_by: paymentSource.type,
@@ -3107,6 +3258,7 @@ export function buildGatewayServer(
       await store.listProviderCredentials(),
       [
         { query: "id", read: (item) => item.id },
+        { query: "app_id", read: (item) => item.appId },
         { query: "owner", read: (item) => item.owner },
         { query: "provider", read: (item) => item.provider },
         { query: "status", read: (item) => item.status },
@@ -3114,6 +3266,7 @@ export function buildGatewayServer(
       ],
       [
         (item) => item.id,
+        (item) => item.appId,
         (item) => item.owner,
         (item) => item.provider,
         (item) => item.status,
@@ -3151,7 +3304,7 @@ export function buildGatewayServer(
         reply,
         400,
         "invalid_provider_credential",
-        "Provider credential request must include ownerType, ownerId, provider, and apiKey.",
+        "Provider credential request must include appId, ownerType, ownerId, provider, and apiKey.",
       );
     }
 
@@ -3164,11 +3317,30 @@ export function buildGatewayServer(
       );
     }
 
+    try {
+      if (!(await store.getActiveApp(parsed.appId))) {
+        return jsonError(
+          reply,
+          400,
+          "unknown_credential_app",
+          "Provider credential app must reference an active app.",
+        );
+      }
+    } catch {
+      return jsonError(
+        reply,
+        503,
+        "credential_scope_unavailable",
+        "Provider credential app validation is unavailable.",
+      );
+    }
+
     const id = `cred_${randomUUID()}`;
     const encrypted = credentialCipher.encrypt(parsed.apiKey, id);
 
     try {
       const credential = await store.createProviderCredential({
+        appId: parsed.appId,
         budgetDaily: parsed.budgetDaily,
         budgetMonthly: parsed.budgetMonthly,
         display: maskCredential(parsed.apiKey),
@@ -3337,7 +3509,28 @@ export function buildGatewayServer(
         reply,
         400,
         "invalid_pricing_policy",
-        "Pricing policy request must include id and name.",
+        "Pricing policy request must include appId, id, and name.",
+      );
+    }
+
+    if (!(await store.getActiveApp(parsed.appId))) {
+      return jsonError(
+        reply,
+        400,
+        "unknown_pricing_policy_app",
+        "Pricing policy app must reference an active app.",
+      );
+    }
+
+    if (
+      compareMoney(parsed.developerMarkupRate, "0") !== 0 ||
+      compareMoney(parsed.channelMarkupRate, "0") !== 0
+    ) {
+      return jsonError(
+        reply,
+        400,
+        "unsupported_pricing_markup",
+        "Developer and channel markup wallets are not enabled in this beta; both rates must remain zero.",
       );
     }
 
@@ -3403,6 +3596,20 @@ export function buildGatewayServer(
         400,
         "invalid_pricing_policy",
         "Pricing policy update request must include at least one writable field.",
+      );
+    }
+
+    if (
+      (parsed.developerMarkupRate !== undefined &&
+        compareMoney(parsed.developerMarkupRate, "0") !== 0) ||
+      (parsed.channelMarkupRate !== undefined &&
+        compareMoney(parsed.channelMarkupRate, "0") !== 0)
+    ) {
+      return jsonError(
+        reply,
+        400,
+        "unsupported_pricing_markup",
+        "Developer and channel markup wallets are not enabled in this beta; both rates must remain zero.",
       );
     }
 

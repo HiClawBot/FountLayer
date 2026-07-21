@@ -299,7 +299,7 @@ export async function createConsolePricingPolicy(formData: FormData) {
   "use server";
 
   await writeAdminJson("/admin/pricing-policies", {
-    appId: optionalFormString(formData, "appId"),
+    appId: formString(formData, "appId"),
     channelMarkupRate: optionalFormString(formData, "channelMarkupRate"),
     developerMarkupRate: optionalFormString(formData, "developerMarkupRate"),
     id: formString(formData, "id"),
@@ -319,6 +319,7 @@ export async function createConsoleCredential(formData: FormData) {
   "use server";
 
   await writeAdminJson("/admin/provider-credentials", {
+    appId: formString(formData, "appId"),
     apiKey: formString(formData, "apiKey"),
     budgetDaily: optionalFormString(formData, "budgetDaily"),
     budgetMonthly: optionalFormString(formData, "budgetMonthly"),

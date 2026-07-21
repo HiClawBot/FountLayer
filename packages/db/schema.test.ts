@@ -13,6 +13,7 @@ import {
   sessions,
   usageEvents,
 } from "./src/schema";
+import { migrationChecksum } from "./src/migrate";
 
 const migrationSql = readFileSync(
   new URL("./migrations/0000_initial.sql", import.meta.url),
@@ -23,6 +24,10 @@ const publicBoundaryMigrationSql = readFileSync(
     "./migrations/0001_session_tickets_and_rate_limits.sql",
     import.meta.url,
   ),
+  "utf8",
+);
+const appScopeMigrationSql = readFileSync(
+  new URL("./migrations/0002_app_scoped_relationships.sql", import.meta.url),
   "utf8",
 );
 
@@ -119,6 +124,52 @@ describe("database migration", () => {
     expect(publicBoundaryMigrationSql).toContain("key_hash text primary key");
     expect(publicBoundaryMigrationSql).not.toContain("ticket text");
     expect(publicBoundaryMigrationSql).not.toContain("end_user_id");
+  });
+
+  it("journals immutable migrations by SHA-256 checksum", () => {
+    expect(migrationChecksum(migrationSql)).toMatch(/^[a-f0-9]{64}$/);
+    expect(migrationChecksum(migrationSql)).toBe(
+      migrationChecksum(migrationSql),
+    );
+    expect(migrationChecksum(`${migrationSql}\n`)).not.toBe(
+      migrationChecksum(migrationSql),
+    );
+  });
+
+  it("enforces app-scoped session, wallet, credential, usage, and ledger relationships", () => {
+    for (const constraint of [
+      "sessions_app_channel_fk",
+      "sessions_app_end_user_fk",
+      "faucet_grants_app_wallet_fk",
+      "usage_events_app_channel_fk",
+      "usage_events_app_end_user_fk",
+      "usage_events_app_route_fk",
+      "ledger_entries_app_usage_fk",
+      "ledger_entries_app_wallet_fk",
+      "apps_default_route_scope_fk",
+      "apps_default_pricing_policy_scope_fk",
+    ]) {
+      expect(appScopeMigrationSql).toContain(constraint);
+    }
+
+    expect(appScopeMigrationSql).toContain(
+      "alter table wallets alter column app_id set not null",
+    );
+    expect(appScopeMigrationSql).toContain(
+      "alter table provider_credentials alter column app_id set not null",
+    );
+    expect(appScopeMigrationSql).toContain(
+      "alter table pricing_policies alter column app_id set not null",
+    );
+    expect(appScopeMigrationSql).toContain(
+      "raise exception 'A wallet is linked to more than one app",
+    );
+    expect(appScopeMigrationSql).toContain(
+      "create trigger provider_credentials_validate_scope",
+    );
+    expect(appScopeMigrationSql).toContain(
+      "Provider credential developer does not own app.",
+    );
   });
 });
 

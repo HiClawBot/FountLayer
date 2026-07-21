@@ -42,6 +42,9 @@ deployment.
 | Session token replay across attribution             | Unauthorized metered calls           | Session token hashes are stored server-side; authenticated `/v1` requests must match captured attribution.         |
 | Browser invents or drifts session attribution       | Cross-app credit abuse               | Gateway verifies an HMAC ticket binding all attribution fields and managed mode before atomically redeeming it.    |
 | Ticket or rate limit is replayed across instances   | Session/faucet abuse                 | PostgreSQL stores ticket-ID hashes and atomic rate counters across Gateway instances and restarts.                 |
+| Cross-app IDs are joined through global resources   | Tenant data or credit crossover      | Composite foreign keys bind sessions, grants, usage, ledger, wallets, and credentials to an explicit app.          |
+| Binary-float or estimate drift changes billing      | Incorrect balances or reconciliation | BigInt fixed-point pricing settles from validated actual adapter usage and a pinned Store price/policy snapshot.   |
+| An applied migration is edited or races another run | Unreviewed schema drift              | Advisory-locked migration journal rejects filename/checksum mismatches.                                            |
 | Duplicate billing on client retry                   | Duplicate usage/ledger records       | `idempotency-key` uses a session-scoped request hash and PostgreSQL reservation completed atomically with billing. |
 | Adapter failure after payment precheck              | User charged without provider result | Usage events and ledger entries are written only after successful adapter response.                                |
 | Route to unapproved/high-cost model                 | Unexpected spend                     | Route model allowlists and max retail caps run before adapter execution.                                           |

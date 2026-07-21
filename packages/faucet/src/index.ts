@@ -1,4 +1,5 @@
 import type { AttributionContext } from "@fountlayer/protocol";
+import { formatMoney, parseMoney } from "@fountlayer/money";
 
 export type FaucetGrantStatus = "active" | "exhausted" | "expired" | "revoked";
 
@@ -56,20 +57,6 @@ export type AtomicDeductionStatement = {
   parameters: [grantId: string, amount: string, nowIso: string];
 };
 
-function parseMoney(value: string): number {
-  const parsed = Number(value);
-
-  if (!Number.isFinite(parsed) || parsed < 0) {
-    throw new Error(`Invalid non-negative money value: ${value}`);
-  }
-
-  return parsed;
-}
-
-function money(value: number): string {
-  return Math.max(0, value).toFixed(8);
-}
-
 function utcDay(value: string | Date): string {
   return new Date(value).toISOString().slice(0, 10);
 }
@@ -102,7 +89,7 @@ function collectRejectionReasons(
     reasons.push("not_active");
   }
 
-  if (remaining <= 0) {
+  if (remaining <= 0n) {
     reasons.push("no_balance");
   }
 
@@ -181,9 +168,9 @@ export function calculateDailyGrantUsage(
         record.status === "success" &&
         utcDay(record.createdAt) === targetDay,
     )
-    .reduce((sum, record) => sum + parseMoney(record.amount), 0);
+    .reduce((sum, record) => sum + parseMoney(record.amount), 0n);
 
-  return money(total);
+  return formatMoney(total);
 }
 
 export function deductFaucetGrant(
@@ -201,8 +188,8 @@ export function deductFaucetGrant(
 
   return {
     ...grant,
-    remaining: money(remaining - debit),
-    status: remaining - debit === 0 ? "exhausted" : grant.status,
+    remaining: formatMoney(remaining - debit),
+    status: remaining - debit === 0n ? "exhausted" : grant.status,
   };
 }
 

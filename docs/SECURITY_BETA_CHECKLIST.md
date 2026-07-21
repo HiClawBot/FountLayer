@@ -32,6 +32,12 @@ Scope: `v0.5.0-beta.2` self-hosted operator beta.
 - [x] Hosted end-user BYOK credential storage requires explicit Gateway opt-in.
 - [x] Successful billable calls create exactly one usage event.
 - [x] Money movement for billable calls creates balanced ledger entries.
+- [x] Actual adapter usage is validated and repriced with 8-decimal fixed-point
+      arithmetic from Store-backed model prices and app pricing policy.
+- [x] Migration filenames/checksums are journaled, and local PostgreSQL tests prove
+      rerun idempotency, checksum mismatch rejection, and cross-app foreign-key denial.
+- [x] Wallets and credentials carry mandatory app scope; credential ownership is
+      validated by the database.
 - [x] Failed adapters, open circuits, route denials, rate limits, and
       insufficient balances do not create usage or ledger records.
 - [x] Faucet grants require remaining balance, model allowlist, use-case

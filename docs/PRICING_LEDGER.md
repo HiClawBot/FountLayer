@@ -2,6 +2,12 @@
 
 ## Pricing Formula
 
+All money uses eight-decimal fixed-point integers and all rates use six-decimal
+fixed-point integers. Decimal strings are parsed without JavaScript floating-point
+arithmetic. The estimate is a funding preflight; the successful call is repriced from
+validated adapter token usage using the model-price and policy snapshot selected before
+the upstream request.
+
 ```txt
 upstream_cost = input_tokens * input_price + output_tokens * output_price + cached_input_tokens * cached_input_price
 
@@ -72,6 +78,10 @@ Credit provider_payable_wallet      0.0021   reason=provider_payable
 ```
 
 ## Channel Commission Options
+
+The external beta forces developer and channel markup rates to zero and rejects
+nonzero policy writes. The options below remain design targets until corresponding
+payout wallets and settlement obligations are implemented:
 
 - No commission on platform-sponsored free grants.
 - Reduced commission on provider-sponsored trial grants.

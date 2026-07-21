@@ -50,8 +50,17 @@ Provider API keys must never appear in SDK source code, frontend bundles, mobile
   assistant output.
 - Route policy model allowlists and route spend caps are checked before adapter
   execution, usage event creation, or ledger entry creation.
-- Wallet-funded calls must atomically prevent negative balances. Calls rejected
-  for insufficient wallet balance do not create usage events or ledger entries.
+- Final monetary amounts use 8-decimal BigInt fixed-point arithmetic and validated
+  non-negative integer adapter usage. The Store-backed model price and app policy are
+  snapshotted before execution; funding, usage, ledger, and idempotency completion are
+  committed atomically from the recomputed actual-usage price.
+- Numbered migrations are protected by an advisory lock and immutable SHA-256 journal.
+  Composite foreign keys bind sessions, grants, usage events, ledger entries, and
+  wallets to one app. Credential scope is validated in PostgreSQL before writes.
+- Wallet-funded calls must atomically prevent negative balances. Preflight funding
+  failures stop before the adapter and create no accounting records; post-provider
+  actual-usage funding/cap failures create a failed usage event plus balanced provider-
+  cost entries, without charging user credits.
 - Gateway telemetry is metadata-only. Prompt text, assistant output, provider
   keys, authorization headers, session tokens, and raw adapter payloads must not
   be emitted.
@@ -77,6 +86,8 @@ Provider API keys must never appear in SDK source code, frontend bundles, mobile
 
 - `POST /admin/provider-credentials` and credential rotation accept plaintext
   provider keys only over the authenticated server-side Admin API.
+- Credential creation requires an active `appId`; database validation prevents app,
+  developer, and end-user ownership from crossing that app boundary.
 - The Gateway encrypts provider keys before persistence using
   `@fountlayer/credentials`.
 - `FOUNTLAYER_CREDENTIAL_MASTER_KEY` must be configured for credential writes,

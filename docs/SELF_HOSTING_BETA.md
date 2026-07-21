@@ -46,9 +46,13 @@ pnpm db:migrate
 pnpm db:seed
 ```
 
-The beta migrations are rerunnable and execute in filename order. Existing beta
-databases can run `pnpm db:migrate` again to add durable ticket-redemption and
-rate-limit tables before starting the updated Gateway.
+The beta migrator executes numbered files in filename order under a PostgreSQL
+advisory lock and records each SHA-256 checksum in
+`fountlayer_schema_migrations`. Re-running is a no-op; modifying an already-applied
+migration fails closed. Existing beta databases can run `pnpm db:migrate` again to
+add durable ticket/rate controls plus app-scoped wallet, credential, session, usage,
+and ledger constraints. Ambiguous cross-app historical relationships stop the
+migration and must be remediated explicitly instead of being reassigned silently.
 
 ## Start Gateway
 

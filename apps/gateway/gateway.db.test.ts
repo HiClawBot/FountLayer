@@ -3,10 +3,15 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   createDatabaseSql,
   getTestDatabaseUrl,
+  runMigrations,
   setupTestDatabase,
   type FountLayerSql,
 } from "@fountlayer/db";
 import { createFountLayer } from "@fountlayer/sdk-js";
+import {
+  createBalancedLedgerEntries,
+  createUsageEvent,
+} from "@fountlayer/ledger";
 import {
   createSessionTicket,
   insecureDevelopmentSessionTicketSecret,
@@ -45,6 +50,130 @@ describeDb("gateway postgres store", () => {
   afterEach(async () => {
     await server?.close();
     await sql?.end();
+  });
+
+  it("journals migrations idempotently and enforces app-scoped relations", async () => {
+    if (!sql) {
+      throw new Error("Postgres test database was not initialized.");
+    }
+
+    const before = await sql<Array<{ version: string; checksum: string }>>`
+      select version, checksum
+      from fountlayer_schema_migrations
+      order by version
+    `;
+
+    await runMigrations(databaseUrl);
+
+    const after = await sql<Array<{ version: string; checksum: string }>>`
+      select version, checksum
+      from fountlayer_schema_migrations
+      order by version
+    `;
+
+    expect(before.map((row) => row.version)).toEqual([
+      "0000_initial.sql",
+      "0001_session_tickets_and_rate_limits.sql",
+      "0002_app_scoped_relationships.sql",
+    ]);
+    expect(after).toEqual(before);
+    expect(before.every((row) => /^[a-f0-9]{64}$/.test(row.checksum))).toBe(
+      true,
+    );
+
+    await sql`
+      insert into developers (id, name)
+      values ('dev_scope_test', 'Scope Test')
+    `;
+    await sql`
+      insert into apps (id, developer_id, name)
+      values ('app_scope_test', 'dev_scope_test', 'Scope Test')
+    `;
+    await sql`
+      insert into channels (id, app_id, name, type)
+      values ('channel_scope_test', 'app_scope_test', 'Scope Test', 'direct')
+    `;
+    await sql`
+      insert into routes (id, app_id, alias, config)
+      values ('route_scope_test', 'app_scope_test', 'scope/test', ${sql.json({})})
+    `;
+    await sql`
+      insert into pricing_policies (id, app_id, name)
+      values ('policy_scope_test', 'app_scope_test', 'Scope Test')
+    `;
+
+    await expect(
+      sql`
+        insert into sessions (
+          id,
+          app_id,
+          channel_id,
+          end_user_id,
+          use_case,
+          mode,
+          token_hash,
+          expires_at
+        )
+        values (
+          'sess_cross_app_test',
+          'app_pdf_reader',
+          'channel_scope_test',
+          'user_hash_123',
+          'paper_summary',
+          'managed',
+          'cross_app_token_hash',
+          now() + interval '1 hour'
+        )
+      `,
+    ).rejects.toMatchObject({ code: "23503" });
+
+    await expect(
+      sql`
+        insert into provider_credentials (
+          id,
+          app_id,
+          owner_type,
+          owner_id,
+          provider,
+          encrypted_api_key,
+          key_version
+        )
+        values (
+          'cred_cross_app_test',
+          'app_scope_test',
+          'developer',
+          'dev_demo',
+          'demo',
+          'encrypted-placeholder',
+          'test-v1'
+        )
+      `,
+    ).rejects.toMatchObject({ code: "23503" });
+
+    await expect(
+      sql`
+        update apps
+        set default_route_id = 'route_scope_test'
+        where id = 'app_pdf_reader'
+      `,
+    ).rejects.toMatchObject({ code: "23503" });
+
+    await expect(
+      sql`
+        update apps
+        set default_pricing_policy_id = 'policy_scope_test'
+        where id = 'app_pdf_reader'
+      `,
+    ).rejects.toMatchObject({ code: "23503" });
+
+    await sql`
+      update fountlayer_schema_migrations
+      set checksum = ${"0".repeat(64)}
+      where version = '0000_initial.sql'
+    `;
+    await expect(runMigrations(databaseUrl)).rejects.toThrow(
+      "Applied migration checksum mismatch: 0000_initial.sql",
+    );
   });
 
   it("persists faucet deduction, usage event, and ledger entries", async () => {
@@ -109,6 +238,75 @@ describeDb("gateway postgres store", () => {
     expect(usageRows[0]?.count).toBe("1");
     expect(ledgerRows[0]?.count).toBe("4");
     expect(Number(grantRows[0]?.remaining)).toBeLessThan(1);
+  });
+
+  it("persists failed provider usage and balanced cost entries without a user debit", async () => {
+    if (!sql) {
+      throw new Error("Postgres test database was not initialized.");
+    }
+
+    const store = createPostgresGatewayStore(sql);
+    const usageEvent = createUsageEvent({
+      id: "ue_provider_cost_test",
+      requestId: "req_provider_cost_test",
+      attribution: {
+        appId: "app_pdf_reader",
+        channelId: "channel_desktop",
+        endUserId: "user_hash_123",
+        mode: "managed",
+        useCase: "paper_summary",
+      },
+      provider: "demo",
+      model: "demo-local-model",
+      routeId: "route_paper_summary",
+      inputTokens: 1,
+      outputTokens: 1_000,
+      upstreamCost: "0.00060015",
+      wholesalePrice: "0.00079820",
+      retailPrice: "0.00079820",
+      status: "failed",
+    });
+    const ledgerEntries = createBalancedLedgerEntries({
+      usageEventId: usageEvent.id,
+      wallets: {
+        payerWalletId: "wallet_faucet_new_user",
+        platformRevenueWalletId: "wallet_platform_revenue",
+        platformCostWalletId: "wallet_platform_cost",
+        providerPayableWalletId: "wallet_provider_payable",
+      },
+      upstreamCost: usageEvent.upstreamCost,
+      retailPrice: "0.00000000",
+      metadata: { billingFailureReason: "actual_usage_insufficient_balance" },
+    });
+
+    await store.recordProviderCostCall({ usageEvent, ledgerEntries });
+
+    const usageRows = await sql<Array<{ status: string }>>`
+      select status from usage_events where id = ${usageEvent.id}
+    `;
+    const ledgerRows = await sql<
+      Array<{ direction: string; reason: string; amount: string }>
+    >`
+      select direction, reason, amount_numeric::text as amount
+      from ledger_entries
+      where usage_event_id = ${usageEvent.id}
+      order by reason
+    `;
+
+    expect(usageRows).toEqual([{ status: "failed" }]);
+    expect(ledgerRows).toHaveLength(2);
+    expect(ledgerRows).toEqual([
+      {
+        amount: "0.00060015",
+        direction: "debit",
+        reason: "provider_cost",
+      },
+      {
+        amount: "0.00060015",
+        direction: "credit",
+        reason: "provider_payable",
+      },
+    ]);
   });
 
   it("persists wallet deduction when faucet grants cannot pay", async () => {

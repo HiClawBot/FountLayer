@@ -112,6 +112,7 @@ paths:
   /v1/chat/completions:
     post:
       summary: OpenAI-compatible chat completions with FountLayer billing metadata
+      description: Uses a pre-call funding estimate, then atomically settles 8-decimal fixed-point amounts from validated adapter token usage and the pinned Store price/policy snapshot.
       security:
         - bearerAuth: []
       parameters:
@@ -130,6 +131,8 @@ paths:
       responses:
         "200":
           description: Chat completion
+        "402":
+          description: Preflight funding failed, or actual usage exceeded balance/route cap; post-provider failures include a failed usage_event_id and charge no user credits
         "409":
           description: Idempotency key is in progress, conflicts with another request, or was completed without a locally replayable response
 
@@ -756,13 +759,15 @@ components:
     PricingPolicyCreate:
       type: object
       additionalProperties: false
-      required: [id, name]
+      required: [appId, id, name]
       properties:
         appId: { type: string, minLength: 1 }
         channelMarkupRate:
           $ref: "#/components/schemas/Money"
+          description: Must be zero in the external beta.
         developerMarkupRate:
           $ref: "#/components/schemas/Money"
+          description: Must be zero in the external beta.
         id: { type: string, minLength: 1 }
         maxTotalMarkupRate:
           $ref: "#/components/schemas/Money"
@@ -782,8 +787,10 @@ components:
         appId: { type: string, minLength: 1 }
         channelMarkupRate:
           $ref: "#/components/schemas/Money"
+          description: Must be zero in the external beta.
         developerMarkupRate:
           $ref: "#/components/schemas/Money"
+          description: Must be zero in the external beta.
         maxTotalMarkupRate:
           $ref: "#/components/schemas/Money"
         name: { type: string, minLength: 1 }
@@ -843,8 +850,11 @@ components:
 
     ProviderCredentialWrite:
       type: object
-      required: [ownerType, ownerId, provider, apiKey]
+      required: [appId, ownerType, ownerId, provider, apiKey]
       properties:
+        appId:
+          type: string
+          description: Active app scope; credential ownership is validated against this app.
         ownerType: { type: string }
         ownerId: { type: string }
         provider: { type: string }

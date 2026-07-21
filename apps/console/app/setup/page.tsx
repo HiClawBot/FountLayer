@@ -172,21 +172,6 @@ export default async function SetupPage() {
               name="riskReserveRate"
               placeholder="0.050000"
             />
-            <Field
-              label="Developer Markup"
-              name="developerMarkupRate"
-              placeholder="0.000000"
-            />
-            <Field
-              label="Channel Markup"
-              name="channelMarkupRate"
-              placeholder="0.000000"
-            />
-            <Field
-              label="Max Markup"
-              name="maxTotalMarkupRate"
-              placeholder="1.000000"
-            />
             <div className="form-actions">
               <SubmitButton label="Create policy" />
             </div>
@@ -195,6 +180,7 @@ export default async function SetupPage() {
 
         <Panel title="Credential">
           <form action={createConsoleCredential} className="form-grid">
+            <Field label="App ID" name="appId" placeholder="app_pdf_reader" />
             <Field
               label="Owner Type"
               name="ownerType"

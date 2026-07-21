@@ -1,4 +1,5 @@
 import type { AttributionContext, FountLayerMode } from "@fountlayer/protocol";
+import { formatMoney, parseMoney } from "@fountlayer/money";
 
 export type MoneyDirection = "debit" | "credit";
 
@@ -80,27 +81,13 @@ export type BalancedLedgerInput = {
   metadata?: Record<string, unknown>;
 };
 
-function decimal(value: string): number {
-  const parsed = Number(value);
-
-  if (!Number.isFinite(parsed) || parsed < 0) {
-    throw new Error(`Invalid non-negative ledger amount: ${value}`);
-  }
-
-  return parsed;
-}
-
-function money(value: number): string {
-  return Math.max(0, value).toFixed(8);
-}
-
 function entry(input: LedgerEntryInput): LedgerEntryRecord {
   return {
     id: input.id,
     usageEventId: input.usageEventId,
     walletId: input.walletId,
     direction: input.direction,
-    amount: money(decimal(input.amount)),
+    amount: formatMoney(parseMoney(input.amount)),
     reason: input.reason,
     metadata: input.metadata ?? {},
     createdAt: input.createdAt ?? new Date().toISOString(),
@@ -123,9 +110,9 @@ export function createUsageEvent(input: UsageEventInput): UsageEventRecord {
     outputTokens: input.outputTokens,
     cachedInputTokens: input.cachedInputTokens ?? 0,
     usageEstimated: input.usageEstimated ?? false,
-    upstreamCost: money(decimal(input.upstreamCost)),
-    wholesalePrice: money(decimal(input.wholesalePrice)),
-    retailPrice: money(decimal(input.retailPrice)),
+    upstreamCost: formatMoney(parseMoney(input.upstreamCost)),
+    wholesalePrice: formatMoney(parseMoney(input.wholesalePrice)),
+    retailPrice: formatMoney(parseMoney(input.retailPrice)),
     faucetGrantId: input.faucetGrantId,
     status: input.status ?? "success",
     createdAt: input.createdAt ?? new Date().toISOString(),
@@ -137,13 +124,13 @@ export function createBalancedLedgerEntries(
 ): LedgerEntryRecord[] {
   const idPrefix = input.idPrefix ?? input.usageEventId;
   const createdAt = input.createdAt ?? new Date().toISOString();
-  const upstreamCost = decimal(input.upstreamCost);
-  const retailPrice = decimal(input.retailPrice);
-  const developerMargin = decimal(input.developerMargin ?? "0");
-  const channelCommission = decimal(input.channelCommission ?? "0");
+  const upstreamCost = parseMoney(input.upstreamCost);
+  const retailPrice = parseMoney(input.retailPrice);
+  const developerMargin = parseMoney(input.developerMargin ?? "0");
+  const channelCommission = parseMoney(input.channelCommission ?? "0");
   const platformRevenue = retailPrice - developerMargin - channelCommission;
 
-  if (platformRevenue < 0) {
+  if (platformRevenue < 0n) {
     throw new Error(
       "Developer margin and channel commission exceed retail price.",
     );
@@ -155,7 +142,7 @@ export function createBalancedLedgerEntries(
       usageEventId: input.usageEventId,
       walletId: input.wallets.payerWalletId,
       direction: "debit",
-      amount: money(retailPrice),
+      amount: formatMoney(retailPrice),
       reason: "retail_charge",
       metadata: input.metadata,
       createdAt,
@@ -165,7 +152,7 @@ export function createBalancedLedgerEntries(
       usageEventId: input.usageEventId,
       walletId: input.wallets.platformRevenueWalletId,
       direction: "credit",
-      amount: money(platformRevenue),
+      amount: formatMoney(platformRevenue),
       reason: "platform_revenue",
       metadata: input.metadata,
       createdAt,
@@ -175,7 +162,7 @@ export function createBalancedLedgerEntries(
       usageEventId: input.usageEventId,
       walletId: input.wallets.platformCostWalletId,
       direction: "debit",
-      amount: money(upstreamCost),
+      amount: formatMoney(upstreamCost),
       reason: "provider_cost",
       metadata: input.metadata,
       createdAt,
@@ -185,14 +172,14 @@ export function createBalancedLedgerEntries(
       usageEventId: input.usageEventId,
       walletId: input.wallets.providerPayableWalletId,
       direction: "credit",
-      amount: money(upstreamCost),
+      amount: formatMoney(upstreamCost),
       reason: "provider_payable",
       metadata: input.metadata,
       createdAt,
     }),
   ];
 
-  if (developerMargin > 0) {
+  if (developerMargin > 0n) {
     if (!input.wallets.developerMarginWalletId) {
       throw new Error(
         "Developer margin wallet is required when margin is positive.",
@@ -205,7 +192,7 @@ export function createBalancedLedgerEntries(
         usageEventId: input.usageEventId,
         walletId: input.wallets.developerMarginWalletId,
         direction: "credit",
-        amount: money(developerMargin),
+        amount: formatMoney(developerMargin),
         reason: "developer_margin",
         metadata: input.metadata,
         createdAt,
@@ -213,7 +200,7 @@ export function createBalancedLedgerEntries(
     );
   }
 
-  if (channelCommission > 0) {
+  if (channelCommission > 0n) {
     if (!input.wallets.channelCommissionWalletId) {
       throw new Error(
         "Channel commission wallet is required when commission is positive.",
@@ -226,7 +213,7 @@ export function createBalancedLedgerEntries(
         usageEventId: input.usageEventId,
         walletId: input.wallets.channelCommissionWalletId,
         direction: "credit",
-        amount: money(channelCommission),
+        amount: formatMoney(channelCommission),
         reason: "channel_commission",
         metadata: input.metadata,
         createdAt,
@@ -235,22 +222,22 @@ export function createBalancedLedgerEntries(
   }
 
   assertLedgerBalanced(entries);
-  return entries.filter((ledgerEntry) => decimal(ledgerEntry.amount) > 0);
+  return entries.filter((ledgerEntry) => parseMoney(ledgerEntry.amount) > 0n);
 }
 
 export function assertLedgerBalanced(entries: LedgerEntryRecord[]): void {
   const debits = entries
     .filter((ledgerEntry) => ledgerEntry.direction === "debit")
-    .reduce((sum, ledgerEntry) => sum + decimal(ledgerEntry.amount), 0);
+    .reduce((sum, ledgerEntry) => sum + parseMoney(ledgerEntry.amount), 0n);
   const credits = entries
     .filter((ledgerEntry) => ledgerEntry.direction === "credit")
-    .reduce((sum, ledgerEntry) => sum + decimal(ledgerEntry.amount), 0);
+    .reduce((sum, ledgerEntry) => sum + parseMoney(ledgerEntry.amount), 0n);
 
-  if (money(debits) !== money(credits)) {
+  if (debits !== credits) {
     throw new Error(
-      `Ledger entries are not balanced: debits=${money(debits)} credits=${money(
-        credits,
-      )}`,
+      `Ledger entries are not balanced: debits=${formatMoney(
+        debits,
+      )} credits=${formatMoney(credits)}`,
     );
   }
 }

@@ -47,6 +47,10 @@ Console / Worker / Optional Billing
 - `idempotency_records` coordinate session-scoped billable requests; they store
   request hashes, leases, status, and usage references but no response bodies.
 - `model_prices` are the source of truth for cost estimation.
+- `pricing_policies` selected by each app are the source of truth for fee rates;
+  developer/channel markups remain disabled until payout wallets exist.
+- `fountlayer_schema_migrations` journals immutable migration filenames and
+  SHA-256 checksums under an advisory lock.
 - `faucet_grants` are the source of truth for free credits.
 - Provider logs and SDK telemetry are not financial sources of truth.
 
@@ -62,13 +66,18 @@ Console / Worker / Optional Billing
    matches request attribution.
 6. Gateway reserves an optional session-scoped idempotency key and consumes
    durable abuse counters.
-7. Gateway estimates request cost.
-8. Gateway chooses the beta payment source: faucet grant or test wallet.
+7. Gateway snapshots the Store-backed model price and app pricing policy, then
+   estimates request cost for route-cap and funding preflight.
+8. Gateway checks that a faucet grant or test wallet can cover the estimate.
 9. Gateway resolves the managed route to provider/model.
 10. Adapter calls the configured LiteLLM/OpenAI-compatible upstream.
-11. Gateway atomically records the usage event, ledger entries, funding
-    mutation, and idempotency completion.
-12. Response returns usage and billing metadata.
+11. Gateway validates adapter token usage, recomputes the fixed-point final price,
+    rechecks funding, and atomically records the usage event, balanced ledger
+    entries, funding mutation, and idempotency completion.
+12. If actual usage exceeds the available balance or route cap, Gateway deducts no
+    user credits but records a failed usage event and balanced platform-cost/provider-
+    payable entries before returning `402`.
+13. Response returns usage and billing metadata.
 
 ## Routing Model
 

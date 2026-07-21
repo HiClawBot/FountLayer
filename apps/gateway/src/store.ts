@@ -6,15 +6,29 @@ import {
 import type { FountLayerSql, FountLayerTransactionSql } from "@fountlayer/db";
 import type { LedgerEntryRecord, UsageEventRecord } from "@fountlayer/ledger";
 import {
+  compareMoney,
+  formatFixed,
+  parseFixed,
+  rateScale,
+  subtractMoney,
+} from "@fountlayer/money";
+import {
+  defaultPricingPolicy as defaultRuntimePricingPolicy,
+  demoModelPrices,
+  type ModelPrice,
+  type PricingPolicy,
+} from "@fountlayer/pricing";
+import {
   createDeletedEndUserId,
   createRequestMetadataRetentionWindow,
 } from "@fountlayer/privacy";
 import type { AttributionContext } from "@fountlayer/protocol";
 
 export type GatewayAppRecord = {
+  defaultPricingPolicyId?: string;
   id: string;
   status: "active" | "disabled";
-  defaultRouteId: string;
+  defaultRouteId?: string;
 };
 
 export type GatewayChannelRecord = {
@@ -122,6 +136,7 @@ export type GatewayRoutePolicyRecord = {
 };
 
 export type GatewayAdminCredentialRecord = {
+  appId: string;
   id: string;
   owner: string;
   provider: string;
@@ -131,6 +146,7 @@ export type GatewayAdminCredentialRecord = {
 };
 
 export type GatewayProviderCredentialRecord = {
+  appId: string;
   id: string;
   ownerType: string;
   ownerId: string;
@@ -146,6 +162,7 @@ export type GatewayProviderCredentialRecord = {
 };
 
 export type GatewayProviderCredentialWriteInput = {
+  appId: string;
   budgetDaily?: string;
   budgetMonthly?: string;
   display: string;
@@ -176,7 +193,7 @@ export type GatewayAdminPricingPolicyRecord = {
 };
 
 export type GatewayAdminPricingPolicyCreateInput = {
-  appId?: string;
+  appId: string;
   channelMarkupRate: string;
   developerMarkupRate: string;
   id: string;
@@ -240,6 +257,7 @@ export type GatewayFaucetGrantUpdateInput = {
 };
 
 export type GatewayWalletRecord = {
+  appId: string;
   id: string;
   ownerType: string;
   ownerId: string;
@@ -331,6 +349,11 @@ export type BillableCallRecord = {
   now?: Date;
 };
 
+export type ProviderCostCallRecord = Pick<
+  BillableCallRecord,
+  "idempotency" | "ledgerEntries" | "usageEvent"
+>;
+
 export type BillableCallRecordResult = {
   usageEvent: UsageEventRecord;
   ledgerEntries: LedgerEntryRecord[];
@@ -402,6 +425,12 @@ export type GatewayStore = {
     appId: string,
     alias: string,
   ): Promise<GatewayRoutePolicyRecord | undefined>;
+  getModelPrice(
+    provider: string,
+    model: string,
+    at?: Date,
+  ): Promise<ModelPrice | undefined>;
+  getPricingPolicy(appId: string): Promise<PricingPolicy | undefined>;
   listActiveGrants(
     attribution: AttributionContext,
     model?: string,
@@ -431,6 +460,7 @@ export type GatewayStore = {
   recordBillableCall(
     input: BillableCallRecord,
   ): Promise<BillableCallRecordResult>;
+  recordProviderCostCall(input: ProviderCostCallRecord): Promise<void>;
   recordWalletBillableCall(
     input: Omit<BillableCallRecord, "grantId"> & { walletId: string },
   ): Promise<WalletBillableCallRecordResult>;
@@ -500,6 +530,8 @@ export type InMemoryGatewayState = {
   channels: Map<string, GatewayChannelRecord>;
   faucetGrants: GatewayGrantRecord[];
   idempotencyRecords: Map<string, GatewayIdempotencyRecord>;
+  modelPrices: ModelPrice[];
+  pricingPolicyConfigs: Map<string, PricingPolicy>;
   rateLimitCounters: Map<
     string,
     { count: number; resetAt: string; scope: GatewayRateLimitScope }
@@ -581,6 +613,7 @@ type RateLimitRow = {
 };
 
 type WalletRow = {
+  app_id: string;
   id: string;
   owner_type: string;
   owner_id: string;
@@ -625,6 +658,7 @@ type AdminRouteRow = {
 };
 
 type AdminCredentialRow = {
+  app_id: string;
   display: string;
   encrypted_api_key: string;
   id: string;
@@ -658,6 +692,7 @@ type JsonValue =
   | { readonly [key: string]: JsonValue | undefined };
 
 const defaultApp: GatewayAppRecord = {
+  defaultPricingPolicyId: "policy_default",
   id: "app_pdf_reader",
   status: "active",
   defaultRouteId: "route_paper_summary",
@@ -700,6 +735,7 @@ const defaultRoutePolicy: GatewayRoutePolicyRecord = {
 };
 
 const defaultCredential: GatewayAdminCredentialRecord = {
+  appId: "app_pdf_reader",
   id: "cred_local_placeholder",
   owner: "self-hosted gateway",
   provider: "demo",
@@ -735,6 +771,7 @@ const defaultGrant: Omit<GatewayGrantRecord, "expiresAt"> = {
 };
 
 const defaultUserWallet: GatewayWalletRecord = {
+  appId: "app_pdf_reader",
   id: "wallet_user_demo",
   ownerType: "end_user",
   ownerId: "user_hash_123",
@@ -763,6 +800,10 @@ export function createDefaultInMemoryGatewayState(
       },
     ],
     idempotencyRecords: new Map(),
+    modelPrices: demoModelPrices.map((price) => ({ ...price })),
+    pricingPolicyConfigs: new Map([
+      ["policy_default", { ...defaultRuntimePricingPolicy }],
+    ]),
     rateLimitCounters: new Map(),
     pricingPolicies: [{ ...defaultPricingPolicy }],
     providerCredentials: [],
@@ -779,10 +820,6 @@ export function createDefaultInMemoryGatewayState(
     ledgerEntries: [],
     sessions: [],
   };
-}
-
-function money(value: number): string {
-  return Math.max(0, value).toFixed(8);
 }
 
 function toIso(value: string | Date): string {
@@ -885,6 +922,7 @@ function mapSessionRow(row: SessionRow): GatewaySessionRecord {
 
 function mapWalletRow(row: WalletRow): GatewayWalletRecord {
   return {
+    appId: row.app_id,
     id: row.id,
     ownerType: row.owner_type,
     ownerId: row.owner_id,
@@ -899,6 +937,7 @@ function getMemoryWallet(
 ): GatewayWalletRecord | undefined {
   return [...state.wallets.values()].find(
     (candidate) =>
+      candidate.appId === attribution.appId &&
       candidate.ownerType === "end_user" &&
       candidate.ownerId === attribution.endUserId,
   );
@@ -960,13 +999,15 @@ async function getPostgresWallet(
 ): Promise<GatewayWalletRecord | undefined> {
   const rows = await sql<WalletRow[]>`
     select
+      app_id,
       id,
       owner_type,
       owner_id,
       currency,
       balance_numeric::text as balance
     from wallets
-    where owner_type = 'end_user'
+    where app_id = ${attribution.appId}
+      and owner_type = 'end_user'
       and owner_id = ${attribution.endUserId}
     limit 1
   `;
@@ -1105,7 +1146,11 @@ async function completePostgresIdempotencyReservation(
 }
 
 function percent(value: string): string {
-  return `${Number(value) * 100}%`;
+  const formatted = formatFixed(parseFixed(value, rateScale) * 100n, rateScale)
+    .replace(/0+$/u, "")
+    .replace(/\.$/u, "");
+
+  return `${formatted}%`;
 }
 
 function stringFromConfig(
@@ -1193,6 +1238,7 @@ function mapProviderCredentialRecord(
   credential: GatewayProviderCredentialRecord,
 ): GatewayAdminCredentialRecord {
   return {
+    appId: credential.appId,
     id: credential.id,
     owner: `${credential.ownerType}:${credential.ownerId}`,
     provider: credential.provider,
@@ -1252,6 +1298,7 @@ function adminRouteFromPolicy(
 
 function defaultRouteLabel(
   state: InMemoryGatewayState,
+  appId: string,
   defaultRouteId?: string,
 ): string {
   if (!defaultRouteId) {
@@ -1259,8 +1306,9 @@ function defaultRouteLabel(
   }
 
   return (
-    state.routePolicies.find((route) => route.id === defaultRouteId)?.alias ??
-    "not configured"
+    state.routePolicies.find(
+      (route) => route.appId === appId && route.id === defaultRouteId,
+    )?.alias ?? "not configured"
   );
 }
 
@@ -1285,7 +1333,9 @@ async function getPostgresAdminApp(
       routes.alias as default_route
     from apps
     join developers on developers.id = apps.developer_id
-    left join routes on routes.id = apps.default_route_id
+    left join routes
+      on routes.app_id = apps.id
+     and routes.id = apps.default_route_id
     where apps.id = ${id}
     limit 1
   `;
@@ -1420,7 +1470,7 @@ function listMemoryCandidateGrants(
       grant.allowedUseCases.includes(attribution.useCase) &&
       modelAllowed &&
       grant.status === "active" &&
-      Number(grant.remaining) > 0 &&
+      compareMoney(grant.remaining, "0.00000000") > 0 &&
       Date.parse(grant.expiresAt) > now.getTime()
     );
   });
@@ -1609,6 +1659,46 @@ export function createInMemoryGatewayStore(
       );
     },
 
+    async getModelPrice(provider, model, at = new Date()) {
+      const price = state.modelPrices
+        .filter(
+          (price) =>
+            price.provider === provider &&
+            price.model === model &&
+            (!price.effectiveAt || price.effectiveAt.getTime() <= at.getTime()),
+        )
+        .sort(
+          (left, right) =>
+            (right.effectiveAt?.getTime() ?? 0) -
+            (left.effectiveAt?.getTime() ?? 0),
+        )[0];
+
+      return price
+        ? {
+            ...price,
+            effectiveAt: price.effectiveAt
+              ? new Date(price.effectiveAt)
+              : undefined,
+          }
+        : undefined;
+    },
+
+    async getPricingPolicy(appId) {
+      const app = state.apps.get(appId);
+      const policyRecord = app?.defaultPricingPolicyId
+        ? state.pricingPolicies.find(
+            (candidate) =>
+              candidate.appId === appId &&
+              candidate.id === app.defaultPricingPolicyId,
+          )
+        : undefined;
+      const policy = policyRecord
+        ? state.pricingPolicyConfigs.get(policyRecord.id)
+        : undefined;
+
+      return policy ? { ...policy } : undefined;
+    },
+
     async listActiveGrants(attribution, model) {
       return listMemoryCandidateGrants(state, attribution, model);
     },
@@ -1635,7 +1725,7 @@ export function createInMemoryGatewayStore(
         };
       }
 
-      if (Number(wallet.balance) < Number(requestedAmount)) {
+      if (compareMoney(wallet.balance, requestedAmount) < 0) {
         return {
           matched: false,
           reason: "insufficient_wallet_balance",
@@ -1740,11 +1830,14 @@ export function createInMemoryGatewayStore(
         throw new Error(`Faucet grant rejected: ${match.reasons.join(", ")}`);
       }
 
-      const remaining = Number(grant.remaining) - Number(input.amount);
+      const remaining = subtractMoney(grant.remaining, input.amount);
       const updatedGrant: GatewayGrantRecord = {
         ...grant,
-        remaining: money(remaining),
-        status: remaining === 0 ? "exhausted" : grant.status,
+        remaining,
+        status:
+          compareMoney(remaining, "0.00000000") === 0
+            ? "exhausted"
+            : grant.status,
       };
       const index = state.faucetGrants.findIndex(
         (candidate) => candidate.id === grant.id,
@@ -1766,21 +1859,32 @@ export function createInMemoryGatewayStore(
       };
     },
 
+    async recordProviderCostCall(input) {
+      requireMemoryIdempotencyReservation(state, input.idempotency);
+      state.usageEvents.push(input.usageEvent);
+      state.ledgerEntries.push(...input.ledgerEntries);
+      completeMemoryIdempotencyReservation(
+        state,
+        input.idempotency,
+        input.usageEvent.id,
+      );
+    },
+
     async recordWalletBillableCall(input) {
       requireMemoryIdempotencyReservation(state, input.idempotency);
       const wallet = state.wallets.get(input.walletId);
 
-      if (!wallet) {
+      if (!wallet || wallet.appId !== input.usageEvent.appId) {
         throw new Error("Wallet no longer exists.");
       }
 
-      if (Number(wallet.balance) < Number(input.amount)) {
+      if (compareMoney(wallet.balance, input.amount) < 0) {
         throw new Error("Wallet balance is insufficient.");
       }
 
       const updatedWallet: GatewayWalletRecord = {
         ...wallet,
-        balance: money(Number(wallet.balance) - Number(input.amount)),
+        balance: subtractMoney(wallet.balance, input.amount),
       };
 
       state.wallets.set(wallet.id, updatedWallet);
@@ -1804,18 +1908,18 @@ export function createInMemoryGatewayStore(
     },
 
     async createApp(input) {
-      const defaultRouteId = input.defaultRouteId ?? "route_default";
       const app: GatewayAppRecord = {
+        defaultPricingPolicyId: input.defaultPricingPolicyId,
         id: input.id,
         status: input.status,
-        defaultRouteId,
+        defaultRouteId: input.defaultRouteId,
       };
       const adminApp: GatewayAdminAppRecord = {
         id: input.id,
         name: input.name,
         developer: input.developerName,
         status: input.status,
-        defaultRoute: defaultRouteLabel(state, input.defaultRouteId),
+        defaultRoute: defaultRouteLabel(state, input.id, input.defaultRouteId),
       };
 
       state.apps.set(input.id, app);
@@ -1836,12 +1940,14 @@ export function createInMemoryGatewayStore(
       const status = input.status ?? app.status;
       const updatedApp: GatewayAppRecord = {
         ...app,
+        defaultPricingPolicyId:
+          input.defaultPricingPolicyId ?? app.defaultPricingPolicyId,
         defaultRouteId,
         status,
       };
       const updatedAdminApp: GatewayAdminAppRecord = {
         ...adminApp,
-        defaultRoute: defaultRouteLabel(state, defaultRouteId),
+        defaultRoute: defaultRouteLabel(state, id, defaultRouteId),
         name: input.name ?? adminApp.name,
         status,
       };
@@ -1925,6 +2031,7 @@ export function createInMemoryGatewayStore(
 
       if (!state.wallets.has(input.walletId)) {
         state.wallets.set(input.walletId, {
+          appId: input.appId,
           balance: "0.00000000",
           currency: "USD",
           id: input.walletId,
@@ -2086,7 +2193,7 @@ export function createInMemoryGatewayStore(
 
     async createPricingPolicy(input) {
       const policy: GatewayAdminPricingPolicyRecord = {
-        appId: input.appId ?? "platform",
+        appId: input.appId,
         channelMarkupRate: percent(input.channelMarkupRate),
         developerMarkupRate: percent(input.developerMarkupRate),
         id: input.id,
@@ -2097,6 +2204,14 @@ export function createInMemoryGatewayStore(
       };
 
       state.pricingPolicies.push(policy);
+      state.pricingPolicyConfigs.set(input.id, {
+        channelMarkupRate: input.channelMarkupRate,
+        developerMarkupRate: input.developerMarkupRate,
+        maxTotalMarkupRate: input.maxTotalMarkupRate,
+        paymentFeeReserveRate: input.paymentFeeReserveRate,
+        platformFeeRate: input.platformFeeRate,
+        riskReserveRate: input.riskReserveRate,
+      });
 
       return { ...policy };
     },
@@ -2106,8 +2221,9 @@ export function createInMemoryGatewayStore(
         (policy) => policy.id === id,
       );
       const policy = state.pricingPolicies[index];
+      const runtimePolicy = state.pricingPolicyConfigs.get(id);
 
-      if (index === -1 || !policy) {
+      if (index === -1 || !policy || !runtimePolicy) {
         return undefined;
       }
 
@@ -2135,6 +2251,18 @@ export function createInMemoryGatewayStore(
       };
 
       state.pricingPolicies[index] = updatedPolicy;
+      state.pricingPolicyConfigs.set(id, {
+        channelMarkupRate:
+          input.channelMarkupRate ?? runtimePolicy.channelMarkupRate,
+        developerMarkupRate:
+          input.developerMarkupRate ?? runtimePolicy.developerMarkupRate,
+        maxTotalMarkupRate:
+          input.maxTotalMarkupRate ?? runtimePolicy.maxTotalMarkupRate,
+        paymentFeeReserveRate:
+          input.paymentFeeReserveRate ?? runtimePolicy.paymentFeeReserveRate,
+        platformFeeRate: input.platformFeeRate ?? runtimePolicy.platformFeeRate,
+        riskReserveRate: input.riskReserveRate ?? runtimePolicy.riskReserveRate,
+      });
 
       return { ...updatedPolicy };
     },
@@ -2255,6 +2383,7 @@ export function createInMemoryGatewayStore(
 
       for (const [id, wallet] of state.wallets) {
         if (
+          wallet.appId !== input.appId ||
           wallet.ownerType !== "end_user" ||
           wallet.ownerId !== input.endUserId
         ) {
@@ -2271,6 +2400,7 @@ export function createInMemoryGatewayStore(
       state.providerCredentials = state.providerCredentials.map(
         (credential) => {
           if (
+            credential.appId !== input.appId ||
             credential.ownerType !== "end_user" ||
             credential.ownerId !== input.endUserId
           ) {
@@ -2441,12 +2571,14 @@ async function insertUsageEvent(
 
 async function insertLedgerEntries(
   sql: FountLayerTransactionSql,
+  appId: string,
   ledgerEntries: LedgerEntryRecord[],
 ): Promise<void> {
   for (const entry of ledgerEntries) {
     await sql`
       insert into ledger_entries (
         id,
+        app_id,
         usage_event_id,
         wallet_id,
         direction,
@@ -2457,6 +2589,7 @@ async function insertLedgerEntries(
       )
       values (
         ${entry.id},
+        ${appId},
         ${entry.usageEventId},
         ${entry.walletId},
         ${entry.direction},
@@ -2695,10 +2828,11 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
         Array<{
           id: string;
           status: GatewayAppRecord["status"];
+          default_pricing_policy_id: string | null;
           default_route_id: string | null;
         }>
       >`
-        select id, status, default_route_id
+        select id, status, default_route_id, default_pricing_policy_id
         from apps
         where id = ${id} and status = 'active'
         limit 1
@@ -2707,9 +2841,10 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
 
       return row
         ? {
+            defaultPricingPolicyId: row.default_pricing_policy_id ?? undefined,
             id: row.id,
             status: row.status,
-            defaultRouteId: row.default_route_id ?? "route_default",
+            defaultRouteId: row.default_route_id ?? undefined,
           }
         : undefined;
     },
@@ -2754,6 +2889,82 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
       return row ? mapRoutePolicyRow(row) : undefined;
     },
 
+    async getModelPrice(provider, model, at = new Date()) {
+      const rows = await sql<
+        Array<{
+          cached_input_per_mtok: string | null;
+          currency: string;
+          effective_at: string | Date | null;
+          input_per_mtok: string;
+          model: string;
+          output_per_mtok: string;
+          provider: string;
+        }>
+      >`
+        select
+          provider,
+          model,
+          input_per_mtok::text as input_per_mtok,
+          output_per_mtok::text as output_per_mtok,
+          cached_input_per_mtok::text as cached_input_per_mtok,
+          currency,
+          effective_at
+        from model_prices
+        where provider = ${provider}
+          and model = ${model}
+          and (effective_at is null or effective_at <= ${at.toISOString()})
+        order by effective_at desc nulls last, created_at desc, id desc
+        limit 1
+      `;
+      const row = rows[0];
+
+      return row
+        ? {
+            cachedInputPerMtok: row.cached_input_per_mtok ?? undefined,
+            currency: row.currency,
+            effectiveAt: row.effective_at
+              ? new Date(row.effective_at)
+              : undefined,
+            inputPerMtok: row.input_per_mtok,
+            model: row.model,
+            outputPerMtok: row.output_per_mtok,
+            provider: row.provider,
+          }
+        : undefined;
+    },
+
+    async getPricingPolicy(appId) {
+      const rows = await sql<AdminPricingPolicyRow[]>`
+        select
+          policies.id,
+          policies.app_id,
+          policies.platform_fee_rate::text as platform_fee_rate,
+          policies.payment_fee_reserve_rate::text as payment_fee_reserve_rate,
+          policies.risk_reserve_rate::text as risk_reserve_rate,
+          policies.developer_markup_rate::text as developer_markup_rate,
+          policies.channel_markup_rate::text as channel_markup_rate,
+          policies.max_total_markup_rate::text as max_total_markup_rate
+        from apps
+        join pricing_policies policies
+          on policies.app_id = apps.id
+         and policies.id = apps.default_pricing_policy_id
+        where apps.id = ${appId}
+        limit 1
+      `;
+      const row = rows[0];
+
+      return row
+        ? {
+            channelMarkupRate: row.channel_markup_rate,
+            developerMarkupRate: row.developer_markup_rate,
+            maxTotalMarkupRate: row.max_total_markup_rate,
+            paymentFeeReserveRate: row.payment_fee_reserve_rate,
+            platformFeeRate: row.platform_fee_rate,
+            riskReserveRate: row.risk_reserve_rate,
+          }
+        : undefined;
+    },
+
     async listActiveGrants(attribution, model) {
       return listPostgresCandidateGrants(sql, attribution, { model });
     },
@@ -2787,7 +2998,7 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
         };
       }
 
-      if (Number(wallet.balance) < Number(requestedAmount)) {
+      if (compareMoney(wallet.balance, requestedAmount) < 0) {
         return {
           matched: false,
           reason: "insufficient_wallet_balance",
@@ -2888,7 +3099,11 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
         }
 
         await insertUsageEvent(transaction, input.usageEvent);
-        await insertLedgerEntries(transaction, input.ledgerEntries);
+        await insertLedgerEntries(
+          transaction,
+          input.usageEvent.appId,
+          input.ledgerEntries,
+        );
         await completePostgresIdempotencyReservation(
           transaction,
           input.idempotency,
@@ -2903,6 +3118,26 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
       });
     },
 
+    async recordProviderCostCall(input) {
+      await sql.begin(async (transaction) => {
+        await requirePostgresIdempotencyReservation(
+          transaction,
+          input.idempotency,
+        );
+        await insertUsageEvent(transaction, input.usageEvent);
+        await insertLedgerEntries(
+          transaction,
+          input.usageEvent.appId,
+          input.ledgerEntries,
+        );
+        await completePostgresIdempotencyReservation(
+          transaction,
+          input.idempotency,
+          input.usageEvent.id,
+        );
+      });
+    },
+
     async recordWalletBillableCall(input) {
       return sql.begin(async (transaction) => {
         await requirePostgresIdempotencyReservation(
@@ -2911,13 +3146,15 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
         );
         const lockedRows = await transaction<WalletRow[]>`
           select
+            app_id,
             id,
             owner_type,
             owner_id,
             currency,
             balance_numeric::text as balance
           from wallets
-          where id = ${input.walletId}
+          where app_id = ${input.usageEvent.appId}
+            and id = ${input.walletId}
           for update
         `;
         const wallet = lockedRows[0] ? mapWalletRow(lockedRows[0]) : undefined;
@@ -2926,16 +3163,18 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
           throw new Error("Wallet no longer exists.");
         }
 
-        if (Number(wallet.balance) < Number(input.amount)) {
+        if (compareMoney(wallet.balance, input.amount) < 0) {
           throw new Error("Wallet balance is insufficient.");
         }
 
         const updatedRows = await transaction<WalletRow[]>`
           update wallets
           set balance_numeric = balance_numeric - ${input.amount}
-          where id = ${input.walletId}
+          where app_id = ${input.usageEvent.appId}
+            and id = ${input.walletId}
             and balance_numeric >= ${input.amount}
           returning
+            app_id,
             id,
             owner_type,
             owner_id,
@@ -2951,7 +3190,11 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
         }
 
         await insertUsageEvent(transaction, input.usageEvent);
-        await insertLedgerEntries(transaction, input.ledgerEntries);
+        await insertLedgerEntries(
+          transaction,
+          input.usageEvent.appId,
+          input.ledgerEntries,
+        );
         await completePostgresIdempotencyReservation(
           transaction,
           input.idempotency,
@@ -2976,7 +3219,9 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
           routes.alias as default_route
         from apps
         join developers on developers.id = apps.developer_id
-        left join routes on routes.id = apps.default_route_id
+        left join routes
+          on routes.app_id = apps.id
+         and routes.id = apps.default_route_id
         order by apps.created_at desc, apps.id asc
       `;
 
@@ -3114,9 +3359,24 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
         `;
 
         await transaction`
-          insert into wallets (id, owner_type, owner_id, currency, balance_numeric)
-          values (${input.walletId}, 'faucet_grant', ${input.id}, 'USD', 0)
+          insert into wallets (
+            id,
+            app_id,
+            owner_type,
+            owner_id,
+            currency,
+            balance_numeric
+          )
+          values (
+            ${input.walletId},
+            ${input.appId},
+            'faucet_grant',
+            ${input.id},
+            'USD',
+            0
+          )
           on conflict (id) do update set
+            app_id = excluded.app_id,
             owner_type = excluded.owner_type,
             owner_id = excluded.owner_id,
             currency = excluded.currency
@@ -3299,6 +3559,7 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
     async listProviderCredentials() {
       const rows = await sql<AdminCredentialRow[]>`
         select
+          app_id,
           id,
           owner_type,
           owner_id,
@@ -3319,6 +3580,7 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
 
       return rows.map((row) =>
         mapProviderCredentialRecord({
+          appId: row.app_id,
           id: row.id,
           ownerType: row.owner_type,
           ownerId: row.owner_id,
@@ -3341,6 +3603,7 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
       const rows = await sql<AdminCredentialRow[]>`
         insert into provider_credentials (
           id,
+          app_id,
           owner_type,
           owner_id,
           provider,
@@ -3353,6 +3616,7 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
         )
         values (
           ${input.id},
+          ${input.appId},
           ${input.ownerType},
           ${input.ownerId},
           ${input.provider},
@@ -3364,6 +3628,7 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
           'active'
         )
         returning
+          app_id,
           id,
           owner_type,
           owner_id,
@@ -3382,6 +3647,7 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
       }
 
       return mapProviderCredentialRecord({
+        appId: row.app_id,
         id: row.id,
         ownerType: row.owner_type,
         ownerId: row.owner_id,
@@ -3406,6 +3672,7 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
           status = 'active'
         where id = ${input.id}
         returning
+          app_id,
           id,
           owner_type,
           owner_id,
@@ -3421,6 +3688,7 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
 
       return row
         ? mapProviderCredentialRecord({
+            appId: row.app_id,
             id: row.id,
             ownerType: row.owner_type,
             ownerId: row.owner_id,
@@ -3479,7 +3747,7 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
         )
         values (
           ${input.id},
-          ${input.appId ?? null},
+          ${input.appId},
           ${input.name},
           ${input.platformFeeRate},
           ${input.paymentFeeReserveRate},
@@ -3653,14 +3921,15 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
         const ledgerEntries = await transaction<Array<{ id: string }>>`
           update ledger_entries
           set metadata = metadata || jsonb_build_object('endUserId', ${tombstoneEndUserId})
-          where metadata ->> 'appId' = ${input.appId}
+          where app_id = ${input.appId}
             and metadata ->> 'endUserId' = ${input.endUserId}
           returning id
         `;
         const wallets = await transaction<Array<{ id: string }>>`
           update wallets
           set owner_id = ${tombstoneEndUserId}
-          where owner_type = 'end_user'
+          where app_id = ${input.appId}
+            and owner_type = 'end_user'
             and owner_id = ${input.endUserId}
           returning id
         `;
@@ -3669,7 +3938,8 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
           set
             owner_id = ${tombstoneEndUserId},
             status = 'revoked'
-          where owner_type = 'end_user'
+          where app_id = ${input.appId}
+            and owner_type = 'end_user'
             and owner_id = ${input.endUserId}
           returning id
         `;

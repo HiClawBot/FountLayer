@@ -1,3 +1,5 @@
+import { addMoney } from "@fountlayer/money";
+
 import { Metric, PageHeader, Panel, Status } from "../../components/ui";
 import { getConsoleRuntimeData } from "../../lib/gateway-admin";
 
@@ -6,20 +8,20 @@ export const dynamic = "force-dynamic";
 export default async function OverviewPage() {
   const { apps, channels, faucetGrants, ledgerEntries, source, usageEvents } =
     await getConsoleRuntimeData();
-  const debitTotal = ledgerEntries
-    .filter((entry) => entry.direction === "debit")
-    .reduce((sum, entry) => sum + Number(entry.amount), 0);
-  const creditTotal = ledgerEntries
-    .filter((entry) => entry.direction === "credit")
-    .reduce((sum, entry) => sum + Number(entry.amount), 0);
-  const faucetBalance = faucetGrants.reduce(
-    (sum, grant) => sum + Number(grant.remaining),
-    0,
+  const debitTotal = addMoney(
+    ...ledgerEntries
+      .filter((entry) => entry.direction === "debit")
+      .map((entry) => entry.amount),
   );
-  const dailyCap = faucetGrants.reduce(
-    (sum, grant) => sum + Number(grant.dailyCap),
-    0,
+  const creditTotal = addMoney(
+    ...ledgerEntries
+      .filter((entry) => entry.direction === "credit")
+      .map((entry) => entry.amount),
   );
+  const faucetBalance = addMoney(
+    ...faucetGrants.map((grant) => grant.remaining),
+  );
+  const dailyCap = addMoney(...faucetGrants.map((grant) => grant.dailyCap));
   const overviewMetrics = [
     {
       label: "Apps",
@@ -28,8 +30,8 @@ export default async function OverviewPage() {
     },
     {
       label: "Faucet Balance",
-      value: `$${faucetBalance.toFixed(8)}`,
-      detail: `daily cap $${dailyCap.toFixed(8)}`,
+      value: `$${faucetBalance}`,
+      detail: `daily cap $${dailyCap}`,
     },
     {
       label: "Usage Events",
@@ -72,11 +74,11 @@ export default async function OverviewPage() {
           <div className="panel-body split-list">
             <div className="split-row">
               <span>Debits</span>
-              <strong className="mono">${debitTotal.toFixed(8)}</strong>
+              <strong className="mono">${debitTotal}</strong>
             </div>
             <div className="split-row">
               <span>Credits</span>
-              <strong className="mono">${creditTotal.toFixed(8)}</strong>
+              <strong className="mono">${creditTotal}</strong>
             </div>
           </div>
         </Panel>

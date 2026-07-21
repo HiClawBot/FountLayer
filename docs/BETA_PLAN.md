@@ -63,8 +63,6 @@ Verified on GitHub Actions for the beta branch:
 
 Current blockers before tagging the external beta:
 
-- Add tenant-safe identity/wallet/session/credential migrations and upgrade tests.
-- Settle fixed-point monetary amounts from adapter-reported actual usage.
 - Remove unsupported BYOK/local/streaming surfaces and add real bounded PDF extraction.
 - Ship pinned production images/Compose, a real-upstream golden smoke, and recovery drills.
 

@@ -662,6 +662,31 @@ describe("gateway minimum API", () => {
     ).toBe(false);
   });
 
+  it("rejects beta pricing markups that have no payout wallets", async () => {
+    const state = createDefaultInMemoryGatewayState();
+    const server = buildGatewayServer(createInMemoryGatewayStore(state), {
+      adminTokenHashes: [hashTestToken(adminToken)],
+    });
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/admin/pricing-policies",
+      headers: adminHeaders,
+      payload: {
+        appId: "app_pdf_reader",
+        developerMarkupRate: "0.100000",
+        id: "policy_unsupported_markup",
+        name: "Unsupported Markup",
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe("unsupported_pricing_markup");
+    expect(state.pricingPolicyConfigs.has("policy_unsupported_markup")).toBe(
+      false,
+    );
+  });
+
   it("rejects provider credential writes when encryption is not configured", async () => {
     const server = buildGatewayServer(undefined, {
       adminTokenHashes: [hashTestToken(adminToken)],
@@ -672,6 +697,7 @@ describe("gateway minimum API", () => {
       url: "/admin/provider-credentials",
       headers: adminHeaders,
       payload: {
+        appId: "app_pdf_reader",
         apiKey: "provider-secret-placeholder",
         ownerId: "dev_demo",
         ownerType: "developer",
@@ -701,6 +727,7 @@ describe("gateway minimum API", () => {
       url: "/admin/provider-credentials",
       headers: adminHeaders,
       payload: {
+        appId: "app_pdf_reader",
         apiKey: "provider-secret-placeholder",
         budgetDaily: "1.25000000",
         display: "provider-secret-placeholder",
@@ -756,6 +783,7 @@ describe("gateway minimum API", () => {
       url: "/admin/provider-credentials",
       headers: adminHeaders,
       payload: {
+        appId: "app_pdf_reader",
         apiKey: "provider-secret-placeholder",
         ownerId: "user_hash_123",
         ownerType: "end_user",
@@ -786,6 +814,7 @@ describe("gateway minimum API", () => {
       url: "/admin/provider-credentials",
       headers: adminHeaders,
       payload: {
+        appId: "app_pdf_reader",
         apiKey: "provider-secret-placeholder",
         ownerId: "user_hash_123",
         ownerType: "end_user",
@@ -815,6 +844,7 @@ describe("gateway minimum API", () => {
       url: "/admin/provider-credentials",
       headers: adminHeaders,
       payload: {
+        appId: "app_pdf_reader",
         apiKey: "provider-secret-placeholder",
         ownerId: "dev_demo",
         ownerType: "developer",
@@ -992,7 +1022,7 @@ describe("gateway minimum API", () => {
     expect(Number(response.json().retail_price)).toBeGreaterThan(0);
   });
 
-  it("routes aliases through store policies before adapter execution", async () => {
+  it("routes aliases and settles Store pricing from actual adapter usage", async () => {
     const state = createDefaultInMemoryGatewayState();
     const baseRoute = state.routePolicies[0]!;
     let adapterModel: string | undefined;
@@ -1001,6 +1031,10 @@ describe("gateway minimum API", () => {
       ...baseRoute,
       alias: "smart/default",
       id: "route_smart_default",
+    });
+    state.pricingPolicyConfigs.set("policy_default", {
+      ...state.pricingPolicyConfigs.get("policy_default")!,
+      platformFeeRate: "1.000000",
     });
     state.faucetGrants[0]!.allowedModels.push("smart/default");
 
@@ -1047,11 +1081,129 @@ describe("gateway minimum API", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json().model).toBe("demo-local-model");
+    expect(response.json().billing).toMatchObject({
+      retail_price: "0.00000937",
+      upstream_cost: "0.00000450",
+    });
     expect(adapterModel).toBe("demo-local-model");
     expect(usageEvents.json().usage_events[0]).toMatchObject({
       provider: "demo",
+      inputTokens: 10,
+      outputTokens: 5,
+      retailPrice: "0.00000937",
       routeId: "route_smart_default",
+      upstreamCost: "0.00000450",
+      usageEstimated: false,
     });
+  });
+
+  it("records provider cost without charging credits when actual usage exceeds balance", async () => {
+    const state = createDefaultInMemoryGatewayState();
+    state.faucetGrants[0]!.remaining = "0.00010000";
+
+    const server = buildGatewayServer(createInMemoryGatewayStore(state), {
+      adminTokenHashes: [hashTestToken(adminToken)],
+      adapter: {
+        async chat(input) {
+          return {
+            id: input.requestId ?? "req_actual_balance_test",
+            model: input.model,
+            content: "Long provider response.",
+            finishReason: "stop",
+            usage: {
+              cachedInputTokens: 0,
+              inputTokens: 1,
+              outputTokens: 1_000,
+              totalTokens: 1_001,
+              usageEstimated: false,
+            },
+            raw: {},
+          };
+        },
+        async *streamChat() {
+          yield { done: true };
+        },
+      },
+    });
+    const headers = await createSessionHeaders(server);
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/chat/completions",
+      headers,
+      payload: {
+        model: "vertical/paper-summary",
+        messages: [{ role: "user", content: "x" }],
+      },
+    });
+
+    expect(response.statusCode).toBe(402);
+    expect(response.json().error).toMatchObject({
+      code: "actual_usage_insufficient_balance",
+      details: { usage_event_id: expect.stringMatching(/^ue_/) },
+    });
+    expect(state.faucetGrants[0]!.remaining).toBe("0.00010000");
+    expect(state.usageEvents).toHaveLength(1);
+    expect(state.usageEvents[0]).toMatchObject({
+      inputTokens: 1,
+      outputTokens: 1_000,
+      status: "failed",
+      upstreamCost: "0.00060015",
+    });
+    expect(state.ledgerEntries).toHaveLength(2);
+    expect(state.ledgerEntries.map((entry) => entry.reason).sort()).toEqual([
+      "provider_cost",
+      "provider_payable",
+    ]);
+  });
+
+  it("records provider cost without charging credits when actual usage exceeds the route cap", async () => {
+    const state = createDefaultInMemoryGatewayState();
+    state.routePolicies[0]!.maxRetailPrice = "0.00010000";
+
+    const server = buildGatewayServer(createInMemoryGatewayStore(state), {
+      adminTokenHashes: [hashTestToken(adminToken)],
+      adapter: {
+        async chat(input) {
+          return {
+            id: input.requestId ?? "req_actual_cap_test",
+            model: input.model,
+            content: "Long provider response.",
+            finishReason: "stop",
+            usage: {
+              cachedInputTokens: 0,
+              inputTokens: 1,
+              outputTokens: 1_000,
+              totalTokens: 1_001,
+              usageEstimated: false,
+            },
+            raw: {},
+          };
+        },
+        async *streamChat() {
+          yield { done: true };
+        },
+      },
+    });
+    const headers = await createSessionHeaders(server);
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/chat/completions",
+      headers,
+      payload: {
+        model: "vertical/paper-summary",
+        messages: [{ role: "user", content: "x" }],
+      },
+    });
+
+    expect(response.statusCode).toBe(402);
+    expect(response.json().error).toMatchObject({
+      code: "actual_usage_exceeded_route_cap",
+      details: { usage_event_id: expect.stringMatching(/^ue_/) },
+    });
+    expect(state.faucetGrants[0]!.remaining).toBe("1.00000000");
+    expect(state.usageEvents).toHaveLength(1);
+    expect(state.usageEvents[0]?.status).toBe("failed");
+    expect(state.ledgerEntries).toHaveLength(2);
   });
 
   it("rejects route policies whose target model is outside the allowlist", async () => {
@@ -1556,6 +1708,7 @@ describe("gateway minimum API", () => {
       url: "/admin/provider-credentials",
       headers: adminHeaders,
       payload: {
+        appId: "app_pdf_reader",
         apiKey: "provider-secret-placeholder",
         ownerId: "user_hash_123",
         ownerType: "end_user",
@@ -1651,6 +1804,7 @@ describe("gateway minimum API", () => {
 
     state.faucetGrants = [];
     state.wallets.set("wallet_user_demo", {
+      appId: "app_pdf_reader",
       id: "wallet_user_demo",
       ownerType: "end_user",
       ownerId: "user_hash_123",
@@ -1728,6 +1882,7 @@ describe("gateway minimum API", () => {
 
     state.faucetGrants = [];
     state.wallets.set("wallet_user_demo", {
+      appId: "app_pdf_reader",
       id: "wallet_user_demo",
       ownerType: "end_user",
       ownerId: "user_hash_123",

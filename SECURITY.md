@@ -29,7 +29,9 @@ an independent operator token exchanged for a signed HttpOnly session; the
 Gateway admin token remains server-side. BYOK and local routing are not supported
 external-beta execution modes. Public session creation requires a five-minute,
 single-use ticket signed by a trusted backend; PostgreSQL persists ticket
-redemptions and abuse counters across Gateway restarts.
+redemptions and abuse counters across Gateway restarts. Checksum-journaled
+migrations enforce app-scoped relationships, and billable amounts are settled from
+validated actual adapter usage with fixed-point arithmetic.
 
 See [docs/SECURITY.md](./docs/SECURITY.md) for the detailed security model and
 required controls before operating a hosted service.

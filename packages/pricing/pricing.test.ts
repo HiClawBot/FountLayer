@@ -14,16 +14,16 @@ const prices: ModelPrice[] = [
   {
     provider: "demo",
     model: "demo-model",
-    inputPerMtok: 1,
-    outputPerMtok: 2,
+    inputPerMtok: "1.00000000",
+    outputPerMtok: "2.00000000",
     currency: "USD",
     effectiveAt: new Date("2026-01-01T00:00:00Z"),
   },
   {
     provider: "demo",
     model: "demo-model",
-    inputPerMtok: 2,
-    outputPerMtok: 4,
+    inputPerMtok: "2.00000000",
+    outputPerMtok: "4.00000000",
     currency: "USD",
     effectiveAt: new Date("2026-06-01T00:00:00Z"),
   },
@@ -55,8 +55,8 @@ describe("model price lookup", () => {
         new Date("2026-06-17T00:00:00Z"),
       ),
     )?.toMatchObject({
-      inputPerMtok: 2,
-      outputPerMtok: 4,
+      inputPerMtok: "2.00000000",
+      outputPerMtok: "4.00000000",
     });
   });
 
@@ -74,7 +74,7 @@ describe("pricing formulas", () => {
       usageEstimated: false,
     });
 
-    expect(cost).toBe(0.002);
+    expect(cost).toBe("0.00200000");
   });
 
   it("calculates managed wholesale and retail pricing with default fees", () => {
@@ -103,9 +103,9 @@ describe("pricing formulas", () => {
         usageEstimated: false,
       },
       policy: {
-        developerMarkupRate: 1,
-        channelMarkupRate: 1,
-        maxTotalMarkupRate: 0.5,
+        developerMarkupRate: "1.000000",
+        channelMarkupRate: "1.000000",
+        maxTotalMarkupRate: "0.500000",
       },
     });
 

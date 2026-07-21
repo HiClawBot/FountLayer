@@ -166,6 +166,18 @@ caps, then calls the configured adapter with the target provider model. Rejected
 route policy checks happen before adapter execution, usage event creation, or
 ledger entry creation.
 
+The pre-call estimate is used only for funding and route-cap preflight. After the
+adapter returns, the Gateway validates its integer token counts and recomputes the
+final charge with 8-decimal fixed-point arithmetic from the request's Store-backed
+model-price and pricing-policy snapshot. The funding deduction, usage event,
+balanced ledger entries, and idempotency completion commit atomically.
+
+If actual usage exceeds the available balance or route cap after the provider has
+already completed, the Gateway returns `402` with
+`actual_usage_insufficient_balance` or `actual_usage_exceeded_route_cap`. No user
+credits are deducted. A failed usage event and balanced platform-cost/provider-
+payable entries are persisted, and the error details include its `usage_event_id`.
+
 Request:
 
 ```json
@@ -214,7 +226,7 @@ Wallet-funded responses use `"paid_by": "wallet"` and return
 ## Admin APIs
 
 Admin APIs require `Authorization: Bearer <admin token>` in
-`v0.5.0-beta.1`.
+`v0.5.0-beta.2`.
 Configure the Gateway with `FOUNTLAYER_ADMIN_TOKEN_SHA256`, or use
 `FOUNTLAYER_ADMIN_TOKEN` for local development so the Gateway hashes it at
 startup. Console live-data reads use `CONSOLE_GATEWAY_ADMIN_TOKEN` server-side.
@@ -278,10 +290,18 @@ Endpoint-specific filters use snake_case field names, such as `app_id`,
 
 Admin setup writes use camelCase JSON fields. Faucet grant creation requires
 `remaining`, `allowedModels`, `allowedUseCases`, `dailyCap`, and `expiresAt`;
-route creation requires `modelAllowlist`. Provider credential writes remain
-metadata-only in responses and never return plaintext keys or ciphertext.
+route creation requires `modelAllowlist`. Provider credential writes require
+`appId`, remain metadata-only in responses, and never return plaintext keys or
+ciphertext. Database validation rejects credential ownership that crosses the
+declared app scope.
 
-The `v0.5.0-beta.1` Console can read these endpoints directly for live usage and
+Pricing policy creation requires `appId`, and pricing values are decimal strings.
+The external beta accepts only zero
+`developerMarkupRate` and zero `channelMarkupRate`; nonzero values return
+`unsupported_pricing_markup` until corresponding payout wallets and settlement
+obligations exist. Platform fee and reserve rates remain operator-configurable.
+
+The `v0.5.0-beta.2` Console can read these endpoints directly for live usage and
 ledger, registry, faucet, route, pricing, and credential-metadata views when
 its server-side admin token is configured.
 
@@ -344,6 +364,7 @@ Create credential request:
 
 ```json
 {
+  "appId": "app_pdf_reader",
   "ownerType": "developer",
   "ownerId": "dev_demo",
   "provider": "demo",
@@ -357,6 +378,7 @@ Create/rotate response:
 ```json
 {
   "credential": {
+    "appId": "app_pdf_reader",
     "id": "cred_123",
     "owner": "developer:dev_demo",
     "provider": "demo",
