@@ -85,6 +85,14 @@ Provider API keys must never appear in SDK source code, frontend bundles, mobile
   explicit estimate or summarize actions. It rejects files over 10 MB, PDFs over 40
   pages, extracted text over 80,000 characters, and unreadable, encrypted, image-only,
   empty, or unsupported files before any Gateway request.
+- Production images run as the unprivileged Node user with a read-only application
+  filesystem, dropped Linux capabilities, no-new-privileges, PID/CPU/memory limits, and
+  loopback-only published ports. Image builds are digest-pinned and gated by SPDX SBOM
+  generation plus fixable high/critical vulnerability scans.
+- Upstream fetches use a configurable 30-second default deadline and inherit client
+  disconnect cancellation. Readiness performs an authenticated model probe but returns
+  component status only. SIGINT/SIGTERM drains Fastify and closes PostgreSQL within a
+  configurable 15-second grace period.
 
 ## Credential Boundary
 

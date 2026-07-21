@@ -45,19 +45,23 @@ Implemented foundation:
   instead of sample records.
 - Strict provider-key scan script.
 
-Verified locally:
+Verified locally for the current Wave 4 implementation:
 
-- `pnpm test` - 164 passed, 6 optional PostgreSQL tests skipped in the default run.
-- `FOUNTLAYER_RUN_DB_TESTS=1 ... pnpm vitest run apps/gateway/gateway.db.test.ts`
-  - 6 PostgreSQL migration, isolation, restart, and accounting tests passed.
+- `FOUNTLAYER_RUN_DB_TESTS=1 pnpm test` - 176 passed, including 8 PostgreSQL
+  migration, isolation, restart, pricing, and accounting tests.
 - `pnpm lint`
 - `pnpm format`
 - `pnpm typecheck`
 - `pnpm smoke:site`
 - `pnpm scan:keys`
+- `pnpm smoke:sdk-package`
+- `pnpm db:backup` + `pnpm db:restore:verify`
+- Production-configured Gateway plus Console/Demo standalone process smoke.
 - Static scan for old local service ports outside `3300-3399`
 
-Verified on GitHub Actions for the beta branch:
+Previous beta-branch runs and the workflow entry points are available here. The exact
+release commit must rerun all of them; local results do not replace the pending
+Container Gates evidence:
 
 - CI:
   <https://github.com/HiClawBot/FountLayer/actions/workflows/ci.yml?query=branch%3Acodex%2Fv0.5.0-beta>
@@ -69,14 +73,15 @@ Verified on GitHub Actions for the beta branch:
 
 Current blockers before tagging the external beta:
 
-- Ship pinned production images/Compose, a real-upstream golden smoke, and recovery drills.
+- Pass Container Gates on the release commit, run a credentialed real-provider golden
+  smoke, and complete the staging soak/failure-injection gate.
 
 ## Beta Definition
 
 `v0.5.0-beta.2` is done when a new developer can:
 
 1. Clone the repository and install dependencies.
-2. Start Postgres, Redis, LiteLLM, Gateway, Console, and the demo using only
+2. Start Postgres, LiteLLM, Gateway, Console, and the demo using only
    documented commands and ports inside `3300-3399`.
 3. Configure a local/self-hosted admin token and credential encryption key.
 4. Create or inspect an app, channel, route, faucet grant, pricing policy, and
@@ -244,14 +249,17 @@ Exit gate:
 
 ## Verification Matrix
 
-| Gate                       | Command or check                           | Required for beta |
-| -------------------------- | ------------------------------------------ | ----------------- |
-| Unit and integration tests | `pnpm test`                                | Yes               |
-| Lint                       | `pnpm lint`                                | Yes               |
-| Formatting                 | `pnpm format`                              | Yes               |
-| Typecheck and builds       | `pnpm typecheck`                           | Yes               |
-| Site static smoke          | `pnpm smoke:site`                          | Yes               |
-| Runtime smoke              | `pnpm smoke:runtime` or beta equivalent    | Yes               |
-| Strict key scan            | beta key-scan script                       | Yes               |
-| Port policy scan           | no local service ports outside `3300-3399` | Yes               |
-| Docker Compose validation  | Docker-enabled environment                 | Yes               |
+| Gate                       | Command or check                            | Required for beta |
+| -------------------------- | ------------------------------------------- | ----------------- |
+| Unit and integration tests | `pnpm test`                                 | Yes               |
+| Lint                       | `pnpm lint`                                 | Yes               |
+| Formatting                 | `pnpm format`                               | Yes               |
+| Typecheck and builds       | `pnpm typecheck`                            | Yes               |
+| Site static smoke          | `pnpm smoke:site`                           | Yes               |
+| Runtime smoke              | `pnpm smoke:runtime` or beta equivalent     | Yes               |
+| Strict key scan            | beta key-scan script                        | Yes               |
+| Port policy scan           | no local service ports outside `3300-3399`  | Yes               |
+| Docker Compose validation  | Docker-enabled environment                  | Yes               |
+| SDK consumer install       | `pnpm smoke:sdk-package`                    | Yes               |
+| Backup/restore drill       | `pnpm db:backup` + `pnpm db:restore:verify` | Yes               |
+| Container SBOM/image scan  | `Container Gates` workflow                  | Yes               |

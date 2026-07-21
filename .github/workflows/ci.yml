@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        image: postgres:16.14-bookworm@sha256:92620daddcd947f8d5ab5ba66e848702fe443d87fed30c4cea8e389fd78dfc55
         env:
           POSTGRES_DB: fountlayer
           POSTGRES_PASSWORD: postgres
@@ -30,10 +30,10 @@ jobs:
       TEST_DATABASE_URL: postgres://postgres:postgres@localhost:3332/fountlayer_test
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
 
@@ -46,6 +46,21 @@ jobs:
       - name: Audit production dependencies
         run: pnpm audit:prod
 
+      - name: Scan repository for provider keys
+        run: pnpm scan:keys
+
+      - name: Verify SDK tarball consumer install
+        run: pnpm smoke:sdk-package
+
+      - name: Generate third-party license inventory
+        run: pnpm third-party:inventory
+
+      - name: Upload third-party license inventory
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: third-party-license-inventory
+          path: artifacts/third-party-licenses.json
+
       - name: Test
         run: pnpm test
 
@@ -56,6 +71,12 @@ jobs:
 
       - name: Seed database
         run: pnpm db:seed
+
+      - name: Backup and isolated restore drill
+        run: |
+          pnpm db:backup -- /tmp/fountlayer-backups
+          backup="$(find /tmp/fountlayer-backups -type f -name '*.dump' -print | sort | tail -1)"
+          pnpm db:restore:verify -- "$backup"
 
       - name: Test with Postgres
         run: FOUNTLAYER_RUN_DB_TESTS=1 pnpm test

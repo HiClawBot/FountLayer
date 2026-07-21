@@ -61,6 +61,18 @@ export type ConsolePricingPolicy = {
   maxTotalMarkupRate: string;
 };
 
+export type ConsoleModelPrice = {
+  cachedInputPerMtok?: string;
+  currency: string;
+  effectiveAt?: string;
+  id: string;
+  inputPerMtok: string;
+  model: string;
+  outputPerMtok: string;
+  provider: string;
+  source?: string;
+};
+
 export type ConsoleUsageEvent = {
   id: string;
   requestId: string;
@@ -95,6 +107,7 @@ export type ConsoleRuntimeData = {
   routes: ConsoleRoute[];
   usageEvents: ConsoleUsageEvent[];
   ledgerEntries: ConsoleLedgerEntry[];
+  modelPrices: ConsoleModelPrice[];
   source: "gateway" | "unavailable";
 };
 
@@ -120,6 +133,10 @@ type FaucetGrantsResponse = {
 
 type PricingPoliciesResponse = {
   pricing_policies?: ConsolePricingPolicy[];
+};
+
+type ModelPricesResponse = {
+  model_prices?: ConsoleModelPrice[];
 };
 
 type RoutesResponse = {
@@ -153,6 +170,7 @@ export function createUnavailableRuntimeData(): ConsoleRuntimeData {
     routes: [],
     usageEvents: [],
     ledgerEntries: [],
+    modelPrices: [],
     source: "unavailable",
   };
 }
@@ -325,6 +343,23 @@ export async function createConsolePricingPolicy(formData: FormData) {
   revalidateConsoleSetup();
 }
 
+export async function createConsoleModelPrice(formData: FormData) {
+  "use server";
+
+  await writeAdminJson("/admin/model-prices", {
+    cachedInputPerMtok: optionalFormString(formData, "cachedInputPerMtok"),
+    currency: formString(formData, "currency"),
+    effectiveAt: optionalFormString(formData, "effectiveAt"),
+    id: formString(formData, "id"),
+    inputPerMtok: formString(formData, "inputPerMtok"),
+    model: formString(formData, "model"),
+    outputPerMtok: formString(formData, "outputPerMtok"),
+    provider: formString(formData, "provider"),
+    source: optionalFormString(formData, "source"),
+  });
+  revalidateConsoleSetup();
+}
+
 export async function createConsoleCredential(formData: FormData) {
   "use server";
 
@@ -353,6 +388,7 @@ export async function getConsoleRuntimeData(
       channels,
       credentials,
       faucetGrants,
+      modelPrices,
       pricingPolicies,
       routes,
       usage,
@@ -362,6 +398,7 @@ export async function getConsoleRuntimeData(
       fetchJson<ChannelsResponse>("/admin/channels"),
       fetchJson<CredentialsResponse>("/admin/provider-credentials"),
       fetchJson<FaucetGrantsResponse>("/admin/faucet-grants"),
+      fetchJson<ModelPricesResponse>("/admin/model-prices"),
       fetchJson<PricingPoliciesResponse>("/admin/pricing-policies"),
       fetchJson<RoutesResponse>("/admin/routes"),
       fetchJson<UsageEventsResponse>(`/admin/usage-events${usageLedgerQuery}`),
@@ -392,6 +429,10 @@ export async function getConsoleRuntimeData(
       );
     }
 
+    if (!Array.isArray(modelPrices.model_prices)) {
+      throw new Error("Gateway pricing response did not include model_prices.");
+    }
+
     if (!Array.isArray(routes.routes)) {
       throw new Error("Gateway routes response did not include routes.");
     }
@@ -415,6 +456,7 @@ export async function getConsoleRuntimeData(
       routes: routes.routes,
       usageEvents: usage.usage_events,
       ledgerEntries: ledger.ledger_entries,
+      modelPrices: modelPrices.model_prices,
       source: "gateway",
     };
   } catch {

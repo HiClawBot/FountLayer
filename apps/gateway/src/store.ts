@@ -215,6 +215,23 @@ export type GatewayAdminPricingPolicyUpdateInput = {
   riskReserveRate?: string;
 };
 
+export type GatewayAdminModelPriceRecord = {
+  cachedInputPerMtok?: string;
+  currency: string;
+  effectiveAt?: string;
+  id: string;
+  inputPerMtok: string;
+  model: string;
+  outputPerMtok: string;
+  provider: string;
+  source?: string;
+};
+
+export type GatewayAdminModelPriceCreateInput = Omit<
+  GatewayAdminModelPriceRecord,
+  "effectiveAt"
+> & { effectiveAt: string };
+
 export type GatewayGrantRecord = {
   id: string;
   appId: string;
@@ -502,6 +519,10 @@ export type GatewayStore = {
     input: GatewayProviderCredentialRotateInput,
   ): Promise<GatewayAdminCredentialRecord | undefined>;
   deleteProviderCredential(id: string): Promise<boolean>;
+  listModelPrices(): Promise<GatewayAdminModelPriceRecord[]>;
+  createModelPrice(
+    input: GatewayAdminModelPriceCreateInput,
+  ): Promise<GatewayAdminModelPriceRecord>;
   listPricingPolicies(): Promise<GatewayAdminPricingPolicyRecord[]>;
   createPricingPolicy(
     input: GatewayAdminPricingPolicyCreateInput,
@@ -530,7 +551,7 @@ export type InMemoryGatewayState = {
   channels: Map<string, GatewayChannelRecord>;
   faucetGrants: GatewayGrantRecord[];
   idempotencyRecords: Map<string, GatewayIdempotencyRecord>;
-  modelPrices: ModelPrice[];
+  modelPrices: GatewayAdminModelPriceRecord[];
   pricingPolicyConfigs: Map<string, PricingPolicy>;
   rateLimitCounters: Map<
     string,
@@ -682,6 +703,18 @@ type AdminPricingPolicyRow = {
   max_total_markup_rate: string;
 };
 
+type AdminModelPriceRow = {
+  cached_input_per_mtok: string | null;
+  currency: string;
+  effective_at: string | Date | null;
+  id: string;
+  input_per_mtok: string;
+  model: string;
+  output_per_mtok: string;
+  provider: string;
+  source: string | null;
+};
+
 type JsonValue =
   | null
   | string
@@ -800,7 +833,18 @@ export function createDefaultInMemoryGatewayState(
       },
     ],
     idempotencyRecords: new Map(),
-    modelPrices: demoModelPrices.map((price) => ({ ...price })),
+    modelPrices: demoModelPrices.map((price, index) => ({
+      cachedInputPerMtok: price.cachedInputPerMtok,
+      currency: price.currency,
+      effectiveAt:
+        price.effectiveAt?.toISOString() ?? new Date(0).toISOString(),
+      id: `price_embedded_${index + 1}`,
+      inputPerMtok: price.inputPerMtok,
+      model: price.model,
+      outputPerMtok: price.outputPerMtok,
+      provider: price.provider,
+      source: "embedded-development-default",
+    })),
     pricingPolicyConfigs: new Map([
       ["policy_default", { ...defaultRuntimePricingPolicy }],
     ]),
@@ -1231,6 +1275,22 @@ function mapAdminPricingPolicyRow(
     developerMarkupRate: percent(row.developer_markup_rate),
     channelMarkupRate: percent(row.channel_markup_rate),
     maxTotalMarkupRate: percent(row.max_total_markup_rate),
+  };
+}
+
+function mapAdminModelPriceRow(
+  row: AdminModelPriceRow,
+): GatewayAdminModelPriceRecord {
+  return {
+    cachedInputPerMtok: row.cached_input_per_mtok ?? undefined,
+    currency: row.currency,
+    effectiveAt: row.effective_at ? toIso(row.effective_at) : undefined,
+    id: row.id,
+    inputPerMtok: row.input_per_mtok,
+    model: row.model,
+    outputPerMtok: row.output_per_mtok,
+    provider: row.provider,
+    source: row.source ?? undefined,
   };
 }
 
@@ -1665,20 +1725,26 @@ export function createInMemoryGatewayStore(
           (price) =>
             price.provider === provider &&
             price.model === model &&
-            (!price.effectiveAt || price.effectiveAt.getTime() <= at.getTime()),
+            (!price.effectiveAt ||
+              Date.parse(price.effectiveAt) <= at.getTime()),
         )
         .sort(
           (left, right) =>
-            (right.effectiveAt?.getTime() ?? 0) -
-            (left.effectiveAt?.getTime() ?? 0),
+            Date.parse(right.effectiveAt ?? "1970-01-01T00:00:00.000Z") -
+            Date.parse(left.effectiveAt ?? "1970-01-01T00:00:00.000Z"),
         )[0];
 
       return price
         ? {
-            ...price,
+            cachedInputPerMtok: price.cachedInputPerMtok,
+            currency: price.currency,
             effectiveAt: price.effectiveAt
               ? new Date(price.effectiveAt)
               : undefined,
+            inputPerMtok: price.inputPerMtok,
+            model: price.model,
+            outputPerMtok: price.outputPerMtok,
+            provider: price.provider,
           }
         : undefined;
     },
@@ -2185,6 +2251,18 @@ export function createInMemoryGatewayStore(
       );
 
       return state.providerCredentials.length !== originalLength;
+    },
+
+    async listModelPrices() {
+      return state.modelPrices.map((price) => ({ ...price }));
+    },
+
+    async createModelPrice(input) {
+      const modelPrice = { ...input };
+
+      state.modelPrices.push(modelPrice);
+
+      return { ...modelPrice };
     },
 
     async listPricingPolicies() {
@@ -2890,24 +2968,16 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
     },
 
     async getModelPrice(provider, model, at = new Date()) {
-      const rows = await sql<
-        Array<{
-          cached_input_per_mtok: string | null;
-          currency: string;
-          effective_at: string | Date | null;
-          input_per_mtok: string;
-          model: string;
-          output_per_mtok: string;
-          provider: string;
-        }>
-      >`
+      const rows = await sql<AdminModelPriceRow[]>`
         select
+          id,
           provider,
           model,
           input_per_mtok::text as input_per_mtok,
           output_per_mtok::text as output_per_mtok,
           cached_input_per_mtok::text as cached_input_per_mtok,
           currency,
+          source,
           effective_at
         from model_prices
         where provider = ${provider}
@@ -3712,6 +3782,69 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
       `;
 
       return rows.length > 0;
+    },
+
+    async listModelPrices() {
+      const rows = await sql<AdminModelPriceRow[]>`
+        select
+          id,
+          provider,
+          model,
+          input_per_mtok::text as input_per_mtok,
+          output_per_mtok::text as output_per_mtok,
+          cached_input_per_mtok::text as cached_input_per_mtok,
+          currency,
+          source,
+          effective_at
+        from model_prices
+        order by effective_at desc, created_at desc, id asc
+      `;
+
+      return rows.map(mapAdminModelPriceRow);
+    },
+
+    async createModelPrice(input) {
+      const rows = await sql<AdminModelPriceRow[]>`
+        insert into model_prices (
+          id,
+          provider,
+          model,
+          input_per_mtok,
+          output_per_mtok,
+          cached_input_per_mtok,
+          currency,
+          source,
+          effective_at
+        )
+        values (
+          ${input.id},
+          ${input.provider},
+          ${input.model},
+          ${input.inputPerMtok},
+          ${input.outputPerMtok},
+          ${input.cachedInputPerMtok ?? null},
+          ${input.currency},
+          ${input.source ?? null},
+          ${input.effectiveAt}
+        )
+        returning
+          id,
+          provider,
+          model,
+          input_per_mtok::text as input_per_mtok,
+          output_per_mtok::text as output_per_mtok,
+          cached_input_per_mtok::text as cached_input_per_mtok,
+          currency,
+          source,
+          effective_at
+      `;
+      const row = rows[0];
+
+      if (!row) {
+        throw new Error("Model price was not created.");
+      }
+
+      return mapAdminModelPriceRow(row);
     },
 
     async listPricingPolicies() {

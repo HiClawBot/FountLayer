@@ -5,6 +5,7 @@ export type AdapterChatInput = {
   requestId?: string;
   model: string;
   messages: ChatMessage[];
+  signal?: AbortSignal;
   stream?: boolean;
   metadata?: Record<string, unknown>;
   attribution?: AttributionContext;
@@ -37,6 +38,7 @@ export type AdapterChunk = {
 
 export interface LLMAdapter {
   chat(input: AdapterChatInput): Promise<AdapterChatOutput>;
+  healthCheck?(): Promise<void>;
   streamChat(input: AdapterChatInput): AsyncIterable<AdapterChunk>;
 }
 

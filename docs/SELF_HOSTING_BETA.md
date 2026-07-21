@@ -37,6 +37,66 @@ The Compose stack starts:
 - Redis on `localhost:3379`
 - LiteLLM on `localhost:3305`
 
+This root Compose file is for development dependencies. It does not start the
+FountLayer applications.
+
+## Production-Shaped Compose
+
+The release profile is [`compose.production.yml`](../compose.production.yml). It pins
+PostgreSQL 16.14, the non-root LiteLLM 1.86.2 image, and the Node 22.23.1 base by exact
+multi-platform digest. It builds separate non-root targets for Gateway, Console, and
+Demo, mounts application files read-only, drops Linux capabilities, sets PID/CPU/memory
+limits, and binds application/database ports to loopback only.
+
+Create a private environment file and replace every `replace_with_*` value:
+
+```bash
+cp infra/production.env.example .env.production
+chmod 600 .env.production
+```
+
+The Gateway Admin token has two representations: put its plaintext value only in
+`CONSOLE_GATEWAY_ADMIN_TOKEN`, and its lowercase SHA-256 digest in
+`FOUNTLAYER_ADMIN_TOKEN_SHA256`. The ticket secret, Console session secret, credential
+master key, LiteLLM master key, database password, and upstream provider key must all be
+independent high-entropy values. URL-encode the database password inside `DATABASE_URL`.
+
+Build, migrate, and bootstrap a fresh beta database:
+
+```bash
+docker compose --env-file .env.production -f compose.production.yml build
+docker compose --env-file .env.production -f compose.production.yml up -d postgres litellm
+docker compose --env-file .env.production -f compose.production.yml run --rm migrate
+docker compose --env-file .env.production -f compose.production.yml --profile bootstrap run --rm seed
+docker compose --env-file .env.production -f compose.production.yml up -d gateway console demo
+```
+
+The bootstrap seed is for a fresh test-credit beta only. Repeating it does not reset
+wallet balances, grant balances, grant status, or expiration. It creates the
+`demo-local-model` route alias expected by the LiteLLM configuration, while LiteLLM maps
+that stable alias to `UPSTREAM_OPENAI_MODEL` at the configured OpenAI-compatible base
+URL.
+
+The seeded model price is a deterministic test value, not a provider price quote.
+Before inviting external users, sign in to Console `/setup`, create a USD model-price
+version whose provider/model match the route, and record the upstream price-sheet URL
+or revision in `source`. The effective version is visible on `/pricing`; do not edit
+historical database rows after calls have been billed.
+
+Verify liveness and dependency readiness:
+
+```bash
+curl -fsS http://127.0.0.1:3300/health
+curl -fsS http://127.0.0.1:3300/health/dependencies
+docker compose --env-file .env.production -f compose.production.yml ps
+```
+
+`/health` proves only that the process is alive. `/health/dependencies` returns `503`
+unless PostgreSQL and the authenticated LiteLLM/OpenAI-compatible model endpoint are
+reachable. Keep ports `3300-3302` on loopback and terminate TLS/authentication in a
+same-host reverse proxy before remote use. Set `NEXT_PUBLIC_GATEWAY_BASE_URL` to the
+public HTTPS Gateway origin before building the Demo image.
+
 ## Prepare Database
 
 ```bash
@@ -83,6 +143,11 @@ the Gateway and trusted application backends that issue five-minute tickets.
 `demo`. Direct local mode uses `LOCAL_OPENAI_BASE_URL` and optional
 `LOCAL_OPENAI_API_KEY`, and only accepts localhost, private-LAN, or `.local`
 targets.
+
+`FOUNTLAYER_UPSTREAM_TIMEOUT_MS` defaults to 30 seconds and bounds the upstream request
+and response-body read. Browser disconnects cancel an in-flight adapter call. SIGINT or
+SIGTERM stops new Gateway work, drains Fastify and PostgreSQL connections, and exits
+within `FOUNTLAYER_SHUTDOWN_GRACE_MS` (15 seconds by default).
 
 ## Issue Session Tickets From A Trusted Backend
 
@@ -184,23 +249,29 @@ Set `CONSOLE_SESSION_COOKIE_SECURE=true` behind production HTTPS ingress; it
 defaults to secure cookies when `NODE_ENV=production`.
 
 If Docker is unavailable on the local machine, push `codex/v0.5.0-beta` or run
-the `Runtime Smoke` GitHub Actions workflow manually. It starts the Compose
-dependencies, migrates and seeds Postgres, starts Gateway on `3300`, starts
-Console on `3301`, and runs `pnpm smoke:runtime`.
+the `Runtime Smoke` and `Container Gates` GitHub Actions workflows manually. Runtime
+Smoke starts a deterministic OpenAI-compatible HTTP fixture, routes through the pinned
+LiteLLM container, migrates and seeds Postgres, starts Gateway on `3300`, starts Console
+on `3301`, and runs `pnpm smoke:runtime`. Container Gates builds all three non-root
+images, emits SPDX JSON SBOMs, and fails on fixable high/critical image vulnerabilities.
+CI also uploads the generated production dependency license inventory as a build artifact.
 
-The beta release gate passed in GitHub Actions on the beta branch:
-<https://github.com/HiClawBot/FountLayer/actions/workflows/runtime-smoke.yml?query=branch%3Acodex%2Fv0.5.0-beta>.
+Before tagging, require a green run for the exact release commit in both
+[Runtime Smoke](https://github.com/HiClawBot/FountLayer/actions/workflows/runtime-smoke.yml?query=branch%3Acodex%2Fv0.5.0-beta)
+and
+[Container Gates](https://github.com/HiClawBot/FountLayer/actions/workflows/container-gates.yml?query=branch%3Acodex%2Fv0.5.0-beta).
 
 The smoke test checks:
 
 - Gateway health.
 - Dependency readiness.
+- Gateway -> LiteLLM -> real HTTP fixture transport with provider-supplied usage.
 - Session creation.
 - Ticket tamper/replay protection and an anonymous Console denial.
 - Estimate with positive retail price.
 - One successful billable chat call.
-- Admin readback for apps, channels, faucet grants, routes, pricing, usage,
-  and ledger.
+- Admin readback for apps, channels, faucet grants, model-price versions, routes,
+  pricing policies, usage, and ledger.
 - A denied chat request does not create a usage event or ledger entries.
 - An anonymous protected Console request redirects to `/login`.
 - Console live pages render Gateway-backed data without leaking admin tokens,
@@ -225,10 +296,38 @@ The smoke script prints JSON similar to:
 }
 ```
 
+## Backup And Restore Drill
+
+Install PostgreSQL 16 client tools on the operator host. Point `DATABASE_URL` at the
+loopback-published production database, not the internal Compose hostname, and create a
+mode-0600 custom-format backup:
+
+```bash
+DATABASE_URL='postgres://fountlayer:URL_ENCODED_PASSWORD@127.0.0.1:3332/fountlayer' \
+  pnpm db:backup -- ./backups
+```
+
+Before trusting a backup, restore it into an automatically created temporary database.
+The verifier checks that the migration journal exists, then always drops only that
+temporary database:
+
+```bash
+DATABASE_URL='postgres://fountlayer:URL_ENCODED_PASSWORD@127.0.0.1:3332/fountlayer' \
+  pnpm db:restore:verify -- ./backups/fountlayer-fountlayer-TIMESTAMP.dump
+```
+
+For a real recovery, stop Gateway/Console/Demo, retain the failed volume, create an
+empty replacement database, run `pg_restore --exit-on-error --no-owner --no-privileges`
+against that empty target, rerun `migrate`, then start Gateway and verify
+`/health/dependencies`, usage counts, ledger balance, and Console attribution before
+switching traffic. Never restore an untrusted dump or restore over the only production
+copy.
+
 ## Cleanup
 
 ```bash
 docker compose down
+docker compose --env-file .env.production -f compose.production.yml down
 ```
 
 To remove local database state:

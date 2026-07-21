@@ -16,6 +16,7 @@ export function createGatewayRuntimeAdapter(
     apiKey: config.apiKey,
     baseUrl: config.baseUrl,
     fetchImpl,
+    timeoutMs: config.timeoutMs,
   };
 
   return config.mode === "litellm"

@@ -61,6 +61,7 @@ import {
   type GatewayAdminAppUpdateInput,
   type GatewayAdminChannelCreateInput,
   type GatewayAdminChannelUpdateInput,
+  type GatewayAdminModelPriceCreateInput,
   type GatewayAdminPricingPolicyCreateInput,
   type GatewayAdminPricingPolicyUpdateInput,
   type GatewayAdminRouteCreateInput,
@@ -698,6 +699,47 @@ function parsePricingPolicyCreateBody(
       optionalDecimalString(body, "platformFeeRate") ?? "0.250000",
     riskReserveRate:
       optionalDecimalString(body, "riskReserveRate") ?? "0.050000",
+  };
+}
+
+function parseModelPriceCreateBody(
+  value: unknown,
+): GatewayAdminModelPriceCreateInput | undefined {
+  const body = recordFromBody(value);
+
+  if (!body) {
+    return undefined;
+  }
+
+  const currency = requiredBodyString(body, "currency");
+  const id = requiredBodyString(body, "id");
+  const inputPerMtok = optionalMoneyString(body, "inputPerMtok");
+  const model = requiredBodyString(body, "model");
+  const outputPerMtok = optionalMoneyString(body, "outputPerMtok");
+  const provider = requiredBodyString(body, "provider");
+
+  if (
+    !currency ||
+    !id ||
+    inputPerMtok === undefined ||
+    !model ||
+    outputPerMtok === undefined ||
+    !provider
+  ) {
+    return undefined;
+  }
+
+  return {
+    cachedInputPerMtok: optionalMoneyString(body, "cachedInputPerMtok"),
+    currency,
+    effectiveAt:
+      optionalDateString(body, "effectiveAt") ?? new Date().toISOString(),
+    id,
+    inputPerMtok,
+    model,
+    outputPerMtok,
+    provider,
+    source: optionalBodyString(body, "source"),
   };
 }
 
@@ -2251,6 +2293,19 @@ export function buildGatewayServer(
     const requestId = `req_${randomUUID()}`;
     let output: AdapterChatOutput;
     const adapterStartedAt = Date.now();
+    const adapterAbortController = new AbortController();
+    const abortAdapter = () => {
+      adapterAbortController.abort(
+        new DOMException("Client disconnected.", "AbortError"),
+      );
+    };
+
+    request.raw.once("aborted", abortAdapter);
+    reply.raw.once("close", abortAdapter);
+
+    if (request.raw.aborted) {
+      abortAdapter();
+    }
 
     try {
       output = await executeWithCircuitBreaker(
@@ -2261,6 +2316,7 @@ export function buildGatewayServer(
                 requestId,
                 model: routePolicy.model,
                 messages: parsed.data.messages,
+                signal: adapterAbortController.signal,
                 stream: parsed.data.stream,
                 metadata: parsed.data.metadata,
                 attribution,
@@ -2284,6 +2340,13 @@ export function buildGatewayServer(
         },
       );
     } catch (error) {
+      const adapterFailureReason =
+        error instanceof CircuitOpenError
+          ? "adapter_circuit_open"
+          : error instanceof Error && error.name === "TimeoutError"
+            ? "adapter_timeout"
+            : "adapter_error";
+
       await releaseIdempotencyReservation();
       await recordTelemetry(telemetrySink, "gateway.adapter.error", {
         appId: attribution.appId,
@@ -2291,7 +2354,7 @@ export function buildGatewayServer(
         endUserId: attribution.endUserId,
         mode: attribution.mode,
         provider: routePolicy.provider,
-        reason: "adapter_error",
+        reason: adapterFailureReason,
         routeAlias: routePolicy.alias,
         routeId: routePolicy.id,
         routedModel: routePolicy.model,
@@ -2329,7 +2392,7 @@ export function buildGatewayServer(
         channelId: attribution.channelId,
         endUserId: attribution.endUserId,
         mode: attribution.mode,
-        reason: "adapter_error",
+        reason: adapterFailureReason,
         routeId: routePolicy.id,
         useCase: attribution.useCase,
       });
@@ -2344,10 +2407,17 @@ export function buildGatewayServer(
 
       return jsonError(
         reply,
-        502,
-        "adapter_error",
-        error instanceof Error ? error.message : "LLM adapter request failed.",
+        error instanceof Error && error.name === "TimeoutError" ? 504 : 502,
+        error instanceof Error && error.name === "TimeoutError"
+          ? "adapter_timeout"
+          : "adapter_error",
+        error instanceof Error && error.name === "TimeoutError"
+          ? "LLM adapter request exceeded the configured deadline."
+          : "LLM adapter request failed.",
       );
+    } finally {
+      request.raw.off("aborted", abortAdapter);
+      reply.raw.off("close", abortAdapter);
     }
 
     const settledPrice = resolvePriceBreakdown(
@@ -3524,6 +3594,94 @@ export function buildGatewayServer(
       [(item) => item.id, (item) => item.appId],
     ),
   );
+
+  server.get("/admin/model-prices", async (request, reply) =>
+    adminListResponse(
+      request,
+      reply,
+      "model_prices",
+      await store.listModelPrices(),
+      [
+        { query: "id", read: (item) => item.id },
+        { query: "provider", read: (item) => item.provider },
+        { query: "model", read: (item) => item.model },
+      ],
+      [
+        (item) => item.id,
+        (item) => item.provider,
+        (item) => item.model,
+        (item) => item.currency,
+        (item) => item.source ?? "",
+      ],
+    ),
+  );
+
+  server.post("/admin/model-prices", async (request, reply) => {
+    let parsed: GatewayAdminModelPriceCreateInput | undefined;
+
+    try {
+      parsed = parseModelPriceCreateBody(request.body);
+    } catch (error) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_model_price",
+        "Model price request is invalid.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+
+    if (!parsed) {
+      return jsonError(
+        reply,
+        400,
+        "invalid_model_price",
+        "Model price request must include id, provider, model, inputPerMtok, outputPerMtok, and currency.",
+      );
+    }
+
+    if (parsed.currency !== "USD") {
+      return jsonError(
+        reply,
+        400,
+        "unsupported_model_price_currency",
+        "The external beta supports USD model prices only.",
+      );
+    }
+
+    const existing = await store.listModelPrices();
+
+    if (
+      existing.some(
+        (price) =>
+          price.id === parsed.id ||
+          (price.provider === parsed.provider &&
+            price.model === parsed.model &&
+            price.effectiveAt === parsed.effectiveAt),
+      )
+    ) {
+      return jsonError(
+        reply,
+        409,
+        "model_price_conflict",
+        "Model price version already exists.",
+      );
+    }
+
+    try {
+      const modelPrice = await store.createModelPrice(parsed);
+
+      return reply.code(201).send({ model_price: modelPrice });
+    } catch (error) {
+      return jsonError(
+        reply,
+        500,
+        "store_error",
+        "Gateway store failed while creating a model price.",
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+  });
 
   server.post("/admin/pricing-policies", async (request, reply) => {
     let parsed: GatewayAdminPricingPolicyCreateInput | undefined;

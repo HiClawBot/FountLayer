@@ -39,6 +39,7 @@ describe("gateway runtime config", () => {
         sessionCreationsPerWindow: 20,
       },
       sessionTicketSecret: "change_me_session_ticket_secret_32_bytes_minimum",
+      shutdownGraceMs: 15000,
       storeMode: "memory",
     });
     expect(config.adminTokenHashes).toHaveLength(1);
@@ -77,6 +78,7 @@ describe("gateway runtime config", () => {
       apiKey: "litellm-placeholder",
       baseUrl: "http://localhost:3305/v1",
       mode: "litellm",
+      timeoutMs: 30000,
     });
   });
 
@@ -91,6 +93,7 @@ describe("gateway runtime config", () => {
       apiKey: "local-placeholder",
       baseUrl: "http://192.168.1.20:3314/v1",
       mode: "local",
+      timeoutMs: 30000,
     });
   });
 
@@ -133,6 +136,23 @@ describe("gateway runtime config", () => {
         FOUNTLAYER_SESSION_BILLABLE_REQUESTS_PER_WINDOW: "0",
       }),
     ).toThrow("must be a positive integer");
+  });
+
+  it("loads and validates upstream and shutdown deadlines", () => {
+    const config = loadGatewayRuntimeConfig({
+      FOUNTLAYER_GATEWAY_ADAPTER: "litellm",
+      FOUNTLAYER_SHUTDOWN_GRACE_MS: "12000",
+      FOUNTLAYER_UPSTREAM_TIMEOUT_MS: "45000",
+    });
+
+    expect(config.adapter).toMatchObject({ timeoutMs: 45000 });
+    expect(config.shutdownGraceMs).toBe(12000);
+    expect(() =>
+      loadGatewayRuntimeConfig({
+        FOUNTLAYER_GATEWAY_ADAPTER: "litellm",
+        FOUNTLAYER_UPSTREAM_TIMEOUT_MS: "0",
+      }),
+    ).toThrow("FOUNTLAYER_UPSTREAM_TIMEOUT_MS must be a positive integer");
   });
 
   it("rejects invalid credential master keys", () => {
@@ -258,7 +278,9 @@ describe("gateway runtime config", () => {
       adapter: {
         baseUrl: "http://127.0.0.1:3314",
         mode: "local",
+        timeoutMs: 30000,
       },
+      shutdownGraceMs: 15000,
       storeMode: "postgres",
     });
   });

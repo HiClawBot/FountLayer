@@ -39,7 +39,7 @@ Goal: make FountLayer practical for a developer to run as their own Gateway.
    - Publish a beta-specific release checklist.
 
 2. Prove self-hosted runtime.
-   - Validate Docker Compose with Postgres, Redis, LiteLLM, Gateway, Console,
+   - Validate Docker Compose with Postgres, LiteLLM, Gateway, Console,
      and the demo app.
    - Record `pnpm smoke:runtime` output in release notes.
 
@@ -61,7 +61,8 @@ Done when:
 - A new self-hosting user can run the Gateway from README without editing code.
 - Abuse controls exist before any managed provider key can be used.
 - Admin APIs and Console flows are covered by tests.
-- Runtime smoke is repeatable in a Docker-enabled environment.
+- Runtime smoke is repeatable in a Docker-enabled environment and traverses a real
+  HTTP network fixture through LiteLLM.
 
 ## Historical Foundation Milestones
 

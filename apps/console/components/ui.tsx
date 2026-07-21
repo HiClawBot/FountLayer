@@ -25,7 +25,11 @@ export function PageHeader({
           </button>
         </div>
       </header>
-      {source === "unavailable" ? (
+      {source === "gateway" ? (
+        <div className="runtime-source" role="status">
+          Source: gateway
+        </div>
+      ) : source === "unavailable" ? (
         <div className="runtime-alert" role="alert">
           Gateway runtime data is unavailable. No sample records are shown;
           check the Gateway URL, admin token, and dependency health before

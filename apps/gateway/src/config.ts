@@ -16,6 +16,7 @@ export type GatewayRuntimeAdapterConfig =
       apiKey?: string;
       baseUrl: string;
       mode: "litellm" | "local";
+      timeoutMs: number;
     };
 
 export type GatewayRuntimeConfig = {
@@ -32,6 +33,7 @@ export type GatewayRuntimeConfig = {
   port: number;
   rateLimits: GatewayRateLimitOptions;
   sessionTicketSecret: string;
+  shutdownGraceMs: number;
   storeMode: GatewayStoreMode;
 };
 
@@ -131,6 +133,11 @@ function isLocalHostname(hostname: string): boolean {
 
 function parseAdapterConfig(env: GatewayEnv): GatewayRuntimeAdapterConfig {
   const mode = env.FOUNTLAYER_GATEWAY_ADAPTER ?? "demo";
+  const timeoutMs = parsePositiveInteger(
+    env,
+    "FOUNTLAYER_UPSTREAM_TIMEOUT_MS",
+    30_000,
+  );
 
   if (mode === "demo") {
     return { mode };
@@ -144,6 +151,7 @@ function parseAdapterConfig(env: GatewayEnv): GatewayRuntimeAdapterConfig {
         "LITELLM_BASE_URL",
       ),
       mode,
+      timeoutMs,
     };
   }
 
@@ -164,6 +172,7 @@ function parseAdapterConfig(env: GatewayEnv): GatewayRuntimeAdapterConfig {
       apiKey: env.LOCAL_OPENAI_API_KEY?.trim() || undefined,
       baseUrl,
       mode,
+      timeoutMs,
     };
   }
 
@@ -353,6 +362,11 @@ export function loadGatewayRuntimeConfig(
       ),
     },
     sessionTicketSecret: parseSessionTicketSecret(env),
+    shutdownGraceMs: parsePositiveInteger(
+      env,
+      "FOUNTLAYER_SHUTDOWN_GRACE_MS",
+      15_000,
+    ),
     storeMode: parseStoreMode(env),
   };
 

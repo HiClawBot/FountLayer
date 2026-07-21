@@ -37,8 +37,8 @@ export async function seedDatabase(
           'route_paper_summary',
           'policy_default',
           true,
-          true,
-          true,
+          false,
+          false,
           'active'
         )
         on conflict (id) do update set
@@ -74,15 +74,14 @@ export async function seedDatabase(
         values
           ('wallet_platform_revenue', 'app_pdf_reader', 'platform', 'platform', 'USD', 0),
           ('wallet_platform_cost', 'app_pdf_reader', 'platform', 'platform_cost', 'USD', 0),
-          ('wallet_provider_payable', 'app_pdf_reader', 'provider_payable', 'demo', 'USD', 0),
+          ('wallet_provider_payable', 'app_pdf_reader', 'provider_payable', 'openai-compatible', 'USD', 0),
           ('wallet_faucet_new_user', 'app_pdf_reader', 'platform', 'grant_new_user', 'USD', 1.00000000),
           ('wallet_user_demo', 'app_pdf_reader', 'end_user', 'user_hash_123', 'USD', 0)
         on conflict (id) do update set
           app_id = excluded.app_id,
           owner_type = excluded.owner_type,
           owner_id = excluded.owner_id,
-          currency = excluded.currency,
-          balance_numeric = excluded.balance_numeric
+          currency = excluded.currency
       `;
 
       await transaction`
@@ -97,8 +96,8 @@ export async function seedDatabase(
           source
         )
         values (
-          'price_demo_local_model',
-          'demo',
+          'price_openai_compatible_model',
+          'openai-compatible',
           'demo-local-model',
           0.15000000,
           0.60000000,
@@ -106,12 +105,7 @@ export async function seedDatabase(
           'USD',
           'seed'
         )
-        on conflict (id) do update set
-          input_per_mtok = excluded.input_per_mtok,
-          output_per_mtok = excluded.output_per_mtok,
-          cached_input_per_mtok = excluded.cached_input_per_mtok,
-          currency = excluded.currency,
-          source = excluded.source
+        on conflict (id) do nothing
       `;
 
       await transaction`
@@ -154,11 +148,11 @@ export async function seedDatabase(
           'app_pdf_reader',
           'vertical/paper-summary',
           ${transaction.json({
-            adapter: "local",
-            fallbackModels: ["demo-local-model"],
+            adapter: "litellm",
+            fallbackModels: [],
             latencyPreference: "balanced",
             maxRetailPrice: "0.25000000",
-            provider: "demo",
+            provider: "openai-compatible",
             model: "demo-local-model",
             modelAllowlist: ["demo-local-model"],
           })},
@@ -204,12 +198,9 @@ export async function seedDatabase(
           'active'
         )
         on conflict (id) do update set
-          remaining_numeric = excluded.remaining_numeric,
           allowed_models = excluded.allowed_models,
           allowed_use_cases = excluded.allowed_use_cases,
-          daily_cap_numeric = excluded.daily_cap_numeric,
-          expires_at = excluded.expires_at,
-          status = excluded.status
+          daily_cap_numeric = excluded.daily_cap_numeric
       `;
     });
   } finally {

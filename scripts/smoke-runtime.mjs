@@ -178,21 +178,31 @@ async function smokeGateway() {
     });
   }
 
-  const [apps, channels, faucetGrants, routes, pricingPolicies, usage, ledger] =
-    await Promise.all([
-      fetchAdminJson("/admin/apps"),
-      fetchAdminJson("/admin/channels"),
-      fetchAdminJson("/admin/faucet-grants"),
-      fetchAdminJson("/admin/routes"),
-      fetchAdminJson("/admin/pricing-policies"),
-      fetchAdminJson("/admin/usage-events"),
-      fetchAdminJson("/admin/ledger"),
-    ]);
+  const [
+    apps,
+    channels,
+    faucetGrants,
+    modelPrices,
+    routes,
+    pricingPolicies,
+    usage,
+    ledger,
+  ] = await Promise.all([
+    fetchAdminJson("/admin/apps"),
+    fetchAdminJson("/admin/channels"),
+    fetchAdminJson("/admin/faucet-grants"),
+    fetchAdminJson("/admin/model-prices"),
+    fetchAdminJson("/admin/routes"),
+    fetchAdminJson("/admin/pricing-policies"),
+    fetchAdminJson("/admin/usage-events"),
+    fetchAdminJson("/admin/ledger"),
+  ]);
 
   const checks = {
     apps: apps.apps?.length,
     channels: channels.channels?.length,
     faucetGrants: faucetGrants.faucet_grants?.length,
+    modelPrices: modelPrices.model_prices?.length,
     routes: routes.routes?.length,
     pricingPolicies: pricingPolicies.pricing_policies?.length,
     usageEvents: usage.usage_events?.length,
@@ -203,6 +213,7 @@ async function smokeGateway() {
     !checks.apps ||
     !checks.channels ||
     !checks.faucetGrants ||
+    !checks.modelPrices ||
     !checks.routes ||
     !checks.pricingPolicies ||
     !checks.usageEvents ||

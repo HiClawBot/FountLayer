@@ -55,6 +55,9 @@ deployment.
 | Telemetry backend fails after billing               | Charged call appears failed                    | Telemetry writes are best-effort and cannot alter the committed request outcome.                                                                         |
 | End-user deletion breaks accounting                 | Ledger integrity loss                          | Privacy purge anonymizes identifiers and metadata without deleting usage or ledger facts.                                                                |
 | Malicious, oversized, or unreadable document upload | Browser exhaustion or unintended data transfer | PDF.js runs in-browser with 10 MB, 40-page, and 80,000-character limits; unsupported, encrypted, image-only, and unreadable files fail before inference. |
+| Hung upstream or disconnected browser               | Resource exhaustion or orphan provider work    | Adapter fetch uses a bounded deadline and the browser connection's abort signal; timeout returns a sanitized `adapter_timeout`.                          |
+| Mutable or privileged release image                 | Supply-chain or container breakout             | Exact image digests, non-root app targets, read-only filesystems, dropped capabilities, SBOMs, and fixable high/critical scans.                          |
+| Unusable backup discovered during outage            | Extended data loss or downtime                 | Custom-format backups are restored into a temporary database and the migration journal is checked before the backup is trusted.                          |
 
 ## Explicit Non-Goals For This Beta
 
@@ -80,3 +83,5 @@ Before tagging `v0.5.0-beta.2`, maintainers should confirm:
   ciphertext.
 - Real PDF fixture extraction, upload limits, unreadable-document failure, and the
   browser summary flow pass without uploading raw PDF bytes.
+- The SDK tarball consumer install, backup/isolated restore drill, non-root image
+  inspection, SPDX SBOM generation, and image vulnerability scan pass.

@@ -135,6 +135,12 @@ paths:
           description: Preflight funding failed, or actual usage exceeded balance/route cap; post-provider failures include a failed usage_event_id and charge no user credits
         "409":
           description: Idempotency key is in progress, conflicts with another request, or was completed without a locally replayable response
+        "502":
+          description: Sanitized upstream adapter failure; no user billing records are created
+        "503":
+          description: Adapter circuit breaker or a required coordination dependency is unavailable
+        "504":
+          description: Upstream adapter exceeded FOUNTLAYER_UPSTREAM_TIMEOUT_MS; no user billing records are created
 
   /admin/apps:
     get:
@@ -343,6 +349,34 @@ paths:
       responses:
         "201":
           description: Pricing policy created
+
+  /admin/model-prices:
+    get:
+      summary: List immutable model price versions
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/Search"
+      responses:
+        "200":
+          description: Model price versions with page metadata
+    post:
+      summary: Create an immutable model price version
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModelPriceCreate"
+      responses:
+        "201":
+          description: Model price version created
+        "409":
+          description: Price ID or provider/model/effective-time version already exists
 
   /admin/pricing-policies/{id}:
     patch:
@@ -778,6 +812,35 @@ components:
           $ref: "#/components/schemas/Money"
         riskReserveRate:
           $ref: "#/components/schemas/Money"
+
+    ModelPriceCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - currency
+        - id
+        - inputPerMtok
+        - model
+        - outputPerMtok
+        - provider
+      properties:
+        cachedInputPerMtok:
+          $ref: "#/components/schemas/Money"
+        currency:
+          type: string
+          enum: [USD]
+        effectiveAt:
+          type: string
+          format: date-time
+          description: Defaults to the Gateway time when omitted.
+        id: { type: string, minLength: 1 }
+        inputPerMtok:
+          $ref: "#/components/schemas/Money"
+        model: { type: string, minLength: 1 }
+        outputPerMtok:
+          $ref: "#/components/schemas/Money"
+        provider: { type: string, minLength: 1 }
+        source: { type: string, minLength: 1 }
 
     PricingPolicyUpdate:
       type: object

@@ -41,9 +41,12 @@
 
 - [x] Node/pnpm quickstart commands tested locally.
 - [x] Docker Compose self-hosting runtime test is scripted with
-      `pnpm smoke:runtime` and passed in GitHub Actions Runtime Smoke.
+      `pnpm smoke:runtime`.
+- [ ] The exact release commit passes GitHub Actions Runtime Smoke.
 - [x] Optional Postgres integration test runs in CI with
       `FOUNTLAYER_RUN_DB_TESTS=1`.
+- [x] SDK protocol/ticket/client tarballs install and import from a clean consumer.
+- [x] PostgreSQL custom-format backup restores into an isolated temporary database.
 - [x] Security warning visible.
 - [x] Pricing formula documented.
 - [x] API spec documented.
@@ -71,3 +74,10 @@
 - [x] Strict key scan script exists.
 - [x] `pnpm scan:keys` passes.
 - [x] No local service port settings outside `3300-3399`.
+- [ ] Container Gates builds Gateway, Console, and Demo as non-root images on the
+      release commit.
+- [ ] Container Gates publishes SPDX SBOMs and reports no fixable high/critical image
+      vulnerabilities.
+- [ ] Credentialed real-provider golden smoke passes through LiteLLM with actual usage.
+- [ ] Staging soak, SIGTERM drain, provider timeout, database restart, and restore
+      failure-injection evidence is attached to the release.

@@ -71,10 +71,14 @@ pnpm test
 pnpm --filter @fountlayer/gateway dev
 ```
 
-Docker Compose is included for Postgres, Redis, and LiteLLM self-hosting:
+Development Compose is included for Postgres, Redis, and LiteLLM. The separate
+production profile builds non-root Gateway, Console, and Demo images and runs
+Postgres plus the pinned non-root LiteLLM image:
 
 ```bash
 docker compose up -d
+cp infra/production.env.example .env.production
+docker compose --env-file .env.production -f compose.production.yml build
 ```
 
 ## Self-Hosted Beta Quickstart
@@ -97,6 +101,20 @@ LITELLM_BASE_URL=http://localhost:3305 \
 LITELLM_MASTER_KEY=change_me \
 pnpm --filter @fountlayer/gateway dev
 ```
+
+For the production-shaped path, replace every value in `.env.production`, then run the
+one-time migration and bootstrap seed before the application services:
+
+```bash
+docker compose --env-file .env.production -f compose.production.yml up -d postgres litellm
+docker compose --env-file .env.production -f compose.production.yml run --rm migrate
+docker compose --env-file .env.production -f compose.production.yml --profile bootstrap run --rm seed
+docker compose --env-file .env.production -f compose.production.yml up -d gateway console demo
+```
+
+The published ports bind to loopback and must sit behind authenticated TLS ingress for
+remote access. See the [self-hosted beta runbook](docs/SELF_HOSTING_BETA.md) for secret
+generation, readiness, backup/restore verification, and shutdown procedures.
 
 In another terminal, generate an independent Console operator credential, retain
 the plaintext token for login/smoke, and start the Console with only its digest:
@@ -239,8 +257,9 @@ The Console reads Gateway Admin API usage, ledger, app, channel, faucet, route,
 credential-metadata, and pricing data from `CONSOLE_GATEWAY_BASE_URL` or
 `GATEWAY_BASE_URL`. If the Gateway cannot be reached, the Console shows an explicit
 unavailable state and empty runtime collections; it never substitutes sample records.
-The `/setup` page creates apps, channels, routes, faucet grants, pricing policies, app
-defaults, and credential metadata through server-side Admin API actions. `/admin/*`
+The `/setup` page creates apps, channels, routes, faucet grants, immutable model-price
+versions, pricing policies, app defaults, and credential metadata through server-side
+Admin API actions. `/admin/*`
 requires an admin bearer token, but the Console is protected by a single-operator login:
 its proxy gates every page, while runtime reads and Server Actions recheck the signed
 session or automation bearer token.
@@ -288,7 +307,10 @@ reference without running or billing the request again.
 The stock Gateway can select `demo` (development only), `litellm`, or `local` per
 process. The external beta contract supports `litellm` only. LiteLLM mode reads
 `LITELLM_BASE_URL` and `LITELLM_MASTER_KEY`; the other adapters remain internal or
-experimental until their product contracts and release tests are complete.
+experimental until their product contracts and release tests are complete. Adapter
+requests have a configurable deadline (`FOUNTLAYER_UPSTREAM_TIMEOUT_MS`, 30 seconds by
+default), disconnected clients cancel in-flight upstream calls, and dependency
+readiness probes the configured adapter's authenticated model endpoint.
 
 ## SDK Example
 
@@ -395,11 +417,13 @@ does not yet prove a production commercial loop:
   [the beta plan](docs/BETA_PLAN.md) and capability matrix are complete.
 - The document demo performs bounded browser-local PDF.js extraction: 10 MB, 40 pages,
   and 80,000 extracted characters. Raw PDF bytes are not sent to the Gateway.
-- Pinned production application images remain a release blocker.
+- Pinned, non-root production images and a resource-bounded Compose profile are
+  implemented; their Docker build, SBOM, and fixable high/critical scan workflow must be
+  green on the release commit.
 - Developer/channel revenue-share markups remain disabled until payout wallets and
   settlement obligations are implemented.
-- Docker Compose runtime validation passed in GitHub Actions for the beta
-  release gate; maintainers can repeat it locally where Docker is available.
+- The runtime workflow now traverses Gateway -> LiteLLM -> a deterministic network
+  fixture. A credentialed real-provider golden smoke is still required before tagging.
 - Managed-service operations still need formal provider terms review,
   privacy/terms documents, payment/tax review, and managed KMS/Vault backing.
 

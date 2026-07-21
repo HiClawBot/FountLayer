@@ -91,7 +91,10 @@ Response:
 
 ## GET /health/dependencies
 
-Returns readiness-style dependency checks without attribution or Admin auth.
+Returns readiness-style dependency checks without attribution or Admin auth. The stock
+PostgreSQL/LiteLLM runtime checks both Store connectivity and an authenticated
+OpenAI-compatible `/v1/models` request. Any failed check returns `503`; dependency error
+messages and connection details are never included.
 The default Store check reports `memory` or `postgres`; deployments can inject
 additional checks such as `adapter` and `redis`. Failed checks return
 `503 degraded` and component status only, not thrown exception messages.
@@ -172,6 +175,13 @@ final charge with 8-decimal fixed-point arithmetic from the request's Store-back
 model-price and pricing-policy snapshot. The funding deduction, usage event,
 balanced ledger entries, and idempotency completion commit atomically.
 
+The stock LiteLLM/OpenAI-compatible adapter has a 30-second default deadline,
+configurable with `FOUNTLAYER_UPSTREAM_TIMEOUT_MS`, and inherits client disconnect
+cancellation. A deadline returns `504 adapter_timeout`; other upstream failures return a
+sanitized `502 adapter_error`. Both release any in-flight idempotency reservation and
+create no user usage or ledger records because the provider did not return a usable
+completion.
+
 If actual usage exceeds the available balance or route cap after the provider has
 already completed, the Gateway returns `402` with
 `actual_usage_insufficient_balance` or `actual_usage_exceeded_route_cap`. No user
@@ -250,6 +260,8 @@ GET    /admin/provider-credentials
 POST   /admin/provider-credentials
 PATCH  /admin/provider-credentials/:id/rotate
 DELETE /admin/provider-credentials/:id
+GET    /admin/model-prices
+POST   /admin/model-prices
 GET    /admin/pricing-policies
 POST   /admin/pricing-policies
 PATCH  /admin/pricing-policies/:id
@@ -300,6 +312,12 @@ The external beta accepts only zero
 `developerMarkupRate` and zero `channelMarkupRate`; nonzero values return
 `unsupported_pricing_markup` until corresponding payout wallets and settlement
 obligations exist. Platform fee and reserve rates remain operator-configurable.
+
+Model prices are append-only versions selected by `provider`, `model`, and the latest
+`effectiveAt` not later than the request time. Creation requires USD-denominated input
+and output prices per million tokens; cached-input price and a provenance `source` are
+optional. Changing upstream price means creating a new effective version, preserving
+the price snapshot used to explain historical charges.
 
 The `v0.5.0-beta.2` Console can read these endpoints directly for live usage and
 ledger, registry, faucet, route, pricing, and credential-metadata views when

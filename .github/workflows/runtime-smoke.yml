@@ -20,18 +20,23 @@ jobs:
       FOUNTLAYER_ADMIN_TOKEN: change_me_admin_token
       FOUNTLAYER_CREDENTIAL_MASTER_KEY: base64:CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQk=
       FOUNTLAYER_GATEWAY_STORE: postgres
+      FOUNTLAYER_GATEWAY_ADAPTER: litellm
       FOUNTLAYER_SESSION_TICKET_SECRET: change_me_session_ticket_secret_32_bytes_minimum
+      FOUNTLAYER_UPSTREAM_TIMEOUT_MS: 10000
       GATEWAY_BASE_URL: http://localhost:3300
+      LITELLM_BASE_URL: http://localhost:3305
       LITELLM_MASTER_KEY: change_me
       LOCAL_OPENAI_API_KEY: local-placeholder
       LOCAL_OPENAI_BASE_URL: http://127.0.0.1:3314/v1
-      REDIS_URL: redis://localhost:3379
+      UPSTREAM_OPENAI_API_KEY: local-placeholder
+      UPSTREAM_OPENAI_BASE_URL: http://host.docker.internal:3314/v1
+      UPSTREAM_OPENAI_MODEL: openai/local-model
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
 
@@ -44,8 +49,21 @@ jobs:
       - name: Build workspace packages
         run: pnpm build
 
+      - name: Start OpenAI-compatible network fixture
+        run: |
+          pnpm fixture:openai > /tmp/fountlayer-openai-fixture.log 2>&1 &
+          echo $! > /tmp/fountlayer-openai-fixture.pid
+          for attempt in {1..30}; do
+            if curl -fsS -H "Authorization: Bearer $LOCAL_OPENAI_API_KEY" "$LOCAL_OPENAI_BASE_URL/models" > /tmp/fountlayer-openai-models.json; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/fountlayer-openai-fixture.log
+          exit 1
+
       - name: Start compose dependencies
-        run: docker compose -f infra/docker-compose.example.yml up -d postgres redis litellm
+        run: docker compose -f infra/docker-compose.example.yml up -d postgres litellm
 
       - name: Wait for Postgres
         run: |
@@ -56,6 +74,18 @@ jobs:
             sleep 2
           done
           docker compose -f infra/docker-compose.example.yml logs postgres
+          exit 1
+
+      - name: Wait for LiteLLM network path
+        run: |
+          for attempt in {1..60}; do
+            if curl -fsS -H "Authorization: Bearer $LITELLM_MASTER_KEY" "$LITELLM_BASE_URL/v1/models" > /tmp/fountlayer-litellm-models.json; then
+              cat /tmp/fountlayer-litellm-models.json
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose -f infra/docker-compose.example.yml logs litellm
           exit 1
 
       - name: Prepare database
@@ -104,7 +134,13 @@ jobs:
         run: |
           test -f /tmp/fountlayer-gateway.log && cat /tmp/fountlayer-gateway.log
           test -f /tmp/fountlayer-console.log && cat /tmp/fountlayer-console.log
+          test -f /tmp/fountlayer-openai-fixture.log && cat /tmp/fountlayer-openai-fixture.log
           docker compose -f infra/docker-compose.example.yml logs
+
+      - name: Stop OpenAI-compatible network fixture
+        if: always()
+        run: |
+          test -f /tmp/fountlayer-openai-fixture.pid && kill "$(cat /tmp/fountlayer-openai-fixture.pid)" || true
 
       - name: Stop compose dependencies
         if: always()

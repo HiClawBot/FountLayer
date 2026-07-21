@@ -136,6 +136,13 @@ button {
   line-height: 1.5;
 }
 
+.runtime-source {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .toolbar {
   display: flex;
   gap: 8px;

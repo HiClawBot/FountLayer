@@ -1,9 +1,9 @@
 model_list:
-  - model_name: local/openai-compatible
+  - model_name: demo-local-model
     litellm_params:
-      model: openai/local-model
-      api_base: os.environ/LOCAL_OPENAI_BASE_URL
-      api_key: os.environ/LOCAL_OPENAI_API_KEY
+      model: os.environ/UPSTREAM_OPENAI_MODEL
+      api_base: os.environ/UPSTREAM_OPENAI_BASE_URL
+      api_key: os.environ/UPSTREAM_OPENAI_API_KEY
 
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY

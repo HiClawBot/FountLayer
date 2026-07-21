@@ -14,6 +14,7 @@ export type LiteLLMAdapterConfig = {
   apiKey?: string;
   fetchImpl?: typeof fetch;
   headers?: Record<string, string>;
+  timeoutMs?: number;
 };
 
 type OpenAIChoice = {
@@ -43,6 +44,14 @@ function chatCompletionsUrl(baseUrl: string): string {
     : `${normalized}/v1/chat/completions`;
 }
 
+function modelsUrl(baseUrl: string): string {
+  const normalized = baseUrl.replace(/\/+$/, "");
+
+  return normalized.endsWith("/v1")
+    ? `${normalized}/models`
+    : `${normalized}/v1/models`;
+}
+
 function authHeaders(apiKey: string | undefined): Record<string, string> {
   return apiKey ? { authorization: `Bearer ${apiKey}` } : {};
 }
@@ -65,9 +74,30 @@ async function assertOk(response: Response): Promise<void> {
 
 export class LiteLLMAdapter implements LLMAdapter {
   private readonly fetchImpl: typeof fetch;
+  private readonly timeoutMs: number;
 
   constructor(private readonly config: LiteLLMAdapterConfig) {
     this.fetchImpl = config.fetchImpl ?? fetch;
+    this.timeoutMs = Math.max(1, config.timeoutMs ?? 30_000);
+  }
+
+  private requestSignal(signal?: AbortSignal): AbortSignal {
+    const timeoutSignal = AbortSignal.timeout(this.timeoutMs);
+
+    return signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
+  }
+
+  async healthCheck(): Promise<void> {
+    const response = await this.fetchImpl(modelsUrl(this.config.baseUrl), {
+      headers: {
+        ...authHeaders(this.config.apiKey),
+        ...this.config.headers,
+      },
+      method: "GET",
+      signal: this.requestSignal(),
+    });
+    await assertOk(response);
+    await response.body?.cancel();
   }
 
   async chat(input: AdapterChatInput): Promise<AdapterChatOutput> {
@@ -86,6 +116,7 @@ export class LiteLLMAdapter implements LLMAdapter {
           stream: false,
           metadata: input.metadata,
         }),
+        signal: this.requestSignal(input.signal),
       },
     );
     await assertOk(response);
@@ -125,6 +156,7 @@ export class LiteLLMAdapter implements LLMAdapter {
           stream: true,
           metadata: input.metadata,
         }),
+        signal: this.requestSignal(input.signal),
       },
     );
     await assertOk(response);

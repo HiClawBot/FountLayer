@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
 
 import {
   createDatabaseSql,
   getTestDatabaseUrl,
   runMigrations,
+  seedDatabase,
   setupTestDatabase,
   type FountLayerSql,
 } from "@fountlayer/db";
@@ -22,6 +24,8 @@ import { createPostgresGatewayStore } from "./src/store";
 
 const runDbTests = process.env.FOUNTLAYER_RUN_DB_TESTS === "1";
 const describeDb = runDbTests ? describe : describe.skip;
+const adminToken = "fl_admin_database_test_token";
+const adminHeaders = { authorization: `Bearer ${adminToken}` };
 
 async function createTestSessionTicket() {
   return createSessionTicket({
@@ -44,7 +48,9 @@ describeDb("gateway postgres store", () => {
   beforeEach(async () => {
     await setupTestDatabase(databaseUrl);
     sql = createDatabaseSql(databaseUrl);
-    server = buildGatewayServer(createPostgresGatewayStore(sql));
+    server = buildGatewayServer(createPostgresGatewayStore(sql), {
+      adminTokenHashes: [createHash("sha256").update(adminToken).digest("hex")],
+    });
   });
 
   afterEach(async () => {
@@ -174,6 +180,44 @@ describeDb("gateway postgres store", () => {
     await expect(runMigrations(databaseUrl)).rejects.toThrow(
       "Applied migration checksum mismatch: 0000_initial.sql",
     );
+  });
+
+  it("creates and lists immutable model price versions", async () => {
+    if (!server) {
+      throw new Error("Postgres test server was not initialized.");
+    }
+
+    const created = await server.inject({
+      headers: adminHeaders,
+      method: "POST",
+      url: "/admin/model-prices",
+      payload: {
+        cachedInputPerMtok: "0.10000000",
+        currency: "USD",
+        effectiveAt: "2026-08-01T00:00:00Z",
+        id: "price_db_beta_2026_08",
+        inputPerMtok: "0.30000000",
+        model: "beta-db-model",
+        outputPerMtok: "1.20000000",
+        provider: "openai-compatible",
+        source: "database-test",
+      },
+    });
+    const listed = await server.inject({
+      headers: adminHeaders,
+      method: "GET",
+      url: "/admin/model-prices?provider=openai-compatible&model=beta-db-model",
+    });
+
+    expect(created.statusCode).toBe(201);
+    expect(created.json().model_price).toMatchObject({
+      effectiveAt: "2026-08-01T00:00:00.000Z",
+      id: "price_db_beta_2026_08",
+      inputPerMtok: "0.30000000",
+      outputPerMtok: "1.20000000",
+    });
+    expect(listed.statusCode).toBe(200);
+    expect(listed.json().model_prices).toHaveLength(1);
   });
 
   it("persists faucet deduction, usage event, and ledger entries", async () => {
@@ -307,6 +351,40 @@ describeDb("gateway postgres store", () => {
         reason: "provider_payable",
       },
     ]);
+  });
+
+  it("does not reset stateful balances or grant status when seed is repeated", async () => {
+    if (!sql) {
+      throw new Error("Postgres test database was not initialized.");
+    }
+
+    await sql`
+      update wallets
+      set balance_numeric = 0.75000000
+      where id = 'wallet_faucet_new_user'
+    `;
+    await sql`
+      update faucet_grants
+      set remaining_numeric = 0.25000000,
+          status = 'revoked'
+      where id = 'grant_new_user'
+    `;
+
+    await seedDatabase(databaseUrl);
+
+    const [wallet] = await sql<Array<{ balance: string }>>`
+      select balance_numeric::text as balance
+      from wallets
+      where id = 'wallet_faucet_new_user'
+    `;
+    const [grant] = await sql<Array<{ remaining: string; status: string }>>`
+      select remaining_numeric::text as remaining, status
+      from faucet_grants
+      where id = 'grant_new_user'
+    `;
+
+    expect(wallet?.balance).toBe("0.75000000");
+    expect(grant).toEqual({ remaining: "0.25000000", status: "revoked" });
   });
 
   it("persists wallet deduction when faucet grants cannot pay", async () => {

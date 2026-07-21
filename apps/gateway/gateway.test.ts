@@ -295,6 +295,7 @@ describe("gateway minimum API", () => {
       ["/admin/faucet-grants", "faucet_grants"],
       ["/admin/routes", "routes"],
       ["/admin/provider-credentials", "credentials"],
+      ["/admin/model-prices", "model_prices"],
       ["/admin/pricing-policies", "pricing_policies"],
     ] as const;
 
@@ -470,6 +471,21 @@ describe("gateway minimum API", () => {
         name: "Beta Pricing",
       },
     });
+    const modelPrice = await server.inject({
+      method: "POST",
+      url: "/admin/model-prices",
+      headers: adminHeaders,
+      payload: {
+        currency: "USD",
+        effectiveAt: "2026-07-21T00:00:00Z",
+        id: "price_beta_2026_07",
+        inputPerMtok: "0.20000000",
+        model: "beta-model",
+        outputPerMtok: "0.80000000",
+        provider: "openai-compatible",
+        source: "provider-price-sheet",
+      },
+    });
     const route = await server.inject({
       method: "POST",
       url: "/admin/routes",
@@ -479,9 +495,9 @@ describe("gateway minimum API", () => {
         alias: "vertical/beta",
         appId: "app_beta",
         id: "route_beta",
-        model: "demo-local-model",
-        modelAllowlist: ["demo-local-model"],
-        provider: "demo",
+        model: "beta-model",
+        modelAllowlist: ["beta-model"],
+        provider: "openai-compatible",
       },
     });
     const grant = await server.inject({
@@ -489,7 +505,7 @@ describe("gateway minimum API", () => {
       url: "/admin/faucet-grants",
       headers: adminHeaders,
       payload: {
-        allowedModels: ["vertical/beta", "demo-local-model"],
+        allowedModels: ["vertical/beta", "beta-model"],
         allowedUseCases: ["paper_summary"],
         appId: "app_beta",
         channelId: "channel_beta",
@@ -503,6 +519,13 @@ describe("gateway minimum API", () => {
 
     expect(app.statusCode).toBe(201);
     expect(channel.statusCode).toBe(201);
+    expect(modelPrice.statusCode).toBe(201);
+    expect(modelPrice.json().model_price).toMatchObject({
+      id: "price_beta_2026_07",
+      inputPerMtok: "0.20000000",
+      model: "beta-model",
+      provider: "openai-compatible",
+    });
     expect(pricing.statusCode).toBe(201);
     expect(route.statusCode).toBe(201);
     expect(grant.statusCode).toBe(201);
@@ -1657,6 +1680,42 @@ describe("gateway minimum API", () => {
     expect(attempts).toBe(1);
     expect(usageEvents.json().usage_events).toHaveLength(0);
     expect(ledger.json().ledger_entries).toHaveLength(0);
+  });
+
+  it("returns a sanitized timeout without writing usage or ledger records", async () => {
+    const state = createDefaultInMemoryGatewayState();
+    const server = buildGatewayServer(createInMemoryGatewayStore(state), {
+      adminTokenHashes: [hashTestToken(adminToken)],
+      adapter: {
+        async chat() {
+          const error = new Error("upstream-internal-timeout-detail");
+          error.name = "TimeoutError";
+          throw error;
+        },
+        async *streamChat() {
+          yield { done: true };
+        },
+      },
+    });
+    const headers = await createSessionHeaders(server);
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/chat/completions",
+      headers,
+      payload: {
+        model: "vertical/paper-summary",
+        messages: [{ role: "user", content: "Summarize this paper." }],
+      },
+    });
+
+    expect(response.statusCode).toBe(504);
+    expect(response.json().error).toEqual({
+      code: "adapter_timeout",
+      message: "LLM adapter request exceeded the configured deadline.",
+    });
+    expect(response.body).not.toContain("upstream-internal-timeout-detail");
+    expect(state.usageEvents).toHaveLength(0);
+    expect(state.ledgerEntries).toHaveLength(0);
   });
 
   it("purges expired request metadata without deleting usage or ledger records", async () => {

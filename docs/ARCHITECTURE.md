@@ -107,7 +107,9 @@ routes:
 
 ### Self-hosted
 
-Developer runs Gateway, Postgres, Redis, LiteLLM sidecar, and Console.
+Developer runs Gateway, Postgres, a LiteLLM sidecar, and Console. Redis remains an
+optional development/future queue dependency and is not required by the narrow beta
+runtime.
 The beta Gateway selects one process-wide runtime adapter with
 `FOUNTLAYER_GATEWAY_ADAPTER=demo|litellm|local`; route policies continue to
 control the routed provider/model, allowlists, and spend caps.
@@ -134,8 +136,8 @@ Retries happen before usage events or ledger entries are written. When a circuit
 is open, the Gateway rejects the request before adapter execution and before any
 usage or ledger write.
 
-`/health/dependencies` provides readiness checks for the active Store and any
-deployment-injected dependencies such as Redis or adapter-side probes. Failed
+`/health/dependencies` provides readiness checks for the active Store and the stock
+runtime's authenticated adapter model probe. Failed
 checks return component status only and do not echo exception messages.
 
 The Worker includes an in-memory queue abstraction and a `settlement.export`

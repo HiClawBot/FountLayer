@@ -7,6 +7,7 @@ import {
   createConsoleChannel,
   createConsoleCredential,
   createConsoleFaucetGrant,
+  createConsoleModelPrice,
   createConsolePricingPolicy,
   createConsoleRoute,
   getConsoleRuntimeData,
@@ -176,6 +177,51 @@ export default async function SetupPage() {
             />
             <div className="form-actions">
               <SubmitButton label="Create policy" />
+            </div>
+          </form>
+        </Panel>
+
+        <Panel title="Model Price Version">
+          <form action={createConsoleModelPrice} className="form-grid">
+            <Field
+              label="Price ID"
+              name="id"
+              placeholder="price_acme_model_2026_07"
+            />
+            <Field
+              label="Provider"
+              name="provider"
+              placeholder="openai-compatible"
+            />
+            <Field label="Model" name="model" placeholder="demo-local-model" />
+            <Field
+              label="Input / 1M tokens"
+              name="inputPerMtok"
+              placeholder="0.15000000"
+            />
+            <Field
+              label="Output / 1M tokens"
+              name="outputPerMtok"
+              placeholder="0.60000000"
+            />
+            <Field
+              label="Cached input / 1M"
+              name="cachedInputPerMtok"
+              placeholder="0.05000000"
+            />
+            <Field label="Currency" name="currency" placeholder="USD" />
+            <Field
+              label="Effective at"
+              name="effectiveAt"
+              placeholder="2026-07-21T00:00:00Z"
+            />
+            <Field
+              label="Source"
+              name="source"
+              placeholder="provider price sheet 2026-07"
+            />
+            <div className="form-actions">
+              <SubmitButton label="Create price version" />
             </div>
           </form>
         </Panel>

@@ -97,6 +97,55 @@ describe("LiteLLM adapter", () => {
     expect(output.usage.inputTokens).toBeGreaterThan(0);
   });
 
+  it("checks the authenticated OpenAI-compatible models endpoint", async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const adapter = new LiteLLMAdapter({
+      apiKey: "health-placeholder",
+      baseUrl: "http://localhost:3305/v1/",
+      fetchImpl: async (url, init) => {
+        calls.push({ url: String(url), init });
+        return new Response(JSON.stringify({ data: [] }), { status: 200 });
+      },
+    });
+
+    await adapter.healthCheck();
+
+    expect(calls[0]?.url).toBe("http://localhost:3305/v1/models");
+    expect(calls[0]?.init).toMatchObject({ method: "GET" });
+    expect(
+      (calls[0]?.init?.headers as Record<string, string>).authorization,
+    ).toBe("Bearer health-placeholder");
+  });
+
+  it("aborts an upstream request at the configured deadline", async () => {
+    const adapter = new LiteLLMAdapter({
+      baseUrl: "http://localhost:3305",
+      timeoutMs: 20,
+      fetchImpl: async (_url, init) =>
+        await new Promise<Response>((_resolve, reject) => {
+          const signal = init?.signal;
+
+          if (!signal) {
+            reject(new Error("Expected an abort signal."));
+            return;
+          }
+
+          const rejectWithReason = () => reject(signal.reason);
+
+          if (signal.aborted) {
+            rejectWithReason();
+            return;
+          }
+
+          signal.addEventListener("abort", rejectWithReason, { once: true });
+        }),
+    });
+
+    await expect(
+      adapter.chat({ model: "fixture-model", messages }),
+    ).rejects.toMatchObject({ name: "TimeoutError" });
+  });
+
   it("uses the real fetch transport against an OpenAI-compatible HTTP upstream", async () => {
     let receivedAuthorization: string | undefined;
     let receivedBody: Record<string, unknown> | undefined;

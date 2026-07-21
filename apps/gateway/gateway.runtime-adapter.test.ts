@@ -15,6 +15,7 @@ describe("gateway runtime adapter", () => {
       apiKey: "litellm-placeholder",
       baseUrl: "http://localhost:3305",
       mode: "litellm",
+      timeoutMs: 30000,
     });
 
     expect(adapter).toBeInstanceOf(LiteLLMAdapter);
@@ -24,6 +25,7 @@ describe("gateway runtime adapter", () => {
     const adapter = createGatewayRuntimeAdapter({
       baseUrl: "http://127.0.0.1:3314/v1",
       mode: "local",
+      timeoutMs: 30000,
     });
 
     expect(adapter).toBeInstanceOf(LocalOpenAIAdapter);
