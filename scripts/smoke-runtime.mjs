@@ -1,4 +1,4 @@
-/* global console, fetch, process */
+/* global URL, console, fetch, process */
 
 const gatewayBaseUrl = process.env.GATEWAY_BASE_URL ?? "http://localhost:3300";
 const consoleBaseUrl = process.env.CONSOLE_BASE_URL ?? "http://localhost:3301";
@@ -8,6 +8,7 @@ const adminToken =
   process.env.FOUNTLAYER_ADMIN_TOKEN ??
   "change_me_admin_token";
 const checkConsole = process.env.FOUNTLAYER_SMOKE_CHECK_CONSOLE !== "0";
+const consoleOperatorToken = process.env.CONSOLE_SMOKE_OPERATOR_TOKEN ?? "";
 const gatewaySourceSignals = ["Source: gateway", "live Gateway data"];
 
 const attributionHeaders = {
@@ -234,8 +235,34 @@ async function smokeConsole() {
   ];
   const pages = [];
 
+  if (!consoleOperatorToken) {
+    fail("Console smoke operator token is not configured.");
+  }
+
+  const anonymousResponse = await fetch(`${consoleBaseUrl}/setup`, {
+    redirect: "manual",
+  });
+  const anonymousLocation = anonymousResponse.headers.get("location");
+  const anonymousLoginUrl = anonymousLocation
+    ? new URL(anonymousLocation, consoleBaseUrl)
+    : undefined;
+
+  if (
+    ![302, 303, 307, 308].includes(anonymousResponse.status) ||
+    anonymousLoginUrl?.pathname !== "/login"
+  ) {
+    fail("Console did not reject an anonymous protected request.", {
+      location: anonymousLocation,
+      status: anonymousResponse.status,
+    });
+  }
+
   for (const path of paths) {
-    const response = await fetch(`${consoleBaseUrl}${path}`);
+    const response = await fetch(`${consoleBaseUrl}${path}`, {
+      headers: {
+        authorization: `Bearer ${consoleOperatorToken}`,
+      },
+    });
     const text = await response.text();
 
     const hasGatewaySource = gatewaySourceSignals.some((signal) =>
@@ -252,6 +279,7 @@ async function smokeConsole() {
     if (
       text.includes("encrypted_api_key") ||
       text.includes(adminToken) ||
+      text.includes(consoleOperatorToken) ||
       text.includes("fl_sess_")
     ) {
       fail("Console page exposed a secret-like value.", { path });

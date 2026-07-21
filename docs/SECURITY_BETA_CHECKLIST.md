@@ -1,6 +1,6 @@
 # FountLayer Beta Security Checklist
 
-Scope: `v0.5.0-beta.1` self-hosted operator beta.
+Scope: `v0.5.0-beta.2` self-hosted operator beta.
 
 ## Required Before Tagging
 
@@ -9,6 +9,13 @@ Scope: `v0.5.0-beta.1` self-hosted operator beta.
 - [x] Strict key scan exists and passes with no findings: `pnpm scan:keys`.
 - [x] Gateway Admin APIs require configured bearer token authentication.
 - [x] Console Admin API calls keep `CONSOLE_GATEWAY_ADMIN_TOKEN` server-side.
+- [x] Every Console page is fail-closed behind the operator proxy, and central
+      runtime reads and Server Action mutations independently require authentication.
+- [x] Console configuration stores only the SHA-256 operator-token digest; browser
+      login exchanges the token for an eight-hour HMAC-signed, HttpOnly,
+      SameSite=Strict session cookie.
+- [x] Negative tests prove anonymous page and Server Action requests are rejected
+      before any Gateway Admin request.
 - [x] Session tokens are stored as hashes only.
 - [x] Authenticated `/v1` requests require attribution match for app, channel,
       end user, use case, and mode.
@@ -34,7 +41,8 @@ Scope: `v0.5.0-beta.1` self-hosted operator beta.
 - [x] Telemetry sink failures cannot change billable request outcomes.
 - [x] Privacy purge and anonymization preserve accounting records.
 - [x] Local service port settings stay inside `3300-3399`.
-- [x] Docker Compose runtime smoke passes in a Docker-enabled environment:
+- [ ] The updated authenticated Docker Compose runtime smoke passes in a
+      Docker-enabled environment:
       <https://github.com/HiClawBot/FountLayer/actions/workflows/runtime-smoke.yml?query=branch%3Acodex%2Fv0.5.0-beta>.
 
 ## Operator Defaults
@@ -45,6 +53,11 @@ Scope: `v0.5.0-beta.1` self-hosted operator beta.
   example `base64:<32-byte-random-key>`.
 - Use `FOUNTLAYER_GATEWAY_STORE=postgres` for production-like runtime checks.
 - Keep `CONSOLE_GATEWAY_ADMIN_TOKEN` out of `NEXT_PUBLIC_*` variables.
+- Generate independent high-entropy values for the Console operator token and
+  `CONSOLE_SESSION_SECRET`; configure only `CONSOLE_OPERATOR_TOKEN_SHA256`, and
+  never reuse the Gateway admin token for either purpose.
+- Terminate TLS before exposing the Console. Keep secure session cookies enabled
+  outside loopback development.
 - Keep prompt/output logging disabled unless a downstream app adds its own
   explicit, consented logging boundary.
 

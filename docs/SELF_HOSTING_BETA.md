@@ -1,6 +1,6 @@
 # Self-Hosted Beta Runbook
 
-This runbook is for `v0.5.0-beta.1` self-hosted operator testing. It keeps all
+This runbook is for `v0.5.0-beta.2` self-hosted operator testing. It keeps all
 local service ports inside `3300-3399`.
 
 ## Port Map
@@ -9,7 +9,7 @@ local service ports inside `3300-3399`.
 | ------ | ---------------------------------------- |
 | `3300` | Gateway                                  |
 | `3301` | Console                                  |
-| `3302` | Demo PDF Reader                          |
+| `3302` | Demo Document Reader                     |
 | `3303` | Website dev server                       |
 | `3304` | Website preview server                   |
 | `3305` | LiteLLM                                  |
@@ -89,13 +89,24 @@ completion bodies. Do not reuse keys across distinct logical requests.
 
 ## Start Console
 
+Generate a separate Console operator token and session-signing secret. Keep the
+plaintext operator token in your password manager or secret store; configure the
+Console with only its SHA-256 digest.
+
 ```bash
+export CONSOLE_OPERATOR_TOKEN="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+export CONSOLE_OPERATOR_TOKEN_SHA256="$(node -e 'process.stdout.write(require("node:crypto").createHash("sha256").update(process.env.CONSOLE_OPERATOR_TOKEN).digest("hex"))')"
+export CONSOLE_SESSION_SECRET="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+
 GATEWAY_BASE_URL=http://localhost:3300 \
 CONSOLE_GATEWAY_ADMIN_TOKEN=change_me_admin_token \
+CONSOLE_OPERATOR_TOKEN_SHA256="$CONSOLE_OPERATOR_TOKEN_SHA256" \
+CONSOLE_SESSION_SECRET="$CONSOLE_SESSION_SECRET" \
 pnpm --filter @fountlayer/console dev
 ```
 
-Open:
+Open `http://localhost:3301/login`, enter `CONSOLE_OPERATOR_TOKEN`, and continue
+to either protected page:
 
 ```txt
 http://localhost:3301/overview
@@ -123,8 +134,14 @@ After Gateway and Console are running:
 GATEWAY_BASE_URL=http://localhost:3300 \
 CONSOLE_BASE_URL=http://localhost:3301 \
 CONSOLE_GATEWAY_ADMIN_TOKEN=change_me_admin_token \
+CONSOLE_SMOKE_OPERATOR_TOKEN="$CONSOLE_OPERATOR_TOKEN" \
 pnpm smoke:runtime
 ```
+
+If smoke runs in a different shell, export the same operator token there. Do not
+reuse the Gateway admin token as the Console operator token or session secret.
+Set `CONSOLE_SESSION_COOKIE_SECURE=true` behind production HTTPS ingress; it
+defaults to secure cookies when `NODE_ENV=production`.
 
 If Docker is unavailable on the local machine, push `codex/v0.5.0-beta` or run
 the `Runtime Smoke` GitHub Actions workflow manually. It starts the Compose
@@ -144,8 +161,10 @@ The smoke test checks:
 - Admin readback for apps, channels, faucet grants, routes, pricing, usage,
   and ledger.
 - A denied chat request does not create a usage event or ledger entries.
+- An anonymous protected Console request redirects to `/login`.
 - Console live pages render Gateway-backed data without leaking admin tokens,
-  session tokens, plaintext provider keys, or encrypted credential fields.
+  operator tokens, session tokens, plaintext provider keys, or encrypted
+  credential fields.
 
 ## Expected Success Shape
 
@@ -177,5 +196,6 @@ To remove local database state:
 docker compose down -v
 ```
 
-Do not use real provider keys in this runbook. Keep provider credentials in
-server-side encrypted storage only, and keep BYOK local by default.
+Do not use real provider keys in this runbook. The external beta supports only
+the managed LiteLLM path; BYOK and local routing remain unavailable. Keep
+provider credentials in server-side encrypted storage only.

@@ -79,7 +79,7 @@ docker compose up -d
 
 ## Self-Hosted Beta Quickstart
 
-Use this path for the `v0.5.0-beta.1` operator beta. All local service ports
+Use this path for the `v0.5.0-beta.2` operator beta. All local service ports
 must stay inside `3300-3399`.
 
 ```bash
@@ -96,13 +96,22 @@ LITELLM_MASTER_KEY=change_me \
 pnpm --filter @fountlayer/gateway dev
 ```
 
-In another terminal, start the Console with the same local admin token:
+In another terminal, generate an independent Console operator credential, retain
+the plaintext token for login/smoke, and start the Console with only its digest:
 
 ```bash
+export CONSOLE_OPERATOR_TOKEN="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+export CONSOLE_OPERATOR_TOKEN_SHA256="$(node -e 'process.stdout.write(require("node:crypto").createHash("sha256").update(process.env.CONSOLE_OPERATOR_TOKEN).digest("hex"))')"
+export CONSOLE_SESSION_SECRET="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+
 GATEWAY_BASE_URL=http://localhost:3300 \
 CONSOLE_GATEWAY_ADMIN_TOKEN=change_me_admin_token \
+CONSOLE_OPERATOR_TOKEN_SHA256="$CONSOLE_OPERATOR_TOKEN_SHA256" \
+CONSOLE_SESSION_SECRET="$CONSOLE_SESSION_SECRET" \
 pnpm --filter @fountlayer/console dev
 ```
+
+Sign in at `http://localhost:3301/login` with `CONSOLE_OPERATOR_TOKEN`.
 
 Then run the runtime smoke path:
 
@@ -110,6 +119,7 @@ Then run the runtime smoke path:
 GATEWAY_BASE_URL=http://localhost:3300 \
 CONSOLE_BASE_URL=http://localhost:3301 \
 CONSOLE_GATEWAY_ADMIN_TOKEN=change_me_admin_token \
+CONSOLE_SMOKE_OPERATOR_TOKEN="$CONSOLE_OPERATOR_TOKEN" \
 pnpm smoke:runtime
 ```
 
@@ -165,13 +175,20 @@ FOUNTLAYER_ADMIN_TOKEN=change_me_admin_token \
 FOUNTLAYER_GATEWAY_STORE=postgres \
 pnpm --filter @fountlayer/gateway dev
 
+export CONSOLE_OPERATOR_TOKEN="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+export CONSOLE_OPERATOR_TOKEN_SHA256="$(node -e 'process.stdout.write(require("node:crypto").createHash("sha256").update(process.env.CONSOLE_OPERATOR_TOKEN).digest("hex"))')"
+export CONSOLE_SESSION_SECRET="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+
 GATEWAY_BASE_URL=http://localhost:3300 \
 CONSOLE_GATEWAY_ADMIN_TOKEN=change_me_admin_token \
+CONSOLE_OPERATOR_TOKEN_SHA256="$CONSOLE_OPERATOR_TOKEN_SHA256" \
+CONSOLE_SESSION_SECRET="$CONSOLE_SESSION_SECRET" \
 pnpm --filter @fountlayer/console dev
 
 GATEWAY_BASE_URL=http://localhost:3300 \
 CONSOLE_BASE_URL=http://localhost:3301 \
 CONSOLE_GATEWAY_ADMIN_TOKEN=change_me_admin_token \
+CONSOLE_SMOKE_OPERATOR_TOKEN="$CONSOLE_OPERATOR_TOKEN" \
 pnpm smoke:runtime
 ```
 
@@ -217,12 +234,14 @@ credential-metadata, and pricing data from `CONSOLE_GATEWAY_BASE_URL` or
 must become an explicit degraded state before release. The `/setup` page creates apps,
 channels, routes, faucet grants, pricing policies, and credential metadata through
 server-side Admin API actions. `/admin/*` requires an admin bearer token, but the
-Console itself must not be exposed until Wave 1 operator authentication protects every
-page and action.
+Console is protected by a single-operator login: its proxy gates every page, while
+runtime reads and Server Actions recheck the signed session or automation bearer token.
 Configure the Gateway with `FOUNTLAYER_ADMIN_TOKEN_SHA256` or
 `FOUNTLAYER_ADMIN_TOKEN`, and configure the Console server with
-`CONSOLE_GATEWAY_ADMIN_TOKEN`. Do not expose this token through `NEXT_PUBLIC_*`
-environment variables.
+`CONSOLE_GATEWAY_ADMIN_TOKEN`, `CONSOLE_OPERATOR_TOKEN_SHA256`, and an independent
+`CONSOLE_SESSION_SECRET`. Do not expose any of these through `NEXT_PUBLIC_*`
+environment variables or reuse them for one another. Put the Console behind TLS and
+keep secure session cookies enabled outside loopback development.
 
 For production-like Gateway startup, set `FOUNTLAYER_DEPLOYMENT_ENV=production`.
 The Gateway then fails fast unless it uses `FOUNTLAYER_GATEWAY_STORE=postgres`,
@@ -352,13 +371,12 @@ does not yet prove a production commercial loop:
 
 ## Current Limitations
 
-- `v0.5.0-beta.1` is a self-hosted operator beta, not a hosted managed-service
+- `v0.5.0-beta.2` is a self-hosted operator beta, not a hosted managed-service
   production launch.
 - The repository is not ready for external beta exposure until the P0 gates in
   [the beta plan](docs/BETA_PLAN.md) and capability matrix are complete.
-- Console operator authentication, app-scoped session tickets, tenant-safe migrations,
-  actual-usage fixed-point pricing, real PDF extraction, and production application
-  images remain release blockers.
+- App-scoped session tickets, tenant-safe migrations, actual-usage fixed-point pricing,
+  real PDF extraction, and production application images remain release blockers.
 - Docker Compose runtime validation passed in GitHub Actions for the beta
   release gate; maintainers can repeat it locally where Docker is available.
 - Managed-service operations still need formal provider terms review,

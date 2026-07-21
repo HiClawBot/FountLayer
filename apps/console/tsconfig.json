@@ -21,7 +21,8 @@
     "app/**/*.tsx",
     "components/**/*.ts",
     "components/**/*.tsx",
-    "lib/**/*.ts"
+    "lib/**/*.ts",
+    "proxy.ts"
   ],
   "exclude": ["node_modules"]
 }

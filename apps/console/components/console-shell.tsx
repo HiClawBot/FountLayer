@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+import { logoutConsoleOperator } from "../app/login/actions";
+
 const navItems = [
   { href: "/overview", label: "Overview", icon: LayoutDashboard },
   { href: "/setup", label: "Setup", icon: SlidersHorizontal },
@@ -47,6 +49,11 @@ export function ConsoleShell({ children }: { children: React.ReactNode }) {
           <CircuitBoard size={20} aria-hidden="true" />
           <span>Gateway http://localhost:3300</span>
         </div>
+        <form action={logoutConsoleOperator}>
+          <button className="logout-button" type="submit">
+            Sign out
+          </button>
+        </form>
       </aside>
       <main className="main">{children}</main>
     </div>

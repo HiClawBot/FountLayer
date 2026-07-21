@@ -61,17 +61,15 @@ Verified on GitHub Actions for the beta branch:
 
 Current blockers before tagging the external beta:
 
-- Authenticate every Console page and Server Action behind the single-operator boundary.
 - Replace public identifier-only session creation with app-scoped short-lived tickets.
 - Add tenant-safe identity/wallet/session/credential migrations and upgrade tests.
 - Settle fixed-point monetary amounts from adapter-reported actual usage.
 - Remove unsupported BYOK/local/streaming surfaces and add real bounded PDF extraction.
 - Ship pinned production images/Compose, a real-upstream golden smoke, and recovery drills.
-- Remediate production dependency advisories and add the audit to CI.
 
 ## Beta Definition
 
-`v0.5.0-beta.1` is done when a new developer can:
+`v0.5.0-beta.2` is done when a new developer can:
 
 1. Clone the repository and install dependencies.
 2. Start Postgres, Redis, LiteLLM, Gateway, Console, and the demo using only

@@ -10,6 +10,8 @@ import {
 } from "./console-data";
 import { revalidatePath } from "next/cache";
 
+import { requireConsoleOperator } from "./console-auth-server";
+
 export type ConsoleApp = {
   id: string;
   name: string;
@@ -185,6 +187,8 @@ async function fetchJson<T>(path: string): Promise<T> {
 }
 
 async function writeAdminJson(path: string, body: Record<string, unknown>) {
+  await requireConsoleOperator();
+
   if (!gatewayAdminToken) {
     throw new Error("Console Gateway Admin token is not configured.");
   }
@@ -328,6 +332,8 @@ export async function createConsoleCredential(formData: FormData) {
 export async function getConsoleRuntimeData(
   options: ConsoleRuntimeOptions = {},
 ): Promise<ConsoleRuntimeData> {
+  await requireConsoleOperator();
+
   const usageLedgerQuery = options.usageLedgerQuery ?? "";
 
   try {

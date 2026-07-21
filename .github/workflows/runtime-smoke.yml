@@ -13,6 +13,9 @@ jobs:
     env:
       CONSOLE_BASE_URL: http://localhost:3301
       CONSOLE_GATEWAY_ADMIN_TOKEN: change_me_admin_token
+      CONSOLE_OPERATOR_TOKEN_SHA256: 5dfdb617a264f003165798fa322395c6f9af41ad6ac4eec7e77b0846d047c243
+      CONSOLE_SESSION_SECRET: change_me_console_session_secret_32_bytes_minimum
+      CONSOLE_SMOKE_OPERATOR_TOKEN: change_me_console_operator_token
       DATABASE_URL: postgres://postgres:postgres@localhost:3332/fountlayer
       FOUNTLAYER_ADMIN_TOKEN: change_me_admin_token
       FOUNTLAYER_CREDENTIAL_MASTER_KEY: base64:CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQk=
@@ -84,7 +87,7 @@ jobs:
       - name: Wait for Console
         run: |
           for attempt in {1..30}; do
-            if curl -fsS "$CONSOLE_BASE_URL/overview" > /tmp/fountlayer-console-overview.html; then
+            if curl -fsS -H "Authorization: Bearer $CONSOLE_SMOKE_OPERATOR_TOKEN" "$CONSOLE_BASE_URL/overview" > /tmp/fountlayer-console-overview.html; then
               exit 0
             fi
             sleep 2

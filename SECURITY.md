@@ -22,10 +22,12 @@ details.
 
 ## Current Beta Boundary
 
-FountLayer `v0.5.0-beta.1` is a self-hosted operator beta. It includes local
-development placeholders only and does not include real managed provider keys.
-Hosted BYOK requires explicit Gateway opt-in and encrypted server-side storage;
-SDK BYOK helpers store user keys locally by default.
+FountLayer `v0.5.0-beta.2` is a self-hosted, single-operator beta. The only
+supported external-beta execution path is managed mode through an
+operator-configured LiteLLM/OpenAI-compatible upstream. Console access requires
+an independent operator token exchanged for a signed HttpOnly session; the
+Gateway admin token remains server-side. BYOK and local routing are not supported
+external-beta execution modes.
 
 See [docs/SECURITY.md](./docs/SECURITY.md) for the detailed security model and
 required controls before operating a hosted service.
