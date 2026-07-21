@@ -8,12 +8,21 @@ import {
   faucetGrants,
   idempotencyRecords,
   ledgerEntries,
+  rateLimitCounters,
+  sessionTicketRedemptions,
   sessions,
   usageEvents,
 } from "./src/schema";
 
 const migrationSql = readFileSync(
   new URL("./migrations/0000_initial.sql", import.meta.url),
+  "utf8",
+);
+const publicBoundaryMigrationSql = readFileSync(
+  new URL(
+    "./migrations/0001_session_tickets_and_rate_limits.sql",
+    import.meta.url,
+  ),
   "utf8",
 );
 
@@ -96,6 +105,21 @@ describe("database migration", () => {
     expect(migrationSql).not.toContain("prompt_text");
     expect(migrationSql).not.toContain("response_body");
   });
+
+  it("stores one-time ticket redemptions and durable rate-limit counters", () => {
+    expect(publicBoundaryMigrationSql).toContain(
+      "create table if not exists session_ticket_redemptions",
+    );
+    expect(publicBoundaryMigrationSql).toContain(
+      "ticket_id_hash text primary key",
+    );
+    expect(publicBoundaryMigrationSql).toContain(
+      "create table if not exists rate_limit_counters",
+    );
+    expect(publicBoundaryMigrationSql).toContain("key_hash text primary key");
+    expect(publicBoundaryMigrationSql).not.toContain("ticket text");
+    expect(publicBoundaryMigrationSql).not.toContain("end_user_id");
+  });
 });
 
 describe("drizzle schema exports", () => {
@@ -104,6 +128,8 @@ describe("drizzle schema exports", () => {
     expect(channels).toBeDefined();
     expect(faucetGrants).toBeDefined();
     expect(idempotencyRecords).toBeDefined();
+    expect(rateLimitCounters).toBeDefined();
+    expect(sessionTicketRedemptions).toBeDefined();
     expect(sessions).toBeDefined();
     expect(usageEvents).toBeDefined();
     expect(ledgerEntries).toBeDefined();

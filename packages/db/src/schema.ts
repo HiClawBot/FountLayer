@@ -198,6 +198,37 @@ export const sessions = pgTable(
   ],
 );
 
+export const sessionTicketRedemptions = pgTable(
+  "session_ticket_redemptions",
+  {
+    ticketIdHash: text("ticket_id_hash").primaryKey(),
+    appId: text("app_id")
+      .notNull()
+      .references(() => apps.id),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    redeemedAt: timestamp("redeemed_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("idx_session_ticket_redemptions_expires").on(table.expiresAt),
+  ],
+);
+
+export const rateLimitCounters = pgTable(
+  "rate_limit_counters",
+  {
+    keyHash: text("key_hash").primaryKey(),
+    scope: text("scope").notNull(),
+    count: integer("count").notNull(),
+    resetAt: timestamp("reset_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("idx_rate_limit_counters_reset").on(table.resetAt)],
+);
+
 export const faucetGrants = pgTable(
   "faucet_grants",
   {

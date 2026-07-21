@@ -89,8 +89,10 @@ cp .env.example .env
 docker compose up -d postgres redis litellm
 pnpm db:migrate
 pnpm db:seed
+export FOUNTLAYER_SESSION_TICKET_SECRET="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
 FOUNTLAYER_GATEWAY_ADAPTER=litellm \
 FOUNTLAYER_GATEWAY_STORE=postgres \
+FOUNTLAYER_SESSION_TICKET_SECRET="$FOUNTLAYER_SESSION_TICKET_SECRET" \
 LITELLM_BASE_URL=http://localhost:3305 \
 LITELLM_MASTER_KEY=change_me \
 pnpm --filter @fountlayer/gateway dev
@@ -125,9 +127,10 @@ pnpm smoke:runtime
 
 For production-like testing, set `FOUNTLAYER_DEPLOYMENT_ENV=production`,
 `FOUNTLAYER_GATEWAY_STORE=postgres`, hashed admin tokens, a non-local
-`DATABASE_URL`, `FOUNTLAYER_CREDENTIAL_MASTER_KEY`, and
-`FOUNTLAYER_GATEWAY_ADAPTER=litellm`. The `demo` adapter is rejected
-in production mode.
+`DATABASE_URL`, `FOUNTLAYER_CREDENTIAL_MASTER_KEY`,
+`FOUNTLAYER_GATEWAY_ADAPTER=litellm`, and a non-placeholder
+`FOUNTLAYER_SESSION_TICKET_SECRET` shared only with trusted application
+backends. The `demo` adapter is rejected in production mode.
 
 ## Current Local Loop
 
@@ -171,8 +174,11 @@ Run the runtime smoke test after starting Gateway and Console with the same
 admin token:
 
 ```bash
+export FOUNTLAYER_SESSION_TICKET_SECRET="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+
 FOUNTLAYER_ADMIN_TOKEN=change_me_admin_token \
 FOUNTLAYER_GATEWAY_STORE=postgres \
+FOUNTLAYER_SESSION_TICKET_SECRET="$FOUNTLAYER_SESSION_TICKET_SECRET" \
 pnpm --filter @fountlayer/gateway dev
 
 export CONSOLE_OPERATOR_TOKEN="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
@@ -189,6 +195,7 @@ GATEWAY_BASE_URL=http://localhost:3300 \
 CONSOLE_BASE_URL=http://localhost:3301 \
 CONSOLE_GATEWAY_ADMIN_TOKEN=change_me_admin_token \
 CONSOLE_SMOKE_OPERATOR_TOKEN="$CONSOLE_OPERATOR_TOKEN" \
+FOUNTLAYER_SESSION_TICKET_SECRET="$FOUNTLAYER_SESSION_TICKET_SECRET" \
 pnpm smoke:runtime
 ```
 
@@ -249,7 +256,8 @@ an explicit non-local `DATABASE_URL`, and hashed admin tokens through
 `FOUNTLAYER_ADMIN_TOKEN_SHA256` or `FOUNTLAYER_ADMIN_TOKEN_HASHES`. Production
 startup also requires `FOUNTLAYER_CREDENTIAL_MASTER_KEY`, a 32-byte credential
 encryption master key such as `base64:<32-byte-random-key>`, plus an optional
-`FOUNTLAYER_CREDENTIAL_KEY_VERSION`.
+`FOUNTLAYER_CREDENTIAL_KEY_VERSION`, and an independent
+`FOUNTLAYER_SESSION_TICKET_SECRET` for trusted-backend ticket issuance.
 
 BYOK and local endpoint helpers are experimental storage/configuration primitives in
 this release. They do not change the stock SDK request destination or authenticate an
@@ -259,9 +267,11 @@ advertise them for the external beta.
 Gateway billable chat calls are protected by simple windowed caps. Tune
 `FOUNTLAYER_BILLABLE_RATE_WINDOW_MS`,
 `FOUNTLAYER_SESSION_BILLABLE_REQUESTS_PER_WINDOW`, and
-`FOUNTLAYER_END_USER_BILLABLE_REQUESTS_PER_WINDOW` for self-hosted deployments.
-Rate-limited calls return `429` before adapter execution, usage event creation,
-or ledger entry creation.
+`FOUNTLAYER_END_USER_BILLABLE_REQUESTS_PER_WINDOW`, plus
+`FOUNTLAYER_SESSION_CREATIONS_PER_WINDOW`, for self-hosted deployments. These
+counters are Store-backed and survive restart in PostgreSQL mode. Rate-limited
+calls return `429` before adapter execution, usage event creation, or ledger
+entry creation.
 
 When no faucet grant can pay, the Gateway can fall back to an end-user wallet
 with sufficient balance. Wallet-funded successful calls still create exactly one
@@ -286,14 +296,15 @@ import { createFountLayer } from "@fountlayer/sdk-js";
 
 const ai = createFountLayer({
   appId: "app_pdf_reader",
-  channelId: "desktop_app",
+  channelId: "channel_desktop",
   endpoint: "https://gateway.example.com",
 });
 
-const session = await ai.startSession({
-  endUserId: "hash_of_user_id",
-  useCase: "paper_summary",
-});
+// A trusted backend signs this five-minute, single-use ticket.
+const { ticket } = await fetch("/api/session-ticket", { method: "POST" }).then(
+  (response) => response.json(),
+);
+const session = await ai.startSession({ ticket });
 
 const result = await session.chat(
   {
@@ -375,8 +386,8 @@ does not yet prove a production commercial loop:
   production launch.
 - The repository is not ready for external beta exposure until the P0 gates in
   [the beta plan](docs/BETA_PLAN.md) and capability matrix are complete.
-- App-scoped session tickets, tenant-safe migrations, actual-usage fixed-point pricing,
-  real PDF extraction, and production application images remain release blockers.
+- Tenant-safe migrations, actual-usage fixed-point pricing, real PDF extraction,
+  and production application images remain release blockers.
 - Docker Compose runtime validation passed in GitHub Actions for the beta
   release gate; maintainers can repeat it locally where Docker is available.
 - Managed-service operations still need formal provider terms review,

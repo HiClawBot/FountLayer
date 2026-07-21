@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: FountLayer Gateway API
-  version: 0.5.0-beta.1
+  version: 0.5.0-beta.2
   description: OpenAI-compatible Gateway API with attribution, faucet credits, usage events, and billing metadata.
 paths:
   /health:
@@ -22,7 +22,10 @@ paths:
 
   /v1/sessions:
     post:
-      summary: Create an end-user session
+      summary: Redeem a trusted-backend session ticket
+      description: The five-minute, single-use bearer ticket and request headers/body must bind the same managed-mode attribution context.
+      security:
+        - sessionTicketAuth: []
       parameters:
         - $ref: "#/components/parameters/AppId"
         - $ref: "#/components/parameters/ChannelId"
@@ -38,6 +41,22 @@ paths:
       responses:
         "201":
           description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionCreated"
+        "400":
+          description: Invalid request body or header/body attribution mismatch
+        "401":
+          description: Missing, invalid, or expired session ticket
+        "403":
+          description: Unsupported mode or ticket/request attribution mismatch
+        "409":
+          description: Session ticket was already redeemed
+        "429":
+          description: Session creation rate limit exceeded
+        "503":
+          description: Durable rate-limit storage is unavailable
 
   /v1/balance:
     get:
@@ -490,6 +509,11 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
+    sessionTicketAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: FountLayer session ticket
+      description: Five-minute, single-use ticket minted by the trusted application backend.
 
   parameters:
     AppId:
@@ -781,6 +805,17 @@ components:
         mode:
           type: string
           enum: [managed, developer_key, byok, local]
+
+    SessionCreated:
+      type: object
+      additionalProperties: false
+      required: [session_id, token, expires_at]
+      properties:
+        session_id: { type: string }
+        token:
+          type: string
+          description: Session bearer token; keep it out of URLs, logs, and persistent browser storage.
+        expires_at: { type: string, format: date-time }
 
     ChatMessage:
       type: object

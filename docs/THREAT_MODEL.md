@@ -10,7 +10,8 @@ deployment.
 
 - Provider API keys and encrypted provider credential ciphertext.
 - Gateway admin bearer tokens, Console operator tokens, Console session-signing
-  secrets, and signed browser sessions.
+  secrets, session-ticket signing secrets, one-time tickets, and signed browser
+  sessions.
 - End-user identifiers owned by apps.
 - Usage events and ledger entries.
 - Faucet grant balances, allowlists, daily caps, and expiration controls.
@@ -23,6 +24,7 @@ deployment.
 | Boundary                    | Trusted Side               | Untrusted Side         | Required Control                                    |
 | --------------------------- | -------------------------- | ---------------------- | --------------------------------------------------- |
 | SDK to Gateway              | Gateway                    | App client and network | Session token plus attribution headers.             |
+| App backend to browser      | Trusted ticket issuer      | Browser and network    | Five-minute, single-use, app-scoped signed ticket.  |
 | Browser to Console          | Console server             | Browser and network    | Operator login, signed HttpOnly session, and TLS.   |
 | Console to Gateway          | Console server and Gateway | Browser client         | Gateway admin token stays server-side only.         |
 | Gateway to provider adapter | Gateway                    | Provider network/API   | Provider keys stay server-side in the managed path. |
@@ -38,6 +40,8 @@ deployment.
 | Anonymous visitor reaches Console control plane     | Full operator control                | Proxy gates every page; runtime reads and Server Actions independently verify a signed session or operator bearer. |
 | Stolen Console browser session is replayed          | Operator control until expiry        | Eight-hour HMAC session, HttpOnly and SameSite=Strict cookie, TLS, logout, and an independent signing secret.      |
 | Session token replay across attribution             | Unauthorized metered calls           | Session token hashes are stored server-side; authenticated `/v1` requests must match captured attribution.         |
+| Browser invents or drifts session attribution       | Cross-app credit abuse               | Gateway verifies an HMAC ticket binding all attribution fields and managed mode before atomically redeeming it.    |
+| Ticket or rate limit is replayed across instances   | Session/faucet abuse                 | PostgreSQL stores ticket-ID hashes and atomic rate counters across Gateway instances and restarts.                 |
 | Duplicate billing on client retry                   | Duplicate usage/ledger records       | `idempotency-key` uses a session-scoped request hash and PostgreSQL reservation completed atomically with billing. |
 | Adapter failure after payment precheck              | User charged without provider result | Usage events and ledger entries are written only after successful adapter response.                                |
 | Route to unapproved/high-cost model                 | Unexpected spend                     | Route model allowlists and max retail caps run before adapter execution.                                           |
@@ -65,5 +69,7 @@ Before tagging `v0.5.0-beta.2`, maintainers should confirm:
 - No local service port setting falls outside `3300-3399`.
 - Anonymous Console page/action requests are rejected, authenticated setup and
   usage/ledger workflows succeed, and all Gateway admin tokens stay server-side.
+- Ticket tamper, expiry, replay, attribution drift, and durable-limit tests pass;
+  ticket-signing secrets never enter browser bundles or logs.
 - No Gateway response returns plaintext provider keys or encrypted credential
   ciphertext.

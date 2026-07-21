@@ -53,6 +53,10 @@ export default defineConfig({
         "./packages/sdk-js/src/index.ts",
         import.meta.url,
       ).pathname,
+      "@fountlayer/session-ticket": new URL(
+        "./packages/session-ticket/src/index.ts",
+        import.meta.url,
+      ).pathname,
       "@fountlayer/settlement": new URL(
         "./packages/settlement/src/index.ts",
         import.meta.url,

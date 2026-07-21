@@ -1,5 +1,10 @@
 /* global URL, console, fetch, process */
 
+import {
+  createSessionTicket,
+  insecureDevelopmentSessionTicketSecret,
+} from "@fountlayer/session-ticket";
+
 const gatewayBaseUrl = process.env.GATEWAY_BASE_URL ?? "http://localhost:3300";
 const consoleBaseUrl = process.env.CONSOLE_BASE_URL ?? "http://localhost:3301";
 const adminToken =
@@ -9,6 +14,9 @@ const adminToken =
   "change_me_admin_token";
 const checkConsole = process.env.FOUNTLAYER_SMOKE_CHECK_CONSOLE !== "0";
 const consoleOperatorToken = process.env.CONSOLE_SMOKE_OPERATOR_TOKEN ?? "";
+const sessionTicketSecret =
+  process.env.FOUNTLAYER_SESSION_TICKET_SECRET ??
+  insecureDevelopmentSessionTicketSecret;
 const gatewaySourceSignals = ["Source: gateway", "live Gateway data"];
 
 const attributionHeaders = {
@@ -92,9 +100,22 @@ async function smokeGateway() {
     );
   }
 
-  const session = await fetchJson("/v1/sessions", {
+  const sessionTicket = await createSessionTicket({
+    attribution: {
+      appId: "app_pdf_reader",
+      channelId: "channel_desktop",
+      endUserId: "user_hash_123",
+      mode: "managed",
+      useCase: "paper_summary",
+    },
+    secret: sessionTicketSecret,
+  });
+  const sessionRequest = {
     method: "POST",
-    headers: attributionHeaders,
+    headers: {
+      ...attributionHeaders,
+      authorization: `Bearer ${sessionTicket}`,
+    },
     body: JSON.stringify({
       appId: "app_pdf_reader",
       channelId: "channel_desktop",
@@ -102,13 +123,26 @@ async function smokeGateway() {
       useCase: "paper_summary",
       mode: "managed",
     }),
-  });
+  };
+  const session = await fetchJson("/v1/sessions", sessionRequest);
 
   if (
     typeof session.token !== "string" ||
     !session.token.startsWith("fl_sess_")
   ) {
     fail("Gateway did not create a session token.");
+  }
+
+  const replay = await fetchRawJson("/v1/sessions", sessionRequest);
+
+  if (
+    replay.response.status !== 409 ||
+    replay.body?.error?.code !== "session_ticket_replayed"
+  ) {
+    fail("Gateway did not reject a replayed session ticket.", {
+      status: replay.response.status,
+      body: replay.body,
+    });
   }
 
   const sessionHeaders = {
@@ -217,6 +251,7 @@ async function smokeGateway() {
   return {
     dependencyStatus: dependencyHealth.status,
     deniedRouteCode: denied.body?.error?.code,
+    replayedTicketCode: replay.body.error.code,
     usageEventId: chat.billing.usage_event_id,
     ...checks,
   };
@@ -280,6 +315,7 @@ async function smokeConsole() {
       text.includes("encrypted_api_key") ||
       text.includes(adminToken) ||
       text.includes(consoleOperatorToken) ||
+      text.includes(sessionTicketSecret) ||
       text.includes("fl_sess_")
     ) {
       fail("Console page exposed a secret-like value.", { path });

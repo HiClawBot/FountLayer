@@ -40,6 +40,10 @@ Console / Worker / Optional Billing
 - `ledger_entries` are the source of truth for money flow.
 - `sessions` are the source of truth for Gateway session auth; only token
   hashes are persisted.
+- `session_ticket_redemptions` stores one-way ticket-ID hashes so a signed
+  five-minute bootstrap ticket can create at most one session.
+- `rate_limit_counters` stores atomic session-creation and billable-request
+  windows across Gateway instances.
 - `idempotency_records` coordinate session-scoped billable requests; they store
   request hashes, leases, status, and usage references but no response bodies.
 - `model_prices` are the source of truth for cost estimation.
@@ -48,19 +52,23 @@ Console / Worker / Optional Billing
 
 ## Request Lifecycle
 
-1. SDK creates or resumes a session.
-2. SDK sends chat request with attribution headers.
-3. Gateway validates app, channel, end user, and mode.
-4. Gateway validates the session token hash and checks that session attribution
+1. A trusted application backend signs a five-minute ticket binding the full
+   managed attribution context.
+2. SDK derives attribution from the ticket; Gateway verifies and atomically
+   redeems it while creating a session.
+3. SDK sends chat request with attribution headers.
+4. Gateway validates app, channel, end user, and mode.
+5. Gateway validates the session token hash and checks that session attribution
    matches request attribution.
-5. Gateway reserves an optional session-scoped idempotency key.
-6. Gateway estimates request cost.
-7. Gateway chooses payment source: faucet grant, wallet, BYOK, or local.
-8. Gateway resolves route to provider/model.
-9. Adapter calls LiteLLM, developer credential, BYOK, or local endpoint.
-10. Gateway atomically records the usage event, ledger entries, funding
+6. Gateway reserves an optional session-scoped idempotency key and consumes
+   durable abuse counters.
+7. Gateway estimates request cost.
+8. Gateway chooses the beta payment source: faucet grant or test wallet.
+9. Gateway resolves the managed route to provider/model.
+10. Adapter calls the configured LiteLLM/OpenAI-compatible upstream.
+11. Gateway atomically records the usage event, ledger entries, funding
     mutation, and idempotency completion.
-11. Response returns usage and billing metadata.
+12. Response returns usage and billing metadata.
 
 ## Routing Model
 

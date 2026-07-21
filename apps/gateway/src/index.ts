@@ -28,6 +28,7 @@ if (isDirectRun(import.meta.url)) {
       credentialCipher,
       logger: true,
       rateLimits: config.rateLimits,
+      sessionTicketSecret: config.sessionTicketSecret,
     },
   );
 

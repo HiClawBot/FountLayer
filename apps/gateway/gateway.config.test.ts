@@ -36,7 +36,9 @@ describe("gateway runtime config", () => {
         billableWindowMs: 3600000,
         endUserBillableRequestsPerWindow: 120,
         sessionBillableRequestsPerWindow: 60,
+        sessionCreationsPerWindow: 20,
       },
+      sessionTicketSecret: "change_me_session_ticket_secret_32_bytes_minimum",
       storeMode: "memory",
     });
     expect(config.adminTokenHashes).toHaveLength(1);
@@ -141,6 +143,16 @@ describe("gateway runtime config", () => {
     ).toThrow("Invalid FOUNTLAYER_CREDENTIAL_MASTER_KEY");
   });
 
+  it("rejects weak session ticket secrets", () => {
+    expect(() =>
+      loadGatewayRuntimeConfig({
+        FOUNTLAYER_SESSION_TICKET_SECRET: "too-short",
+      }),
+    ).toThrow(
+      "FOUNTLAYER_SESSION_TICKET_SECRET must be at least 32 characters",
+    );
+  });
+
   it("rejects non-hash admin token values in hash variables", () => {
     expect(() =>
       loadGatewayRuntimeConfig({
@@ -227,6 +239,8 @@ describe("gateway runtime config", () => {
       FOUNTLAYER_DEPLOYMENT_ENV: "production",
       FOUNTLAYER_GATEWAY_ADAPTER: "local",
       FOUNTLAYER_GATEWAY_STORE: "postgres",
+      FOUNTLAYER_SESSION_TICKET_SECRET:
+        "production-session-ticket-secret-with-32-characters",
       GATEWAY_HOST: "127.0.0.1",
       GATEWAY_PORT: "3390",
     });
@@ -247,5 +261,18 @@ describe("gateway runtime config", () => {
       },
       storeMode: "postgres",
     });
+  });
+
+  it("rejects the development session ticket secret in production", () => {
+    expect(() =>
+      loadGatewayRuntimeConfig({
+        DATABASE_URL: "postgres://user:pass@db.example/fountlayer",
+        FOUNTLAYER_ADMIN_TOKEN_SHA256: hashToken("fl_admin_prod"),
+        FOUNTLAYER_CREDENTIAL_MASTER_KEY: credentialMasterKeyEnv(),
+        FOUNTLAYER_DEPLOYMENT_ENV: "production",
+        FOUNTLAYER_GATEWAY_ADAPTER: "local",
+        FOUNTLAYER_GATEWAY_STORE: "postgres",
+      }),
+    ).toThrow("non-placeholder FOUNTLAYER_SESSION_TICKET_SECRET");
   });
 });

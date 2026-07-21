@@ -6,6 +6,10 @@ import { createCredentialCipher } from "@fountlayer/credentials";
 import { createInMemoryTelemetrySink } from "@fountlayer/observability";
 import { CircuitBreaker } from "@fountlayer/reliability";
 import { createFountLayer } from "@fountlayer/sdk-js";
+import {
+  createSessionTicket,
+  insecureDevelopmentSessionTicketSecret,
+} from "@fountlayer/session-ticket";
 
 import { buildGatewayServer } from "./src/server";
 import {
@@ -31,13 +35,31 @@ function hashTestToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
+async function createTestSessionTicket(
+  attribution = {
+    appId: "app_pdf_reader",
+    channelId: "channel_desktop",
+    endUserId: "user_hash_123",
+    useCase: "paper_summary",
+    mode: "managed" as const,
+  },
+) {
+  return createSessionTicket({
+    attribution,
+    secret: insecureDevelopmentSessionTicketSecret,
+  });
+}
+
 async function createSessionHeaders(
   server: ReturnType<typeof buildGatewayServer>,
 ) {
   const response = await server.inject({
     method: "POST",
     url: "/v1/sessions",
-    headers: attributionHeaders,
+    headers: {
+      ...attributionHeaders,
+      authorization: `Bearer ${await createTestSessionTicket()}`,
+    },
     payload: {
       appId: "app_pdf_reader",
       channelId: "channel_desktop",
@@ -302,7 +324,10 @@ describe("gateway minimum API", () => {
     const session = await server.inject({
       method: "POST",
       url: "/v1/sessions",
-      headers: attributionHeaders,
+      headers: {
+        ...attributionHeaders,
+        authorization: `Bearer ${await createTestSessionTicket()}`,
+      },
       payload: {
         appId: "app_pdf_reader",
         channelId: "channel_desktop",
@@ -549,7 +574,16 @@ describe("gateway minimum API", () => {
     const session = await server.inject({
       method: "POST",
       url: "/v1/sessions",
-      headers: betaAttributionHeaders,
+      headers: {
+        ...betaAttributionHeaders,
+        authorization: `Bearer ${await createTestSessionTicket({
+          appId: "app_beta",
+          channelId: "channel_beta",
+          endUserId: "user_beta",
+          mode: "managed",
+          useCase: "paper_summary",
+        })}`,
+      },
       payload: {
         appId: "app_beta",
         channelId: "channel_beta",
@@ -826,7 +860,10 @@ describe("gateway minimum API", () => {
     const response = await server.inject({
       method: "POST",
       url: "/v1/sessions",
-      headers: attributionHeaders,
+      headers: {
+        ...attributionHeaders,
+        authorization: `Bearer ${await createTestSessionTicket()}`,
+      },
       payload: {
         appId: "app_pdf_reader",
         channelId: "channel_desktop",
@@ -838,6 +875,96 @@ describe("gateway minimum API", () => {
 
     expect(response.statusCode).toBe(201);
     expect(response.json().token).toMatch(/^fl_sess_/);
+  });
+
+  it("requires a valid, unexpired session ticket", async () => {
+    const server = buildGatewayServer();
+    const payload = {
+      appId: "app_pdf_reader",
+      channelId: "channel_desktop",
+      endUserId: "user_hash_123",
+      useCase: "paper_summary",
+      mode: "managed",
+    };
+    const missing = await server.inject({
+      method: "POST",
+      url: "/v1/sessions",
+      headers: attributionHeaders,
+      payload,
+    });
+    const expiredTicket = await createSessionTicket({
+      attribution: { ...payload, mode: "managed" },
+      nowMs: Date.now() - 10_000,
+      secret: insecureDevelopmentSessionTicketSecret,
+      ttlSeconds: 1,
+    });
+    const expired = await server.inject({
+      method: "POST",
+      url: "/v1/sessions",
+      headers: {
+        ...attributionHeaders,
+        authorization: `Bearer ${expiredTicket}`,
+      },
+      payload,
+    });
+    const validTicket = await createTestSessionTicket();
+    const tampered = await server.inject({
+      method: "POST",
+      url: "/v1/sessions",
+      headers: {
+        ...attributionHeaders,
+        authorization: `Bearer ${validTicket}tampered`,
+      },
+      payload,
+    });
+
+    expect(missing.statusCode).toBe(401);
+    expect(missing.json().error.code).toBe("missing_session_ticket");
+    expect(expired.statusCode).toBe(401);
+    expect(expired.json().error.code).toBe("expired_session_ticket");
+    expect(tampered.statusCode).toBe(401);
+    expect(tampered.json().error.code).toBe("invalid_session_ticket");
+  });
+
+  it("rejects ticket attribution drift and one-time ticket replay", async () => {
+    const server = buildGatewayServer();
+    const ticket = await createTestSessionTicket();
+    const request = {
+      method: "POST" as const,
+      url: "/v1/sessions",
+      headers: {
+        ...attributionHeaders,
+        authorization: `Bearer ${ticket}`,
+      },
+      payload: {
+        appId: "app_pdf_reader",
+        channelId: "channel_desktop",
+        endUserId: "user_hash_123",
+        useCase: "paper_summary",
+        mode: "managed",
+      },
+    };
+    const drifted = await server.inject({
+      ...request,
+      headers: {
+        ...request.headers,
+        "x-fl-end-user-id": "user_hash_drifted",
+      },
+      payload: {
+        ...request.payload,
+        endUserId: "user_hash_drifted",
+      },
+    });
+    const first = await server.inject(request);
+    const replay = await server.inject(request);
+
+    expect(drifted.statusCode).toBe(403);
+    expect(drifted.json().error.code).toBe(
+      "session_ticket_attribution_mismatch",
+    );
+    expect(first.statusCode).toBe(201);
+    expect(replay.statusCode).toBe(409);
+    expect(replay.json().error.code).toBe("session_ticket_replayed");
   });
 
   it("returns a cost estimate with a faucet payment source", async () => {
@@ -1091,9 +1218,7 @@ describe("gateway minimum API", () => {
       },
     });
     const session = await sdk.startSession({
-      endUserId: "user_hash_123",
-      useCase: "paper_summary",
-      mode: "managed",
+      ticket: await createTestSessionTicket(),
     });
 
     const result = await session.chat({
@@ -1673,9 +1798,7 @@ describe("gateway minimum API", () => {
       },
     });
     const session = await sdk.startSession({
-      endUserId: "user_hash_123",
-      useCase: "paper_summary",
-      mode: "managed",
+      ticket: await createTestSessionTicket(),
     });
 
     await session.chat({
@@ -1703,6 +1826,93 @@ describe("gateway minimum API", () => {
 
     expect(usageEvents.json().usage_events).toHaveLength(1);
     expect(ledger.json().ledger_entries).toHaveLength(4);
+  });
+
+  it("rate limits repeated session creation by app-scoped end user", async () => {
+    const server = buildGatewayServer(undefined, {
+      rateLimits: {
+        sessionCreationsPerWindow: 1,
+      },
+    });
+    const payload = {
+      appId: "app_pdf_reader",
+      channelId: "channel_desktop",
+      endUserId: "user_hash_123",
+      useCase: "paper_summary",
+      mode: "managed",
+    };
+    const create = async () =>
+      server.inject({
+        method: "POST",
+        url: "/v1/sessions",
+        headers: {
+          ...attributionHeaders,
+          authorization: `Bearer ${await createTestSessionTicket()}`,
+        },
+        payload,
+      });
+    const first = await create();
+    const limited = await create();
+
+    expect(first.statusCode).toBe(201);
+    expect(limited.statusCode).toBe(429);
+    expect(limited.json().error).toMatchObject({
+      code: "rate_limited",
+      details: {
+        scope: "session_creation",
+      },
+    });
+  });
+
+  it("keeps end-user limits across Gateway rebuilds sharing one Store", async () => {
+    const store = createInMemoryGatewayStore();
+    const options = {
+      rateLimits: {
+        endUserBillableRequestsPerWindow: 1,
+        sessionBillableRequestsPerWindow: 100,
+      },
+    };
+    let server = buildGatewayServer(store, options);
+    const createSdk = () =>
+      createFountLayer({
+        appId: "app_pdf_reader",
+        channelId: "channel_desktop",
+        endpoint: "http://gateway.test",
+        fetchImpl: async (url, init) => {
+          const injected = await server.inject({
+            method: init?.method ?? "GET",
+            url: String(url).replace("http://gateway.test", ""),
+            headers: init?.headers as Record<string, string>,
+            payload: init?.body ? JSON.parse(String(init.body)) : undefined,
+          });
+
+          return new Response(injected.body, {
+            status: injected.statusCode,
+            headers: { "content-type": "application/json" },
+          });
+        },
+      });
+    const firstSession = await createSdk().startSession({
+      ticket: await createTestSessionTicket(),
+    });
+    await firstSession.chat({
+      model: "vertical/paper-summary",
+      messages: [{ role: "user", content: "First request." }],
+    });
+
+    await server.close();
+    server = buildGatewayServer(store, options);
+    const secondSession = await createSdk().startSession({
+      ticket: await createTestSessionTicket(),
+    });
+
+    await expect(
+      secondSession.chat({
+        model: "vertical/paper-summary",
+        messages: [{ role: "user", content: "Second request." }],
+      }),
+    ).rejects.toThrow("End-user billable request limit exceeded.");
+    await server.close();
   });
 
   it("replays idempotent billable chat responses without new usage or ledger records", async () => {

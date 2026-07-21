@@ -1,6 +1,6 @@
 {
-  "name": "@fountlayer/sdk-js",
-  "version": "0.5.0-beta.1",
+  "name": "@fountlayer/session-ticket",
+  "version": "0.5.0-beta.2",
   "private": true,
   "type": "module",
   "exports": {
@@ -18,7 +18,6 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@fountlayer/protocol": "workspace:*",
-    "@fountlayer/session-ticket": "workspace:*"
+    "@fountlayer/protocol": "workspace:*"
   }
 }

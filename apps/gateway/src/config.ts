@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import { createCredentialCipher } from "@fountlayer/credentials";
 import { defaultDatabaseUrl } from "@fountlayer/db";
+import { insecureDevelopmentSessionTicketSecret } from "@fountlayer/session-ticket";
 
 import type { GatewayRateLimitOptions } from "./server.js";
 
@@ -30,6 +31,7 @@ export type GatewayRuntimeConfig = {
   isProduction: boolean;
   port: number;
   rateLimits: GatewayRateLimitOptions;
+  sessionTicketSecret: string;
   storeMode: GatewayStoreMode;
 };
 
@@ -224,6 +226,20 @@ function parseCredentialEncryption(
   };
 }
 
+function parseSessionTicketSecret(env: GatewayEnv): string {
+  const secret =
+    env.FOUNTLAYER_SESSION_TICKET_SECRET?.trim() ??
+    insecureDevelopmentSessionTicketSecret;
+
+  if (secret.length < 32) {
+    throw new Error(
+      "FOUNTLAYER_SESSION_TICKET_SECRET must be at least 32 characters.",
+    );
+  }
+
+  return secret;
+}
+
 function adminTokenHashesFromEnv(env: GatewayEnv): string[] {
   const configuredHashes = [
     ...parseCsv(env.FOUNTLAYER_ADMIN_TOKEN_SHA256),
@@ -289,6 +305,12 @@ function assertProductionSafe(env: GatewayEnv, config: GatewayRuntimeConfig) {
       "Production Gateway runtime requires FOUNTLAYER_GATEWAY_ADAPTER=litellm or local.",
     );
   }
+
+  if (config.sessionTicketSecret === insecureDevelopmentSessionTicketSecret) {
+    throw new Error(
+      "Production Gateway runtime requires a non-placeholder FOUNTLAYER_SESSION_TICKET_SECRET.",
+    );
+  }
 }
 
 export function loadGatewayRuntimeConfig(
@@ -324,7 +346,13 @@ export function loadGatewayRuntimeConfig(
         "FOUNTLAYER_SESSION_BILLABLE_REQUESTS_PER_WINDOW",
         60,
       ),
+      sessionCreationsPerWindow: parsePositiveInteger(
+        env,
+        "FOUNTLAYER_SESSION_CREATIONS_PER_WINDOW",
+        20,
+      ),
     },
+    sessionTicketSecret: parseSessionTicketSecret(env),
     storeMode: parseStoreMode(env),
   };
 

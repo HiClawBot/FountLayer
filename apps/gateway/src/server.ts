@@ -1,4 +1,9 @@
-import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import {
+  createHash,
+  createHmac,
+  randomUUID,
+  timingSafeEqual,
+} from "node:crypto";
 
 import Fastify, {
   type FastifyInstance,
@@ -43,6 +48,10 @@ import {
   executeWithCircuitBreaker,
   executeWithRetry,
 } from "@fountlayer/reliability";
+import {
+  insecureDevelopmentSessionTicketSecret,
+  verifySessionTicket,
+} from "@fountlayer/session-ticket";
 
 import {
   createInMemoryGatewayStore,
@@ -92,6 +101,7 @@ type GatewayServerOptions = {
   dependencyHealthChecks?: Record<string, GatewayDependencyHealthCheck>;
   privacy?: GatewayPrivacyOptions;
   rateLimits?: GatewayRateLimitOptions;
+  sessionTicketSecret?: string;
   telemetrySink?: TelemetrySink;
 };
 
@@ -99,6 +109,7 @@ export type GatewayRateLimitOptions = {
   billableWindowMs?: number;
   endUserBillableRequestsPerWindow?: number;
   sessionBillableRequestsPerWindow?: number;
+  sessionCreationsPerWindow?: number;
 };
 
 export type GatewayPrivacyOptions = {
@@ -132,27 +143,9 @@ const defaultRateLimits = {
   billableWindowMs: 60 * 60 * 1000,
   endUserBillableRequestsPerWindow: 120,
   sessionBillableRequestsPerWindow: 60,
+  sessionCreationsPerWindow: 20,
 };
 const idempotencyLeaseMs = 15 * 60 * 1000;
-
-type RateLimitScope = "session" | "end_user";
-
-type RateLimitDecision =
-  | {
-      allowed: true;
-    }
-  | {
-      allowed: false;
-      limit: number;
-      remaining: number;
-      resetAt: number;
-      scope: RateLimitScope;
-    };
-
-type RateLimitCounter = {
-  count: number;
-  resetAt: number;
-};
 
 type ChatCompletionResponse = {
   billing: {
@@ -791,46 +784,6 @@ function adminSessionResponse(session: GatewaySessionRecord) {
   };
 }
 
-function createRateLimiter(now = () => Date.now()) {
-  const counters = new Map<string, RateLimitCounter>();
-
-  return {
-    consume(input: {
-      key: string;
-      limit: number;
-      scope: RateLimitScope;
-      windowMs: number;
-    }): RateLimitDecision {
-      if (input.limit <= 0) {
-        return { allowed: true };
-      }
-
-      const currentTime = now();
-      const existing = counters.get(input.key);
-      const counter =
-        existing && existing.resetAt > currentTime
-          ? existing
-          : { count: 0, resetAt: currentTime + input.windowMs };
-
-      if (counter.count >= input.limit) {
-        counters.set(input.key, counter);
-        return {
-          allowed: false,
-          limit: input.limit,
-          remaining: 0,
-          resetAt: counter.resetAt,
-          scope: input.scope,
-        };
-      }
-
-      counter.count += 1;
-      counters.set(input.key, counter);
-
-      return { allowed: true };
-    },
-  };
-}
-
 function parseIdempotencyKey(value: string | string[] | undefined) {
   const key = Array.isArray(value) ? value[0] : value;
 
@@ -1068,6 +1021,10 @@ function hashSessionToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
+function hashRateLimitKey(secret: string, value: string): string {
+  return createHmac("sha256", secret).update(value).digest("hex");
+}
+
 function isValidSha256Hex(value: string): boolean {
   return /^[a-f0-9]{64}$/i.test(value);
 }
@@ -1207,6 +1164,72 @@ async function requireAuth(
 
   request.auth = auth;
   return auth;
+}
+
+async function requireSessionTicket(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  secret: string,
+) {
+  const parsed = parseAuthorizationHeader(request.headers.authorization);
+
+  if (!parsed || !parsed.token.startsWith("fl_ticket_v1.")) {
+    jsonError(
+      reply,
+      401,
+      "missing_session_ticket",
+      "Expected Authorization: Bearer <session ticket>.",
+    );
+    return undefined;
+  }
+
+  const verification = await verifySessionTicket({
+    secret,
+    ticket: parsed.token,
+  });
+
+  if (!verification.valid) {
+    jsonError(
+      reply,
+      401,
+      verification.reason === "expired"
+        ? "expired_session_ticket"
+        : "invalid_session_ticket",
+      verification.reason === "expired"
+        ? "Session ticket has expired."
+        : "Session ticket is invalid.",
+    );
+    return undefined;
+  }
+
+  if (verification.claims.attribution.mode !== "managed") {
+    jsonError(
+      reply,
+      403,
+      "unsupported_session_mode",
+      "Only managed-mode session tickets are supported in the external beta.",
+    );
+    return undefined;
+  }
+
+  const requestAttribution = requireRequestAttribution(request);
+  const mismatches = Object.entries(verification.claims.attribution).filter(
+    ([key, value]) =>
+      requestAttribution[key as keyof AttributionContext] !== value,
+  );
+
+  if (mismatches.length > 0) {
+    jsonError(
+      reply,
+      403,
+      "session_ticket_attribution_mismatch",
+      "Session ticket attribution does not match request attribution.",
+      mismatches.map(([field]) => field),
+    );
+    return undefined;
+  }
+
+  return verification.claims;
 }
 
 async function requireAdminAuth(
@@ -1532,7 +1555,8 @@ export function buildGatewayServer(
     ...defaultRateLimits,
     ...options.rateLimits,
   };
-  const rateLimiter = createRateLimiter();
+  const sessionTicketSecret =
+    options.sessionTicketSecret ?? insecureDevelopmentSessionTicketSecret;
   const idempotencyCache = new Map<string, ChatCompletionResponse>();
   const server = Fastify({
     logger: options.logger
@@ -1635,6 +1659,16 @@ export function buildGatewayServer(
   server.post("/v1/sessions", async (request, reply) => {
     const startedAt = Date.now();
     const headers = requireRequestAttribution(request);
+    const ticketClaims = await requireSessionTicket(
+      request,
+      reply,
+      sessionTicketSecret,
+    );
+
+    if (!ticketClaims) {
+      return reply;
+    }
+
     const parsed = sessionRequestSchema.safeParse(request.body);
 
     if (!parsed.success) {
@@ -1651,17 +1685,68 @@ export function buildGatewayServer(
       return reply;
     }
 
+    const sessionCreationRateLimit = await store
+      .consumeRateLimit({
+        keyHash: hashRateLimitKey(
+          sessionTicketSecret,
+          `session_creation:${headers.appId}:${headers.endUserId}`,
+        ),
+        limit: rateLimits.sessionCreationsPerWindow,
+        scope: "session_creation",
+        windowMs: rateLimits.billableWindowMs,
+      })
+      .catch(() => undefined);
+
+    if (!sessionCreationRateLimit) {
+      return jsonError(
+        reply,
+        503,
+        "rate_limit_unavailable",
+        "Session creation rate limit is unavailable.",
+      );
+    }
+
+    if (!sessionCreationRateLimit.allowed) {
+      return jsonError(
+        reply,
+        429,
+        "rate_limited",
+        "End-user session creation limit exceeded.",
+        {
+          limit: sessionCreationRateLimit.limit,
+          remaining: sessionCreationRateLimit.remaining,
+          reset_at: sessionCreationRateLimit.resetAt,
+          scope: sessionCreationRateLimit.scope,
+        },
+      );
+    }
+
     const sessionId = `sess_${randomUUID()}`;
     const token = `fl_sess_${randomUUID()}`;
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const createdAt = new Date().toISOString();
+    const expiresAt = new Date(
+      Date.parse(createdAt) + 24 * 60 * 60 * 1000,
+    ).toISOString();
 
     try {
-      await store.createSession({
+      const redemption = await store.redeemSessionTicket({
         id: sessionId,
         tokenHash: hashSessionToken(token),
+        ticketExpiresAt: new Date(ticketClaims.exp * 1000).toISOString(),
+        ticketIdHash: hashSessionToken(ticketClaims.jti),
         attribution: parsed.data,
+        createdAt,
         expiresAt,
       });
+
+      if (redemption.status === "replayed") {
+        return jsonError(
+          reply,
+          409,
+          "session_ticket_replayed",
+          "Session ticket was already redeemed.",
+        );
+      }
     } catch (error) {
       await recordSpan(
         telemetrySink,
@@ -1996,12 +2081,27 @@ export function buildGatewayServer(
       }
     };
 
-    const sessionRateLimit = rateLimiter.consume({
-      key: `session:${auth.sessionId}`,
-      limit: rateLimits.sessionBillableRequestsPerWindow,
-      scope: "session",
-      windowMs: rateLimits.billableWindowMs,
-    });
+    const sessionRateLimit = await store
+      .consumeRateLimit({
+        keyHash: hashRateLimitKey(
+          sessionTicketSecret,
+          `session:${auth.sessionId}`,
+        ),
+        limit: rateLimits.sessionBillableRequestsPerWindow,
+        scope: "session",
+        windowMs: rateLimits.billableWindowMs,
+      })
+      .catch(() => undefined);
+
+    if (!sessionRateLimit) {
+      await releaseIdempotencyReservation();
+      return jsonError(
+        reply,
+        503,
+        "rate_limit_unavailable",
+        "Billable request rate limit is unavailable.",
+      );
+    }
 
     if (!sessionRateLimit.allowed) {
       await releaseIdempotencyReservation();
@@ -2013,18 +2113,33 @@ export function buildGatewayServer(
         {
           limit: sessionRateLimit.limit,
           remaining: sessionRateLimit.remaining,
-          reset_at: new Date(sessionRateLimit.resetAt).toISOString(),
+          reset_at: sessionRateLimit.resetAt,
           scope: sessionRateLimit.scope,
         },
       );
     }
 
-    const endUserRateLimit = rateLimiter.consume({
-      key: `end_user:${attribution.appId}:${attribution.endUserId}`,
-      limit: rateLimits.endUserBillableRequestsPerWindow,
-      scope: "end_user",
-      windowMs: rateLimits.billableWindowMs,
-    });
+    const endUserRateLimit = await store
+      .consumeRateLimit({
+        keyHash: hashRateLimitKey(
+          sessionTicketSecret,
+          `end_user:${attribution.appId}:${attribution.endUserId}`,
+        ),
+        limit: rateLimits.endUserBillableRequestsPerWindow,
+        scope: "end_user",
+        windowMs: rateLimits.billableWindowMs,
+      })
+      .catch(() => undefined);
+
+    if (!endUserRateLimit) {
+      await releaseIdempotencyReservation();
+      return jsonError(
+        reply,
+        503,
+        "rate_limit_unavailable",
+        "Billable request rate limit is unavailable.",
+      );
+    }
 
     if (!endUserRateLimit.allowed) {
       await releaseIdempotencyReservation();
@@ -2036,7 +2151,7 @@ export function buildGatewayServer(
         {
           limit: endUserRateLimit.limit,
           remaining: endUserRateLimit.remaining,
-          reset_at: new Date(endUserRateLimit.resetAt).toISOString(),
+          reset_at: endUserRateLimit.resetAt,
           scope: endUserRateLimit.scope,
         },
       );

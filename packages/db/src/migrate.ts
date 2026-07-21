@@ -1,21 +1,29 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 
 import postgres from "postgres";
 
 import { getDatabaseUrl } from "./config.js";
 import { isDirectRun } from "./runtime.js";
 
-const migrationUrl = new URL("../migrations/0000_initial.sql", import.meta.url);
+const migrationsUrl = new URL("../migrations/", import.meta.url);
 
 export async function runMigrations(
   databaseUrl = getDatabaseUrl(),
 ): Promise<void> {
-  const migrationSql = await readFile(migrationUrl, "utf8");
+  const migrationNames = (await readdir(migrationsUrl))
+    .filter((name) => /^\d{4}_.+\.sql$/u.test(name))
+    .sort();
   const sql = postgres(databaseUrl, { max: 1 });
 
   try {
     await sql.begin(async (transaction) => {
-      await transaction.unsafe(migrationSql);
+      for (const migrationName of migrationNames) {
+        const migrationSql = await readFile(
+          new URL(migrationName, migrationsUrl),
+          "utf8",
+        );
+        await transaction.unsafe(migrationSql);
+      }
     });
   } finally {
     await sql.end();

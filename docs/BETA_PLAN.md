@@ -20,6 +20,8 @@ Implemented foundation:
 - PostgreSQL-backed Gateway Store with memory mode for local demos.
 - Session token hashing and attribution matching on authenticated `/v1`
   traffic.
+- Five-minute, single-use app-scoped session tickets plus Store-backed session
+  creation and billable-request limits.
 - Authenticated Admin API reads plus encrypted provider credential create,
   rotate, and delete flows.
 - Live Console read pages for apps, channels, faucet grants, routes, pricing,
@@ -41,7 +43,7 @@ Implemented foundation:
 
 Verified locally:
 
-- `pnpm test` - 132 passed, 3 skipped.
+- `pnpm test` - 150 passed, 4 optional PostgreSQL tests skipped locally.
 - `pnpm lint`
 - `pnpm format`
 - `pnpm typecheck`
@@ -61,7 +63,6 @@ Verified on GitHub Actions for the beta branch:
 
 Current blockers before tagging the external beta:
 
-- Replace public identifier-only session creation with app-scoped short-lived tickets.
 - Add tenant-safe identity/wallet/session/credential migrations and upgrade tests.
 - Settle fixed-point monetary amounts from adapter-reported actual usage.
 - Remove unsupported BYOK/local/streaming surfaces and add real bounded PDF extraction.

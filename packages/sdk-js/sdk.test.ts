@@ -1,6 +1,28 @@
 import { describe, expect, it } from "vitest";
 
+import { createSessionTicket } from "@fountlayer/session-ticket";
+
 import { createFountLayer } from "./src/index";
+
+const ticketSecret = "sdk-session-ticket-test-secret-32-characters";
+
+async function sessionTicket(
+  attribution: {
+    appId: string;
+    channelId: string;
+    endUserId: string;
+    mode: "managed";
+    useCase: string;
+  } = {
+    appId: "app_pdf_reader",
+    channelId: "channel_desktop",
+    endUserId: "user_hash_123",
+    mode: "managed",
+    useCase: "paper_summary",
+  },
+) {
+  return createSessionTicket({ attribution, secret: ticketSecret });
+}
 
 function memoryStorage() {
   const storage = new Map<string, string>();
@@ -35,21 +57,37 @@ describe("FountLayer SDK", () => {
       },
     });
 
-    const session = await sdk.startSession({
-      endUserId: "user_hash_123",
-      useCase: "paper_summary",
-      mode: "managed",
-    });
+    const ticket = await sessionTicket();
+    const session = await sdk.startSession({ ticket });
 
     expect(session.token).toBe("fl_sess_123");
     expect(calls[0]?.url).toBe("http://localhost:3300/v1/sessions");
     expect(calls[0]?.init?.headers).toMatchObject({
+      authorization: `Bearer ${ticket}`,
       "x-fl-app-id": "app_pdf_reader",
       "x-fl-channel-id": "channel_desktop",
       "x-fl-end-user-id": "user_hash_123",
       "x-fl-use-case": "paper_summary",
       "x-fl-mode": "managed",
     });
+  });
+
+  it("derives attribution from the ticket and rejects a different client scope", async () => {
+    const fetchImpl = async () =>
+      new Response("{}", { status: 500, statusText: "must not call" });
+    const wrongAppSdk = createFountLayer({
+      appId: "app_other",
+      channelId: "channel_desktop",
+      endpoint: "http://localhost:3300",
+      fetchImpl,
+    });
+
+    await expect(
+      wrongAppSdk.startSession({ ticket: await sessionTicket() }),
+    ).rejects.toThrow("app/channel does not match");
+    await expect(
+      wrongAppSdk.startSession({ ticket: "not-a-ticket" }),
+    ).rejects.toThrow("malformed");
   });
 
   it("uses the session token for chat and helper requests", async () => {
@@ -112,10 +150,7 @@ describe("FountLayer SDK", () => {
         );
       },
     });
-    const session = await sdk.startSession({
-      endUserId: "user_hash_123",
-      useCase: "paper_summary",
-    });
+    const session = await sdk.startSession({ ticket: await sessionTicket() });
 
     await session.chat({
       model: "vertical/paper-summary",
@@ -175,10 +210,7 @@ describe("FountLayer SDK", () => {
             );
       },
     });
-    const session = await sdk.startSession({
-      endUserId: "user_hash_123",
-      useCase: "paper_summary",
-    });
+    const session = await sdk.startSession({ ticket: await sessionTicket() });
 
     await session.chat(
       {
@@ -289,10 +321,7 @@ describe("FountLayer SDK", () => {
         throw new Error("Streaming must fail before a chat request is sent.");
       },
     });
-    const session = await sdk.startSession({
-      endUserId: "user_hash_123",
-      useCase: "paper_summary",
-    });
+    const session = await sdk.startSession({ ticket: await sessionTicket() });
     await expect(
       (async () => {
         for await (const _chunk of session.streamChat({

@@ -8,15 +8,16 @@ The public Gateway API should be OpenAI-compatible where possible while adding F
 
 ## Required Headers
 
-All `/v1` requests carry attribution headers. All `/v1` endpoints except
-`POST /v1/sessions` require a session bearer token in `v0.5.0-beta.1`.
+All `/v1` requests carry attribution headers. `POST /v1/sessions` requires a
+single-use, five-minute session ticket in the bearer header. Every other `/v1`
+endpoint requires the resulting session bearer token in `v0.5.0-beta.2`.
 
 Gateway stores only a SHA-256 hash of the session token. The attribution headers
 on each authenticated request must match the attribution captured when the
 session was created.
 
 ```http
-Authorization: Bearer fl_session_or_app_token
+Authorization: Bearer fl_ticket_v1_xxx_or_fl_sess_xxx
 x-fl-app-id: app_pdf_reader
 x-fl-channel-id: channel_desktop
 x-fl-end-user-id: user_hash_123
@@ -45,10 +46,26 @@ the optional second argument `{ idempotencyKey: "..." }` to `chat` and
 
 ## POST /v1/sessions
 
-Creates a session for an end user.
+Creates a session for an end user. A trusted application backend signs a ticket
+with `@fountlayer/session-ticket` and a server-only
+`FOUNTLAYER_SESSION_TICKET_SECRET`. The ticket binds all five attribution fields,
+expires within five minutes, and may be redeemed exactly once. Ticket, request
+headers, and request body must match; only `managed` mode is accepted for the
+external beta.
+
+Request authorization:
+
+```http
+Authorization: Bearer fl_ticket_v1.<payload>.<signature>
+```
 
 The response returns the only plaintext copy of the session token. Store it on
 the client side as an application session token, not as a provider API key.
+
+Missing, invalid, expired, mismatched, or replayed tickets return `401`, `403`,
+or `409` without creating a session. Session creation and billable-request caps
+use Store-backed counters; PostgreSQL mode preserves them across Gateway
+instances and restarts.
 
 Request:
 

@@ -37,10 +37,20 @@ export function DemoReader() {
   }
 
   async function startDemoSession() {
+    const response = await fetch("/api/session-ticket", { method: "POST" });
+    const payload = (await response.json()) as {
+      error?: { message?: string };
+      ticket?: string;
+    };
+
+    if (!response.ok || !payload.ticket) {
+      throw new Error(
+        payload.error?.message ?? "Session ticket issuer is unavailable.",
+      );
+    }
+
     return sdk.startSession({
-      endUserId: "user_hash_123",
-      useCase: "paper_summary",
-      mode,
+      ticket: payload.ticket,
     });
   }
 

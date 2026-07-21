@@ -4,6 +4,7 @@ import type {
   ChatRequest,
   FountLayerMode,
 } from "@fountlayer/protocol";
+import { decodeSessionTicket } from "@fountlayer/session-ticket";
 
 export type FountLayerClientOptions = {
   appId: string;
@@ -14,9 +15,7 @@ export type FountLayerClientOptions = {
 };
 
 export type StartSessionInput = {
-  endUserId: string;
-  useCase: string;
-  mode?: FountLayerMode;
+  ticket: string;
 };
 
 export type SessionResponse = {
@@ -275,17 +274,28 @@ export class FountLayerClient {
   }
 
   async startSession(input: StartSessionInput): Promise<FountLayerSession> {
-    const context: AttributionContext = {
-      appId: this.options.appId,
-      channelId: this.options.channelId,
-      endUserId: input.endUserId,
-      useCase: input.useCase,
-      mode: input.mode ?? "managed",
-    };
+    const claims = decodeSessionTicket(input.ticket);
+    const context = claims.attribution;
+
+    if (
+      context.appId !== this.options.appId ||
+      context.channelId !== this.options.channelId
+    ) {
+      throw new Error(
+        "Session ticket app/channel does not match the FountLayer client.",
+      );
+    }
+
+    if (context.mode !== "managed") {
+      throw new Error(
+        "Only managed-mode session tickets are supported in the external beta.",
+      );
+    }
+
     const session = await this.request<SessionResponse>(
       "/v1/sessions",
       context,
-      undefined,
+      input.ticket,
       context,
     );
 

@@ -20,6 +20,7 @@ jobs:
       FOUNTLAYER_ADMIN_TOKEN: change_me_admin_token
       FOUNTLAYER_CREDENTIAL_MASTER_KEY: base64:CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQk=
       FOUNTLAYER_GATEWAY_STORE: postgres
+      FOUNTLAYER_SESSION_TICKET_SECRET: change_me_session_ticket_secret_32_bytes_minimum
       GATEWAY_BASE_URL: http://localhost:3300
       LITELLM_MASTER_KEY: change_me
       LOCAL_OPENAI_API_KEY: local-placeholder

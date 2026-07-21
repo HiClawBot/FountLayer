@@ -256,6 +256,31 @@ export type GatewaySessionRecord = {
   createdAt: string;
 };
 
+export type GatewaySessionTicketRedemptionResult =
+  | {
+      session: GatewaySessionRecord;
+      status: "created";
+    }
+  | {
+      status: "replayed";
+    };
+
+export type GatewayRateLimitScope = "end_user" | "session" | "session_creation";
+
+export type GatewayRateLimitDecision =
+  | {
+      allowed: true;
+      remaining: number;
+      resetAt: string;
+    }
+  | {
+      allowed: false;
+      limit: number;
+      remaining: 0;
+      resetAt: string;
+      scope: GatewayRateLimitScope;
+    };
+
 export type GatewayGrantMatch =
   | {
       matched: true;
@@ -344,13 +369,22 @@ export type GatewayStoreHealth = {
 
 export type GatewayStore = {
   healthCheck(): Promise<GatewayStoreHealth>;
-  createSession(input: {
+  redeemSessionTicket(input: {
     id: string;
     tokenHash: string;
+    ticketExpiresAt: string;
+    ticketIdHash: string;
     attribution: AttributionContext;
     expiresAt: string;
     createdAt?: string;
-  }): Promise<GatewaySessionRecord>;
+  }): Promise<GatewaySessionTicketRedemptionResult>;
+  consumeRateLimit(input: {
+    keyHash: string;
+    limit: number;
+    now?: Date;
+    scope: GatewayRateLimitScope;
+    windowMs: number;
+  }): Promise<GatewayRateLimitDecision>;
   getActiveSessionByTokenHash(
     tokenHash: string,
     now?: Date,
@@ -466,9 +500,14 @@ export type InMemoryGatewayState = {
   channels: Map<string, GatewayChannelRecord>;
   faucetGrants: GatewayGrantRecord[];
   idempotencyRecords: Map<string, GatewayIdempotencyRecord>;
+  rateLimitCounters: Map<
+    string,
+    { count: number; resetAt: string; scope: GatewayRateLimitScope }
+  >;
   pricingPolicies: GatewayAdminPricingPolicyRecord[];
   providerCredentials: GatewayProviderCredentialRecord[];
   routePolicies: GatewayRoutePolicyRecord[];
+  sessionTicketRedemptions: Map<string, string>;
   wallets: Map<string, GatewayWalletRecord>;
   usageEvents: UsageEventRecord[];
   ledgerEntries: LedgerEntryRecord[];
@@ -534,6 +573,11 @@ type SessionRow = {
   expires_at: string | Date;
   revoked_at: string | Date | null;
   created_at: string | Date;
+};
+
+type RateLimitRow = {
+  count: number;
+  reset_at: string | Date;
 };
 
 type WalletRow = {
@@ -719,6 +763,7 @@ export function createDefaultInMemoryGatewayState(
       },
     ],
     idempotencyRecords: new Map(),
+    rateLimitCounters: new Map(),
     pricingPolicies: [{ ...defaultPricingPolicy }],
     providerCredentials: [],
     routePolicies: [
@@ -728,6 +773,7 @@ export function createDefaultInMemoryGatewayState(
         modelAllowlist: [...defaultRoutePolicy.modelAllowlist],
       },
     ],
+    sessionTicketRedemptions: new Map(),
     wallets: new Map([[defaultUserWallet.id, { ...defaultUserWallet }]]),
     usageEvents: [],
     ledgerEntries: [],
@@ -1453,17 +1499,66 @@ export function createInMemoryGatewayStore(
       };
     },
 
-    async createSession(input) {
+    async redeemSessionTicket(input) {
+      const now = new Date(input.createdAt ?? new Date().toISOString());
+
+      for (const [ticketIdHash, expiresAt] of state.sessionTicketRedemptions) {
+        if (Date.parse(expiresAt) <= now.getTime()) {
+          state.sessionTicketRedemptions.delete(ticketIdHash);
+        }
+      }
+
+      if (state.sessionTicketRedemptions.has(input.ticketIdHash)) {
+        return { status: "replayed" };
+      }
+
       const session: GatewaySessionRecord = {
         id: input.id,
         tokenHash: input.tokenHash,
         attribution: input.attribution,
         expiresAt: input.expiresAt,
-        createdAt: input.createdAt ?? new Date().toISOString(),
+        createdAt: now.toISOString(),
       };
 
+      state.sessionTicketRedemptions.set(
+        input.ticketIdHash,
+        input.ticketExpiresAt,
+      );
       state.sessions.push(session);
-      return session;
+      return { session, status: "created" };
+    },
+
+    async consumeRateLimit(input) {
+      const now = input.now ?? new Date();
+      const existing = state.rateLimitCounters.get(input.keyHash);
+      const counter =
+        existing && Date.parse(existing.resetAt) > now.getTime()
+          ? existing
+          : {
+              count: 0,
+              resetAt: new Date(now.getTime() + input.windowMs).toISOString(),
+              scope: input.scope,
+            };
+
+      if (counter.count >= input.limit) {
+        state.rateLimitCounters.set(input.keyHash, counter);
+        return {
+          allowed: false,
+          limit: input.limit,
+          remaining: 0,
+          resetAt: counter.resetAt,
+          scope: input.scope,
+        };
+      }
+
+      counter.count += 1;
+      state.rateLimitCounters.set(input.keyHash, counter);
+
+      return {
+        allowed: true,
+        remaining: Math.max(0, input.limit - counter.count),
+        resetAt: counter.resetAt,
+      };
     },
 
     async getActiveSessionByTokenHash(tokenHash, now = new Date()) {
@@ -2385,9 +2480,35 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
       };
     },
 
-    async createSession(input) {
-      const rows = await sql<SessionRow[]>`
-        with upsert_end_user as (
+    async redeemSessionTicket(input) {
+      return sql.begin(async (transaction) => {
+        await transaction`
+          delete from session_ticket_redemptions
+          where expires_at <= ${input.createdAt ?? new Date().toISOString()}
+        `;
+
+        const redeemed = await transaction<Array<{ ticket_id_hash: string }>>`
+          insert into session_ticket_redemptions (
+            ticket_id_hash,
+            app_id,
+            expires_at,
+            redeemed_at
+          )
+          values (
+            ${input.ticketIdHash},
+            ${input.attribution.appId},
+            ${input.ticketExpiresAt},
+            ${input.createdAt ?? new Date().toISOString()}
+          )
+          on conflict (ticket_id_hash) do nothing
+          returning ticket_id_hash
+        `;
+
+        if (redeemed.length === 0) {
+          return { status: "replayed" } as const;
+        }
+
+        await transaction`
           insert into end_users (
             id,
             app_id,
@@ -2400,49 +2521,127 @@ export function createPostgresGatewayStore(sql: FountLayerSql): GatewayStore {
           )
           on conflict (id) do update set
             external_user_hash = excluded.external_user_hash
-          returning id
-        )
-        insert into sessions (
-          id,
-          app_id,
-          channel_id,
-          end_user_id,
-          use_case,
-          mode,
-          token_hash,
-          expires_at,
-          created_at
-        )
-        values (
-          ${input.id},
-          ${input.attribution.appId},
-          ${input.attribution.channelId},
-          ${input.attribution.endUserId},
-          ${input.attribution.useCase},
-          ${input.attribution.mode},
-          ${input.tokenHash},
-          ${input.expiresAt},
-          ${input.createdAt ?? new Date().toISOString()}
-        )
-        returning
-          id,
-          app_id,
-          channel_id,
-          end_user_id,
-          use_case,
-          mode,
-          token_hash,
-          expires_at,
-          revoked_at,
-          created_at
-      `;
-      const row = rows[0];
+        `;
 
-      if (!row) {
-        throw new Error("Session was not created.");
-      }
+        const rows = await transaction<SessionRow[]>`
+          insert into sessions (
+            id,
+            app_id,
+            channel_id,
+            end_user_id,
+            use_case,
+            mode,
+            token_hash,
+            expires_at,
+            created_at
+          )
+          values (
+            ${input.id},
+            ${input.attribution.appId},
+            ${input.attribution.channelId},
+            ${input.attribution.endUserId},
+            ${input.attribution.useCase},
+            ${input.attribution.mode},
+            ${input.tokenHash},
+            ${input.expiresAt},
+            ${input.createdAt ?? new Date().toISOString()}
+          )
+          returning
+            id,
+            app_id,
+            channel_id,
+            end_user_id,
+            use_case,
+            mode,
+            token_hash,
+            expires_at,
+            revoked_at,
+            created_at
+        `;
+        const row = rows[0];
 
-      return mapSessionRow(row);
+        if (!row) {
+          throw new Error("Session was not created.");
+        }
+
+        return { session: mapSessionRow(row), status: "created" } as const;
+      });
+    },
+
+    async consumeRateLimit(input) {
+      return sql.begin(async (transaction) => {
+        const now = input.now ?? new Date();
+        const initialResetAt = new Date(
+          now.getTime() + input.windowMs,
+        ).toISOString();
+
+        await transaction`
+          delete from rate_limit_counters
+          where reset_at <= ${now.toISOString()}
+            and key_hash <> ${input.keyHash}
+        `;
+
+        await transaction`
+          insert into rate_limit_counters (
+            key_hash,
+            scope,
+            count,
+            reset_at,
+            updated_at
+          )
+          values (
+            ${input.keyHash},
+            ${input.scope},
+            0,
+            ${initialResetAt},
+            ${now.toISOString()}
+          )
+          on conflict (key_hash) do nothing
+        `;
+
+        const rows = await transaction<RateLimitRow[]>`
+          select count, reset_at
+          from rate_limit_counters
+          where key_hash = ${input.keyHash}
+          for update
+        `;
+        const existing = rows[0];
+
+        if (!existing) {
+          throw new Error("Rate-limit counter disappeared during acquisition.");
+        }
+
+        const expired = Date.parse(toIso(existing.reset_at)) <= now.getTime();
+        const count = expired ? 0 : existing.count;
+        const resetAt = expired ? initialResetAt : toIso(existing.reset_at);
+
+        if (count >= input.limit) {
+          return {
+            allowed: false,
+            limit: input.limit,
+            remaining: 0,
+            resetAt,
+            scope: input.scope,
+          } as const;
+        }
+
+        const nextCount = count + 1;
+        await transaction`
+          update rate_limit_counters
+          set
+            count = ${nextCount},
+            reset_at = ${resetAt},
+            scope = ${input.scope},
+            updated_at = ${now.toISOString()}
+          where key_hash = ${input.keyHash}
+        `;
+
+        return {
+          allowed: true,
+          remaining: Math.max(0, input.limit - nextCount),
+          resetAt,
+        } as const;
+      });
     },
 
     async getActiveSessionByTokenHash(tokenHash, now = new Date()) {

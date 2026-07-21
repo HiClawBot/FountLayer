@@ -7,12 +7,29 @@ import {
   type FountLayerSql,
 } from "@fountlayer/db";
 import { createFountLayer } from "@fountlayer/sdk-js";
+import {
+  createSessionTicket,
+  insecureDevelopmentSessionTicketSecret,
+} from "@fountlayer/session-ticket";
 
 import { buildGatewayServer } from "./src/server";
 import { createPostgresGatewayStore } from "./src/store";
 
 const runDbTests = process.env.FOUNTLAYER_RUN_DB_TESTS === "1";
 const describeDb = runDbTests ? describe : describe.skip;
+
+async function createTestSessionTicket() {
+  return createSessionTicket({
+    attribution: {
+      appId: "app_pdf_reader",
+      channelId: "channel_desktop",
+      endUserId: "user_hash_123",
+      mode: "managed",
+      useCase: "paper_summary",
+    },
+    secret: insecureDevelopmentSessionTicketSecret,
+  });
+}
 
 describeDb("gateway postgres store", () => {
   const databaseUrl = getTestDatabaseUrl();
@@ -58,9 +75,7 @@ describeDb("gateway postgres store", () => {
       },
     });
     const session = await sdk.startSession({
-      endUserId: "user_hash_123",
-      useCase: "paper_summary",
-      mode: "managed",
+      ticket: await createTestSessionTicket(),
     });
     const sessionRows = await sql<Array<{ token_hash: string }>>`
       select token_hash from sessions
@@ -135,9 +150,7 @@ describeDb("gateway postgres store", () => {
       },
     });
     const session = await sdk.startSession({
-      endUserId: "user_hash_123",
-      useCase: "paper_summary",
-      mode: "managed",
+      ticket: await createTestSessionTicket(),
     });
     const beforeBalance = await session.getBalance();
 
@@ -195,9 +208,7 @@ describeDb("gateway postgres store", () => {
       },
     });
     const session = await sdk.startSession({
-      endUserId: "user_hash_123",
-      useCase: "paper_summary",
-      mode: "managed",
+      ticket: await createTestSessionTicket(),
     });
     const request = {
       method: "POST" as const,
@@ -248,5 +259,74 @@ describeDb("gateway postgres store", () => {
       status: "completed",
       usage_event_id: first.json().billing.usage_event_id,
     });
+  });
+
+  it("persists ticket replay and end-user rate limits across Gateway restart", async () => {
+    if (!server || !sql) {
+      throw new Error("Postgres test server was not initialized.");
+    }
+
+    const rateLimits = {
+      endUserBillableRequestsPerWindow: 1,
+      sessionBillableRequestsPerWindow: 100,
+    };
+    await server.close();
+    server = buildGatewayServer(createPostgresGatewayStore(sql), {
+      rateLimits,
+    });
+    const sdk = createFountLayer({
+      appId: "app_pdf_reader",
+      channelId: "channel_desktop",
+      endpoint: "http://gateway.test",
+      fetchImpl: async (url, init) => {
+        const injected = await server!.inject({
+          method: init?.method ?? "GET",
+          url: String(url).replace("http://gateway.test", ""),
+          headers: init?.headers as Record<string, string>,
+          payload: init?.body ? JSON.parse(String(init.body)) : undefined,
+        });
+
+        return new Response(injected.body, {
+          status: injected.statusCode,
+          headers: { "content-type": "application/json" },
+        });
+      },
+    });
+    const firstTicket = await createTestSessionTicket();
+    const firstSession = await sdk.startSession({ ticket: firstTicket });
+    await firstSession.chat({
+      model: "vertical/paper-summary",
+      messages: [{ role: "user", content: "Before restart." }],
+    });
+
+    await server.close();
+    server = buildGatewayServer(createPostgresGatewayStore(sql), {
+      rateLimits,
+    });
+
+    await expect(sdk.startSession({ ticket: firstTicket })).rejects.toThrow(
+      "Session ticket was already redeemed.",
+    );
+    const secondSession = await sdk.startSession({
+      ticket: await createTestSessionTicket(),
+    });
+    await expect(
+      secondSession.chat({
+        model: "vertical/paper-summary",
+        messages: [{ role: "user", content: "After restart." }],
+      }),
+    ).rejects.toThrow("End-user billable request limit exceeded.");
+
+    const redemptionRows = await sql<Array<{ count: string }>>`
+      select count(*)::text as count from session_ticket_redemptions
+    `;
+    const endUserLimitRows = await sql<Array<{ count: number }>>`
+      select count
+      from rate_limit_counters
+      where scope = 'end_user'
+    `;
+
+    expect(redemptionRows[0]?.count).toBe("2");
+    expect(endUserLimitRows).toEqual([{ count: 1 }]);
   });
 });

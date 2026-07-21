@@ -17,6 +17,13 @@ Scope: `v0.5.0-beta.2` self-hosted operator beta.
 - [x] Negative tests prove anonymous page and Server Action requests are rejected
       before any Gateway Admin request.
 - [x] Session tokens are stored as hashes only.
+- [x] Public session creation requires a five-minute HMAC ticket issued by a
+      trusted backend and binding app, channel, end user, use case, and managed mode.
+- [x] Ticket IDs are stored as hashes and redeemed once in the same Store
+      transaction that creates the session; replay, expiry, tamper, and attribution
+      drift tests pass.
+- [x] Session-creation and billable-request limits use Store-backed atomic counters;
+      PostgreSQL coverage verifies restart persistence.
 - [x] Authenticated `/v1` requests require attribution match for app, channel,
       end user, use case, and mode.
 - [x] Admin session revoke makes issued session tokens unusable without
@@ -56,6 +63,9 @@ Scope: `v0.5.0-beta.2` self-hosted operator beta.
 - Generate independent high-entropy values for the Console operator token and
   `CONSOLE_SESSION_SECRET`; configure only `CONSOLE_OPERATOR_TOKEN_SHA256`, and
   never reuse the Gateway admin token for either purpose.
+- Generate an independent `FOUNTLAYER_SESSION_TICKET_SECRET` of at least 32
+  characters. Share it only with the Gateway and trusted ticket-issuing backend,
+  never a browser or `NEXT_PUBLIC_*` variable.
 - Terminate TLS before exposing the Console. Keep secure session cookies enabled
   outside loopback development.
 - Keep prompt/output logging disabled unless a downstream app adds its own

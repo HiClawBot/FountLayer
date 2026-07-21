@@ -46,18 +46,21 @@ pnpm db:migrate
 pnpm db:seed
 ```
 
-The beta migration is rerunnable. Existing beta databases can run
-`pnpm db:migrate` again to add the durable `idempotency_records` table before
-starting the updated Gateway.
+The beta migrations are rerunnable and execute in filename order. Existing beta
+databases can run `pnpm db:migrate` again to add durable ticket-redemption and
+rate-limit tables before starting the updated Gateway.
 
 ## Start Gateway
 
 For local beta testing:
 
 ```bash
+export FOUNTLAYER_SESSION_TICKET_SECRET="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+
 FOUNTLAYER_ADMIN_TOKEN=change_me_admin_token \
 FOUNTLAYER_GATEWAY_ADAPTER=litellm \
 FOUNTLAYER_GATEWAY_STORE=postgres \
+FOUNTLAYER_SESSION_TICKET_SECRET="$FOUNTLAYER_SESSION_TICKET_SECRET" \
 FOUNTLAYER_CREDENTIAL_MASTER_KEY=base64:CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQk= \
 LITELLM_BASE_URL=http://localhost:3305 \
 LITELLM_MASTER_KEY=change_me \
@@ -66,7 +69,9 @@ pnpm --filter @fountlayer/gateway dev
 
 For production-like testing, replace the plaintext admin token with
 `FOUNTLAYER_ADMIN_TOKEN_SHA256`, use a non-local `DATABASE_URL`, and generate a
-fresh 32-byte `FOUNTLAYER_CREDENTIAL_MASTER_KEY`.
+fresh 32-byte `FOUNTLAYER_CREDENTIAL_MASTER_KEY`. Retain the independent
+`FOUNTLAYER_SESSION_TICKET_SECRET` in a secret manager and share it only with
+the Gateway and trusted application backends that issue five-minute tickets.
 
 `FOUNTLAYER_GATEWAY_ADAPTER` selects one adapter for the Gateway process:
 `demo` for zero-provider-key development, `litellm` for the Compose sidecar, or
@@ -74,6 +79,33 @@ fresh 32-byte `FOUNTLAYER_CREDENTIAL_MASTER_KEY`.
 `demo`. Direct local mode uses `LOCAL_OPENAI_BASE_URL` and optional
 `LOCAL_OPENAI_API_KEY`, and only accepts localhost, private-LAN, or `.local`
 targets.
+
+## Issue Session Tickets From A Trusted Backend
+
+Do not let a browser choose attribution or read the ticket secret. A trusted
+application backend authenticates its user, derives the app-owned end-user hash,
+and returns a short-lived ticket:
+
+```ts
+import { createSessionTicket } from "@fountlayer/session-ticket";
+
+const ticket = await createSessionTicket({
+  attribution: {
+    appId: "app_pdf_reader",
+    channelId: "channel_desktop",
+    endUserId: "user_hash_123",
+    mode: "managed",
+    useCase: "paper_summary",
+  },
+  secret: process.env.FOUNTLAYER_SESSION_TICKET_SECRET!,
+});
+```
+
+The browser passes only `{ ticket }` to `sdk.startSession`. The Gateway verifies
+all claims, requires request attribution to match, stores only a ticket-ID hash,
+and rejects expiry or replay. The bundled Document Reader demonstrates this
+backend route at `/api/session-ticket`; it is a fixed-attribution test-credit
+example, not general hosted-demo authentication.
 
 ## Idempotent Billable Requests
 
@@ -117,6 +149,7 @@ http://localhost:3301/setup
 
 ```bash
 NEXT_PUBLIC_GATEWAY_BASE_URL=http://localhost:3300 \
+FOUNTLAYER_SESSION_TICKET_SECRET="$FOUNTLAYER_SESSION_TICKET_SECRET" \
 pnpm --filter @fountlayer/demo-pdf-reader dev
 ```
 
@@ -135,11 +168,14 @@ GATEWAY_BASE_URL=http://localhost:3300 \
 CONSOLE_BASE_URL=http://localhost:3301 \
 CONSOLE_GATEWAY_ADMIN_TOKEN=change_me_admin_token \
 CONSOLE_SMOKE_OPERATOR_TOKEN="$CONSOLE_OPERATOR_TOKEN" \
+FOUNTLAYER_SESSION_TICKET_SECRET="$FOUNTLAYER_SESSION_TICKET_SECRET" \
 pnpm smoke:runtime
 ```
 
-If smoke runs in a different shell, export the same operator token there. Do not
-reuse the Gateway admin token as the Console operator token or session secret.
+If Demo or smoke runs in a different shell, export the same ticket secret there;
+it must match the Gateway. Export the same operator token for smoke as well. Do
+not reuse the Gateway admin token as either Console credential or the ticket
+secret.
 Set `CONSOLE_SESSION_COOKIE_SECURE=true` behind production HTTPS ingress; it
 defaults to secure cookies when `NODE_ENV=production`.
 
@@ -156,6 +192,7 @@ The smoke test checks:
 - Gateway health.
 - Dependency readiness.
 - Session creation.
+- Ticket tamper/replay protection and an anonymous Console denial.
 - Estimate with positive retail price.
 - One successful billable chat call.
 - Admin readback for apps, channels, faucet grants, routes, pricing, usage,
