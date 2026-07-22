@@ -49,8 +49,9 @@ not supported beta capabilities.
   Route, and Pricing Policy choices while retaining an empty/unavailable manual fallback.
 - Added a strict `smoke:golden` TLS-staging profile that performs one seeded Managed call
   and reconciles provider-supplied usage to its exact balanced ledger entry set.
-- Updated the pinned checkout, setup-node, and artifact-upload Actions to their smallest
-  verified Node 24 runtime lines without changing workflow permissions or job behavior.
+- Updated the pinned checkout, setup-node, general/Pages artifact upload, and Pages deploy
+  Actions to their smallest verified Node 24 runtime lines without changing workflow
+  permissions or intended job behavior.
 - Patched the production dependency graph to `fast-uri 3.1.4` and `sharp 0.35.3`; the
   production audit reports no known vulnerabilities at candidate preparation time.
 
