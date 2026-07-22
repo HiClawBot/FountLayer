@@ -28,6 +28,7 @@ jobs:
       LITELLM_MASTER_KEY: change_me
       LOCAL_OPENAI_API_KEY: local-placeholder
       LOCAL_OPENAI_BASE_URL: http://127.0.0.1:3314/v1
+      OPENAI_FIXTURE_HOST: 0.0.0.0
       UPSTREAM_OPENAI_API_KEY: local-placeholder
       UPSTREAM_OPENAI_BASE_URL: http://host.docker.internal:3314/v1
       UPSTREAM_OPENAI_MODEL: openai/local-model

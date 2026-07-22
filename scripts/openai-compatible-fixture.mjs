@@ -2,7 +2,7 @@
 
 import { createServer } from "node:http";
 
-const host = "127.0.0.1";
+const host = process.env.OPENAI_FIXTURE_HOST ?? "127.0.0.1";
 const port = Number(process.env.OPENAI_FIXTURE_PORT ?? "3314");
 const expectedApiKey =
   process.env.OPENAI_FIXTURE_API_KEY ?? "local-placeholder";

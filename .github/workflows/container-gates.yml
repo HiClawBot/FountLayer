@@ -40,6 +40,8 @@ jobs:
       - name: Verify non-root runtime
         run: |
           test "$(docker image inspect --format '{{.Config.User}}' "fountlayer/${{ matrix.target }}:ci")" = "node"
+          docker run --rm --entrypoint sh "fountlayer/${{ matrix.target }}:ci" -c \
+            'test ! -e /usr/local/lib/node_modules/npm && ! command -v npm && ! command -v npx'
 
       - name: Generate SPDX SBOM
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0

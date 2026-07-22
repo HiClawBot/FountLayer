@@ -29,6 +29,9 @@ FROM ${NODE_IMAGE} AS runtime-base
 ARG VERSION=0.5.0-beta.2
 ARG VCS_REF=unknown
 
+RUN rm -rf /usr/local/lib/node_modules/npm \
+  && rm -f /usr/local/bin/npm /usr/local/bin/npx
+
 LABEL org.opencontainers.image.title="FountLayer" \
       org.opencontainers.image.description="Self-hosted LLM last-mile distribution beta" \
       org.opencontainers.image.licenses="Apache-2.0" \
