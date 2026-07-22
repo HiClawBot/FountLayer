@@ -79,9 +79,9 @@
 - [x] `pnpm scan:keys` passes.
 - [x] `pnpm audit:prod` reports no known production vulnerabilities locally.
 - [x] No local service port settings outside `3300-3399`.
-- [ ] Container Gates builds Gateway, Console, and Demo as non-root images on the
+- [x] Container Gates builds Gateway, Console, and Demo as non-root images on the
       release commit.
-- [ ] Container Gates publishes SPDX SBOMs and reports no fixable high/critical image
+- [x] Container Gates publishes SPDX SBOMs and reports no fixable high/critical image
       vulnerabilities.
 - [ ] `pnpm smoke:golden` passes through credentialed TLS staging and LiteLLM with
       provider-supplied usage plus exact balanced-ledger reconciliation.

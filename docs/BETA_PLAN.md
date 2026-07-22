@@ -73,8 +73,8 @@ Container Gates evidence:
 
 Current blockers before tagging the external beta:
 
-- Pass Container Gates on the release commit, run a credentialed real-provider golden
-  smoke, and complete the staging soak/failure-injection gate.
+- Run a credentialed real-provider golden smoke and complete the staging
+  soak/failure-injection gate.
 
 ## Beta Definition
 
@@ -219,7 +219,7 @@ Goal: make the beta publishable.
 - [x] Update release checklist with beta-specific gates.
 - [x] Add `v0.5.0-beta.2` release notes and GitHub release draft text.
 - [x] Confirm GitHub Pages site links to beta quickstart and docs.
-- [ ] Pass CI, Runtime Smoke, Pages, and Container Gates on the exact beta.2
+- [x] Pass CI, Runtime Smoke, Pages, and Container Gates on the exact beta.2
       candidate commit.
 - [ ] Attach credentialed real-provider golden-smoke and staging soak evidence.
 - Tag `v0.5.0-beta.2` only after the exact candidate commit satisfies every
