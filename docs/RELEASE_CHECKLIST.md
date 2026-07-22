@@ -83,6 +83,7 @@
       release commit.
 - [ ] Container Gates publishes SPDX SBOMs and reports no fixable high/critical image
       vulnerabilities.
-- [ ] Credentialed real-provider golden smoke passes through LiteLLM with actual usage.
+- [ ] `pnpm smoke:golden` passes through credentialed TLS staging and LiteLLM with
+      provider-supplied usage plus exact balanced-ledger reconciliation.
 - [ ] Staging soak, SIGTERM drain, provider timeout, database restart, and restore
       failure-injection evidence is attached to the release.

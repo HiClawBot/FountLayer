@@ -151,6 +151,13 @@ CONSOLE_SMOKE_OPERATOR_TOKEN="$CONSOLE_OPERATOR_TOKEN" \
 pnpm smoke:runtime
 ```
 
+For the final credentialed TLS-staging proof, use `pnpm smoke:golden` instead. The strict
+profile rejects loopback/HTTP origins and placeholder credentials, executes exactly one
+billable seeded Managed call, then reconciles its provider-supplied token usage, upstream
+cost, retail price, and four balanced ledger entries by the returned usage-event ID. Run
+it only against the isolated staging beta after the operator has authorized one upstream
+call; see the self-hosting runbook for the required environment contract.
+
 For production-like testing, set `FOUNTLAYER_DEPLOYMENT_ENV=production`,
 `FOUNTLAYER_GATEWAY_STORE=postgres`, hashed admin tokens, a non-local
 `DATABASE_URL`, `FOUNTLAYER_CREDENTIAL_MASTER_KEY`,

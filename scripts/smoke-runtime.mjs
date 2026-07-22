@@ -4,7 +4,14 @@ import {
   createSessionTicket,
   insecureDevelopmentSessionTicketSecret,
 } from "@fountlayer/session-ticket";
+import {
+  inspectRuntimeSmokeArguments,
+  inspectStagingSmokeConfiguration,
+  reconcileSmokeBilling,
+} from "./runtime-smoke-contract.mjs";
 
+const runtimeOptions = inspectRuntimeSmokeArguments(process.argv.slice(2));
+const stagingProfile = runtimeOptions.stagingProfile;
 const gatewayBaseUrl = process.env.GATEWAY_BASE_URL ?? "http://localhost:3300";
 const consoleBaseUrl = process.env.CONSOLE_BASE_URL ?? "http://localhost:3301";
 const adminToken =
@@ -41,6 +48,27 @@ function fail(message, details) {
     ),
   );
   process.exit(1);
+}
+
+if (!runtimeOptions.ok) {
+  fail("Unknown runtime smoke option.", { issues: runtimeOptions.issues });
+}
+
+if (stagingProfile) {
+  const stagingConfiguration = inspectStagingSmokeConfiguration({
+    adminToken,
+    checkConsole,
+    consoleBaseUrl,
+    consoleOperatorToken,
+    gatewayBaseUrl,
+    sessionTicketSecret: process.env.FOUNTLAYER_SESSION_TICKET_SECRET ?? "",
+  });
+
+  if (!stagingConfiguration.ok) {
+    fail("Credentialed staging smoke configuration is invalid.", {
+      issues: stagingConfiguration.issues,
+    });
+  }
 }
 
 async function readJson(response) {
@@ -187,6 +215,8 @@ async function smokeGateway() {
     pricingPolicies,
     usage,
     ledger,
+    exactUsage,
+    exactLedger,
   ] = await Promise.all([
     fetchAdminJson("/admin/apps"),
     fetchAdminJson("/admin/channels"),
@@ -196,7 +226,28 @@ async function smokeGateway() {
     fetchAdminJson("/admin/pricing-policies"),
     fetchAdminJson("/admin/usage-events"),
     fetchAdminJson("/admin/ledger"),
+    fetchAdminJson(
+      `/admin/usage-events?id=${encodeURIComponent(chat.billing.usage_event_id)}`,
+    ),
+    fetchAdminJson(
+      `/admin/ledger?usage_event_id=${encodeURIComponent(chat.billing.usage_event_id)}`,
+    ),
   ]);
+
+  let reconciliation;
+
+  try {
+    reconciliation = reconcileSmokeBilling({
+      billing: chat.billing,
+      ledgerEntries: exactLedger.ledger_entries ?? [],
+      usageEvents: exactUsage.usage_events ?? [],
+    });
+  } catch (error) {
+    fail("Exact usage and ledger reconciliation failed.", {
+      reason:
+        error instanceof Error ? error.message : "reconciliation rejected",
+    });
+  }
 
   const checks = {
     apps: apps.apps?.length,
@@ -235,34 +286,41 @@ async function smokeGateway() {
     fail("Denied route unexpectedly returned success.", denied.body);
   }
 
-  const [usageAfterDenied, ledgerAfterDenied] = await Promise.all([
-    fetchAdminJson("/admin/usage-events"),
-    fetchAdminJson("/admin/ledger"),
-  ]);
-  const usageCountAfterDenied = usageAfterDenied.usage_events?.length ?? 0;
-  const ledgerCountAfterDenied = ledgerAfterDenied.ledger_entries?.length ?? 0;
+  if (!stagingProfile) {
+    const [usageAfterDenied, ledgerAfterDenied] = await Promise.all([
+      fetchAdminJson("/admin/usage-events"),
+      fetchAdminJson("/admin/ledger"),
+    ]);
+    const usageCountAfterDenied = usageAfterDenied.usage_events?.length ?? 0;
+    const ledgerCountAfterDenied =
+      ledgerAfterDenied.ledger_entries?.length ?? 0;
 
-  if (
-    usageCountAfterDenied !== checks.usageEvents ||
-    ledgerCountAfterDenied !== checks.ledgerEntries
-  ) {
-    fail("Denied route created usage or ledger records.", {
-      before: {
-        usageEvents: checks.usageEvents,
-        ledgerEntries: checks.ledgerEntries,
-      },
-      after: {
-        usageEvents: usageCountAfterDenied,
-        ledgerEntries: ledgerCountAfterDenied,
-      },
-      denied: denied.body,
-    });
+    if (
+      usageCountAfterDenied !== checks.usageEvents ||
+      ledgerCountAfterDenied !== checks.ledgerEntries
+    ) {
+      fail("Denied route created usage or ledger records.", {
+        before: {
+          usageEvents: checks.usageEvents,
+          ledgerEntries: checks.ledgerEntries,
+        },
+        after: {
+          usageEvents: usageCountAfterDenied,
+          ledgerEntries: ledgerCountAfterDenied,
+        },
+        denied: denied.body,
+      });
+    }
   }
 
   return {
     dependencyStatus: dependencyHealth.status,
+    deniedWriteCheck: stagingProfile
+      ? "not_counted_on_shared_staging"
+      : "verified",
     deniedRouteCode: denied.body?.error?.code,
     replayedTicketCode: replay.body.error.code,
+    reconciliation,
     usageEventId: chat.billing.usage_event_id,
     ...checks,
   };
@@ -345,6 +403,7 @@ console.log(
   JSON.stringify(
     {
       ok: true,
+      profile: stagingProfile ? "credentialed-staging" : "runtime",
       gatewayBaseUrl,
       consoleBaseUrl: checkConsole ? consoleBaseUrl : undefined,
       gateway,

@@ -25,6 +25,7 @@
     "release:verify": "node scripts/verify-release-identity.mjs",
     "scan:keys": "node scripts/strict-key-scan.mjs",
     "smoke:sdk-package": "node scripts/smoke-sdk-package.mjs",
+    "smoke:golden": "node scripts/smoke-runtime.mjs --staging",
     "smoke:runtime": "node scripts/smoke-runtime.mjs",
     "smoke:site": "node scripts/smoke-site.mjs",
     "third-party:inventory": "node scripts/generate-third-party-inventory.mjs",

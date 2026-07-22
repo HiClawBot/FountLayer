@@ -307,6 +307,43 @@ The smoke script prints JSON similar to:
 }
 ```
 
+## Credentialed TLS-Staging Golden Smoke
+
+Use the same executor in strict staging mode only after all of the following are true:
+
+- Gateway and Console are reachable through non-loopback HTTPS origins.
+- The repeatable beta seed exists and its model price has been replaced with the reviewed
+  upstream price source.
+- The seeded grant has enough test credit for one call.
+- LiteLLM points to the intended real OpenAI-compatible provider and its credential is
+  stored only in staging server configuration.
+- The operator has explicitly authorized one upstream billable request.
+
+Keep the three plaintext smoke credentials in the invoking process only, then run:
+
+```bash
+GATEWAY_BASE_URL=https://gateway.staging.example.com \
+CONSOLE_BASE_URL=https://console.staging.example.com \
+CONSOLE_GATEWAY_ADMIN_TOKEN="$STAGING_GATEWAY_ADMIN_TOKEN" \
+CONSOLE_SMOKE_OPERATOR_TOKEN="$STAGING_CONSOLE_OPERATOR_TOKEN" \
+FOUNTLAYER_SESSION_TICKET_SECRET="$STAGING_SESSION_TICKET_SECRET" \
+pnpm smoke:golden
+```
+
+The command rejects HTTP/loopback origins, placeholders, missing explicit ticket material,
+short credentials, and attempts to disable Console verification before sending a request.
+On success it reports the `credentialed-staging` profile and isolates the returned
+usage-event ID through filtered Admin reads. It requires a successful non-estimated
+provider record with positive token usage, upstream cost, and retail price, then verifies
+the exact four ledger entries have the expected reasons/amounts and equal fixed-point
+debits and credits.
+
+The strict profile still verifies ticket replay and route denial. It intentionally does
+not compare global before/after counts for the denied request because concurrent staging
+traffic makes that assertion unreliable; the isolated Runtime Smoke workflow remains the
+deterministic denied-write proof. Golden smoke is not a soak or failure-injection test and
+does not by itself authorize tagging.
+
 ## Backup And Restore Drill
 
 Install PostgreSQL 16 client tools on the operator host. Point `DATABASE_URL` at the

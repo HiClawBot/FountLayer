@@ -24,6 +24,8 @@ payments, or multi-mode execution.
   SBOM generation, and image vulnerability gates.
 - Secret-safe production configuration doctor plus labeled existing-record choices in
   Console Setup to reduce first-run failures and ID transcription.
+- Strict credentialed TLS-staging golden smoke with exact usage-event and balanced-ledger
+  reconciliation.
 - Managed-only public beta contract with Developer Key, BYOK, Local/LAN, streaming,
   payments, and revenue share explicitly unavailable.
 - Production dependency graph patched for the July 2026 `fast-uri` and `sharp`

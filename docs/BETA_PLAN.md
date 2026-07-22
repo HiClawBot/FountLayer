@@ -47,7 +47,7 @@ Implemented foundation:
 
 Verified locally for the current beta.2 candidate:
 
-- `FOUNTLAYER_RUN_DB_TESTS=1 pnpm test` - 183 passed, including 8 PostgreSQL
+- `FOUNTLAYER_RUN_DB_TESTS=1 pnpm test` - 190 passed, including 8 PostgreSQL
   migration, isolation, restart, pricing, and accounting tests.
 - `pnpm lint`
 - `pnpm format`
