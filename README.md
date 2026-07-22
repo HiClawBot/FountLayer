@@ -460,10 +460,10 @@ Never embed real provider API keys in the SDK, frontend code, mobile app, deskto
 - [Self-Hosted Beta Runbook](./docs/SELF_HOSTING_BETA.md)
 - [Codex Tasks](./docs/CODEX_TASKS.md)
 - [Release Checklist](./docs/RELEASE_CHECKLIST.md)
-- [GitHub Release Draft v0.5.0-beta.1](./docs/GITHUB_RELEASE_v0.5.0-beta.1.md)
+- [GitHub Release Draft v0.5.0-beta.2](./docs/GITHUB_RELEASE_v0.5.0-beta.2.md)
 - [Release Notes v0.1.0](./docs/RELEASE_NOTES_v0.1.0.md)
 - [Release Notes v0.5.0](./docs/RELEASE_NOTES_v0.5.0.md)
-- [Release Notes v0.5.0-beta.1](./docs/RELEASE_NOTES_v0.5.0-beta.1.md)
+- [Release Notes v0.5.0-beta.2](./docs/RELEASE_NOTES_v0.5.0-beta.2.md)
 - [Roadmap](./docs/ROADMAP.md)
 - [Changelog](./CHANGELOG.md)
 

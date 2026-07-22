@@ -59,10 +59,14 @@
 - [ ] Review payment, tax, invoice, and settlement rules before revenue sharing.
 - [ ] Prepare privacy policy and terms for hosted service.
 
-## v0.5.0-beta.1 Gates
+## v0.5.0-beta.2 Gates
 
-- [x] `docs/RELEASE_NOTES_v0.5.0-beta.1.md` is complete.
-- [x] Docker Compose runtime smoke passes in a Docker-enabled environment:
+- [x] `docs/RELEASE_NOTES_v0.5.0-beta.2.md` and the matching GitHub release draft
+      are complete.
+- [x] `pnpm release:verify` enforces aligned package, Docker, Compose, OpenAPI,
+      checklist, and release-note identity.
+- [ ] Runtime Smoke passes in a Docker-enabled environment on the exact release
+      commit:
       <https://github.com/HiClawBot/FountLayer/actions/workflows/runtime-smoke.yml?query=branch%3Acodex%2Fv0.5.0-beta>.
 - [x] Self-hosted beta runbook is present.
 - [x] Admin list endpoints have beta-grade pagination and filters.
@@ -73,6 +77,7 @@
 - [x] Threat model and beta security checklist are present.
 - [x] Strict key scan script exists.
 - [x] `pnpm scan:keys` passes.
+- [x] `pnpm audit:prod` reports no known production vulnerabilities locally.
 - [x] No local service port settings outside `3300-3399`.
 - [ ] Container Gates builds Gateway, Console, and Demo as non-root images on the
       release commit.

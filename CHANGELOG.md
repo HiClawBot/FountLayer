@@ -4,6 +4,10 @@
 
 ### Added
 
+- Release-identity verification for workspace versions, OpenAPI, Docker/Compose,
+  current release notes, and public release links.
+- `v0.5.0-beta.2` candidate release notes and GitHub release draft with explicit
+  managed-only boundaries and evidence gates.
 - Stock Gateway runtime adapter selection for demo, LiteLLM, and private/local
   OpenAI-compatible endpoints.
 - JavaScript SDK `idempotencyKey` options for chat and streaming requests.
@@ -12,6 +16,12 @@
 
 ### Changed
 
+- Aligned all workspace package versions and executable release surfaces on
+  `0.5.0-beta.2` while retaining beta.1 documents as historical records.
+- Replaced the public Developer Key/revenue-share scenario with the supported
+  managed, non-streaming beta path.
+- Patched production transitive dependencies to `fast-uri 3.1.4` and
+  `sharp 0.35.3`.
 - `/v1/balance` now returns the real end-user wallet balance from the active
   Store.
 - Idempotency completion is atomic with funding, usage, and ledger writes;

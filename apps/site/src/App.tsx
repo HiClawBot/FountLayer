@@ -352,8 +352,8 @@ const copy = {
           value: "v0.5 beta",
         },
         {
-          label: "Verified tests",
-          value: "132 passed",
+          label: "Beta path",
+          value: "managed only",
         },
         {
           label: "Provider keys",
@@ -482,10 +482,10 @@ const copy = {
       {
         channel: "Embedded helpdesk plugin",
         description:
-          "A SaaS vendor funds support answers but keeps spend, routing, and attribution outside the customer-facing app.",
+          "A SaaS vendor sponsors support answers through the same managed beta path while FountLayer keeps spend, routing, and attribution outside the customer-facing app.",
         event: {
           appId: "helio_support",
-          mode: "developer_key",
+          mode: "managed",
           retail: "$0.0187",
           useCase: "support_answer",
         },
@@ -498,29 +498,30 @@ const copy = {
             wallet: "wallet_developer_campaign",
           },
           {
-            amount: "$0.0131",
-            direction: "credit",
-            directionLabel: "credit",
-            reason: "developer_margin",
-            wallet: "wallet_helio_support",
-          },
-          {
-            amount: "$0.0039",
-            direction: "credit",
-            directionLabel: "credit",
-            reason: "channel_commission",
-            wallet: "wallet_helpdesk_partner",
-          },
-          {
-            amount: "$0.0017",
+            amount: "$0.0187",
             direction: "credit",
             directionLabel: "credit",
             reason: "platform_revenue",
             wallet: "wallet_platform_revenue",
           },
+          {
+            amount: "$0.0112",
+            direction: "debit",
+            directionLabel: "debit",
+            reason: "provider_cost",
+            wallet: "wallet_platform_cost",
+          },
+          {
+            amount: "$0.0112",
+            direction: "credit",
+            directionLabel: "credit",
+            reason: "provider_payable",
+            wallet: "wallet_provider_payable",
+          },
         ],
-        name: "SaaS plugin channel",
-        outcome: "Attribution separates app spend from channel commission.",
+        name: "Managed SaaS support",
+        outcome:
+          "Attribution keeps app and channel facts visible without promising unavailable payouts.",
         steps: [
           {
             detail: "Plugin starts a scoped session for one support workflow.",
@@ -533,8 +534,8 @@ const copy = {
             metric: "$0.025 cap",
           },
           {
-            detail: "Developer credential stays server-side encrypted.",
-            label: "Credential boundary",
+            detail: "The operator's upstream credential stays server-side.",
+            label: "Provider boundary",
             metric: "server only",
           },
           {
@@ -543,10 +544,9 @@ const copy = {
             metric: "success",
           },
           {
-            detail:
-              "Partner commission and revenue are posted to ledger wallets.",
-            label: "Settlement-ready",
-            metric: "balanced",
+            detail: "Actual usage and provider cost produce balanced entries.",
+            label: "Usage and ledger",
+            metric: "1 + 4",
           },
         ],
       },
@@ -811,8 +811,8 @@ const copy = {
           value: "0.5 beta",
         },
         {
-          label: "验证测试",
-          value: "132 项通过",
+          label: "测试版链路",
+          value: "仅管理模式",
         },
         {
           label: "服务商密钥",
@@ -939,10 +939,10 @@ const copy = {
       {
         channel: "客服插件渠道",
         description:
-          "软件服务商为支持问答付费，同时把花费、路由和归因留在客户应用之外。",
+          "软件服务商通过同一条管理模式测试链路赞助支持问答，同时把花费、路由和归因留在客户应用之外。",
         event: {
           appId: "客服应用",
-          mode: "开发者密钥模式",
+          mode: "管理模式",
           retail: "0.0187 美元",
           useCase: "支持问答",
         },
@@ -955,29 +955,29 @@ const copy = {
             wallet: "开发者活动钱包",
           },
           {
-            amount: "0.0131 美元",
-            direction: "credit",
-            directionLabel: "收入",
-            reason: "开发者毛利",
-            wallet: "客服应用钱包",
-          },
-          {
-            amount: "0.0039 美元",
-            direction: "credit",
-            directionLabel: "收入",
-            reason: "渠道佣金",
-            wallet: "客服伙伴钱包",
-          },
-          {
-            amount: "0.0017 美元",
+            amount: "0.0187 美元",
             direction: "credit",
             directionLabel: "收入",
             reason: "平台收入",
             wallet: "平台收入钱包",
           },
+          {
+            amount: "0.0112 美元",
+            direction: "debit",
+            directionLabel: "支出",
+            reason: "服务商成本",
+            wallet: "平台成本钱包",
+          },
+          {
+            amount: "0.0112 美元",
+            direction: "credit",
+            directionLabel: "收入",
+            reason: "服务商应付",
+            wallet: "服务商应付钱包",
+          },
         ],
-        name: "软件插件渠道",
-        outcome: "归因把应用花费和渠道佣金分开。",
+        name: "管理模式客服",
+        outcome: "归因保留应用和渠道事实，但不承诺尚未开放的分润。",
         steps: [
           {
             detail: "插件为一次支持流程开启限定会话。",
@@ -990,8 +990,8 @@ const copy = {
             metric: "0.025 美元上限",
           },
           {
-            detail: "开发者凭据留在服务端加密存放。",
-            label: "凭据边界",
+            detail: "运营方的上游凭据只保留在服务端。",
+            label: "服务商边界",
             metric: "仅服务端",
           },
           {
@@ -1000,9 +1000,9 @@ const copy = {
             metric: "成功",
           },
           {
-            detail: "伙伴佣金和收入写入账本钱包。",
-            label: "可结算",
-            metric: "平衡",
+            detail: "实际用量和服务商成本形成平衡账本记录。",
+            label: "用量与账本",
+            metric: "1 加 4",
           },
         ],
       },

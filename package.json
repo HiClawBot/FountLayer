@@ -1,6 +1,6 @@
 {
   "name": "fountlayer",
-  "version": "0.5.0-beta.1",
+  "version": "0.5.0-beta.2",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.32.1",
@@ -21,6 +21,7 @@
     "format:write": "prettier --write .",
     "fixture:openai": "node scripts/openai-compatible-fixture.mjs",
     "lint": "eslint .",
+    "release:verify": "node scripts/verify-release-identity.mjs",
     "scan:keys": "node scripts/strict-key-scan.mjs",
     "smoke:sdk-package": "node scripts/smoke-sdk-package.mjs",
     "smoke:runtime": "node scripts/smoke-runtime.mjs",
@@ -43,7 +44,9 @@
   },
   "pnpm": {
     "overrides": {
-      "next>postcss": "8.5.21"
+      "fast-uri": "3.1.4",
+      "next>postcss": "8.5.21",
+      "sharp": "0.35.3"
     }
   }
 }

@@ -59,6 +59,11 @@ for (const { label, pattern } of [
     ),
   },
   {
+    label: "favicon",
+    pattern:
+      /<link\s+rel="icon"\s+href="\/FountLayer\/og-image\.svg"\s+type="image\/svg\+xml"\s*\/>/s,
+  },
+  {
     label: "OG title",
     pattern:
       /<meta\s+property="og:title"\s+content="FountLayer \| Open LLM Last-Mile Distribution"\s*\/>/s,

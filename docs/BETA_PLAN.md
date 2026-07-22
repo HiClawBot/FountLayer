@@ -214,13 +214,16 @@ Exit gate:
 
 Goal: make the beta publishable.
 
-- [x] Update changelog for `v0.5.0-beta.1`.
+- [x] Preserve `v0.5.0-beta.1` notes as the historical baseline.
+- [x] Align workspace and executable release surfaces on `v0.5.0-beta.2`.
 - [x] Update release checklist with beta-specific gates.
-- [x] Add GitHub release draft text.
+- [x] Add `v0.5.0-beta.2` release notes and GitHub release draft text.
 - [x] Confirm GitHub Pages site links to beta quickstart and docs.
-- [x] Docker runtime smoke passed on GitHub Actions.
-- Tag `v0.5.0-beta.1` from a commit whose CI, Runtime Smoke, and Pages runs are
-  green.
+- [ ] Pass CI, Runtime Smoke, Pages, and Container Gates on the exact beta.2
+      candidate commit.
+- [ ] Attach credentialed real-provider golden-smoke and staging soak evidence.
+- Tag `v0.5.0-beta.2` only after the exact candidate commit satisfies every
+  required gate.
 
 Exit gate:
 
@@ -245,7 +248,9 @@ Exit gate:
   branch.
   Completed in baseline commit `2817e88`.
 - Continue beta construction on `codex/v0.5.0-beta`.
-- Tag the first beta as `v0.5.0-beta.1`.
+- Preserve `v0.5.0-beta.1` as historical release-candidate documentation.
+- Tag the current candidate as `v0.5.0-beta.2` only after exact-commit gates are
+  green.
 
 ## Verification Matrix
 
