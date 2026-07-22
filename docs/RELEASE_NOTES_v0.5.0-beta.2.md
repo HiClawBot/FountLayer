@@ -42,6 +42,11 @@ not supported beta capabilities.
   while preserving broader protocol foundations as explicitly experimental.
 - Added a release-identity gate that keeps workspace package versions, OpenAPI, Docker,
   Compose, release notes, and public release links aligned.
+- Added a secret-safe `beta:doctor` preflight for the production toolchain, private
+  environment file, token relationships, independent security domains, HTTPS origins,
+  exact release identity, and Compose expansion.
+- Replaced repeated related-record ID entry in Console Setup with labeled App, Channel,
+  Route, and Pricing Policy choices while retaining an empty/unavailable manual fallback.
 - Patched the production dependency graph to `fast-uri 3.1.4` and `sharp 0.35.3`; the
   production audit reports no known vulnerabilities at candidate preparation time.
 
@@ -52,8 +57,8 @@ Candidate-preparation evidence recorded on 2026-07-22:
 ```text
 pnpm release:verify                  # passed; 11 required markers, 3 stale claims absent
 pnpm audit:prod                      # passed; no known vulnerabilities
-pnpm test                            # passed; 168 tests, 8 PostgreSQL tests skipped
-FOUNTLAYER_RUN_DB_TESTS=1 pnpm test # passed; 176 tests including all 8 PostgreSQL cases
+pnpm test                            # passed; 175 tests, 8 PostgreSQL tests skipped
+FOUNTLAYER_RUN_DB_TESTS=1 pnpm test # passed; 183 tests including all 8 PostgreSQL cases
 pnpm lint                            # passed
 pnpm format                          # passed
 pnpm typecheck                       # passed; all workspace production builds included

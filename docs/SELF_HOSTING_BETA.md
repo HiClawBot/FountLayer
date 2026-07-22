@@ -53,7 +53,13 @@ Create a private environment file and replace every `replace_with_*` value:
 ```bash
 cp infra/production.env.example .env.production
 chmod 600 .env.production
+pnpm beta:doctor --env-file .env.production
 ```
+
+The doctor exits non-zero while a release-blocking prerequisite is missing and supports
+`--json` for automation. It validates configuration without starting services and never
+prints secret values. Run it again after changing the env file; use Runtime Smoke after
+startup to prove the actual Gateway, LiteLLM, PostgreSQL, Console, usage, and ledger path.
 
 The Gateway Admin token has two representations: put its plaintext value only in
 `CONSOLE_GATEWAY_ADMIN_TOKEN`, and its lowercase SHA-256 digest in
@@ -213,6 +219,11 @@ to either protected page:
 http://localhost:3301/overview
 http://localhost:3301/setup
 ```
+
+Create the app before its channel, route, pricing policy, grant, defaults, and credential.
+Setup refreshes its existing-record choices after each successful action, so later forms
+can select labeled App, Channel, Route, and Pricing Policy references instead of retyping
+their IDs. If the Gateway is empty or unavailable, those fields fall back to manual IDs.
 
 ## Optional Demo App
 

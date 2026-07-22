@@ -9,6 +9,7 @@
   },
   "scripts": {
     "audit:prod": "pnpm audit --prod --audit-level moderate",
+    "beta:doctor": "node scripts/beta-doctor.mjs",
     "build": "pnpm -r --if-present build",
     "clean": "pnpm -r --if-present clean && rm -rf coverage",
     "db:backup": "node scripts/backup-database.mjs",

@@ -19,6 +19,7 @@ export type ConsoleChannel = {
 };
 
 export type ConsoleRoute = {
+  appId: string;
   id: string;
   alias: string;
   provider: string;

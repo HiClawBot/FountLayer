@@ -1,5 +1,9 @@
 import { Plus } from "lucide-react";
 
+import {
+  ReferenceField,
+  type ReferenceOption,
+} from "../../components/reference-field";
 import { PageHeader, Panel } from "../../components/ui";
 import {
   activateConsoleAppDefaults,
@@ -15,6 +19,15 @@ import {
 
 export const dynamic = "force-dynamic";
 
+function referenceOptions<T>(
+  records: T[],
+  toOption: (record: T) => ReferenceOption,
+) {
+  return records
+    .map(toOption)
+    .sort((left, right) => left.label.localeCompare(right.label));
+}
+
 function SubmitButton({ label }: { label: string }) {
   return (
     <button className="primary-button" type="submit">
@@ -25,11 +38,13 @@ function SubmitButton({ label }: { label: string }) {
 }
 
 function Field({
+  autoComplete,
   label,
   name,
   placeholder,
   type = "text",
 }: {
+  autoComplete?: string;
   label: string;
   name: string;
   placeholder?: string;
@@ -38,13 +53,35 @@ function Field({
   return (
     <label className="field">
       <span>{label}</span>
-      <input name={name} placeholder={placeholder} type={type} />
+      <input
+        autoComplete={autoComplete}
+        name={name}
+        placeholder={placeholder}
+        type={type}
+      />
     </label>
   );
 }
 
 export default async function SetupPage() {
-  const { source } = await getConsoleRuntimeData();
+  const { apps, channels, pricingPolicies, routes, source } =
+    await getConsoleRuntimeData();
+  const appOptions = referenceOptions(apps, (app) => ({
+    label: `${app.name} · ${app.id}`,
+    value: app.id,
+  }));
+  const channelOptions = referenceOptions(channels, (channel) => ({
+    label: `${channel.name} · ${channel.id} (${channel.appId})`,
+    value: channel.id,
+  }));
+  const routeOptions = referenceOptions(routes, (route) => ({
+    label: `${route.alias} · ${route.id} (${route.appId})`,
+    value: route.id,
+  }));
+  const pricingPolicyOptions = referenceOptions(pricingPolicies, (policy) => ({
+    label: `${policy.id} (${policy.appId})`,
+    value: policy.id,
+  }));
 
   return (
     <div className="page">
@@ -77,7 +114,14 @@ export default async function SetupPage() {
         <Panel title="Channel">
           <form action={createConsoleChannel} className="form-grid">
             <Field label="Channel ID" name="id" placeholder="channel_web" />
-            <Field label="App ID" name="appId" placeholder="app_acme" />
+            <ReferenceField
+              emptyLabel="Select an app"
+              id="channel-app-id"
+              label="App ID"
+              name="appId"
+              options={appOptions}
+              placeholder="app_acme"
+            />
             <Field label="Name" name="name" placeholder="Web" />
             <Field label="Type" name="type" placeholder="direct" />
             <div className="form-actions">
@@ -93,7 +137,14 @@ export default async function SetupPage() {
               name="id"
               placeholder="route_acme_default"
             />
-            <Field label="App ID" name="appId" placeholder="app_acme" />
+            <ReferenceField
+              emptyLabel="Select an app"
+              id="route-app-id"
+              label="App ID"
+              name="appId"
+              options={appOptions}
+              placeholder="app_acme"
+            />
             <Field label="Alias" name="alias" placeholder="vertical/acme" />
             <Field label="Provider" name="provider" placeholder="demo" />
             <Field label="Model" name="model" placeholder="demo-local-model" />
@@ -117,10 +168,20 @@ export default async function SetupPage() {
         <Panel title="Faucet Grant">
           <form action={createConsoleFaucetGrant} className="form-grid">
             <Field label="Grant ID" name="id" placeholder="grant_acme_trial" />
-            <Field label="App ID" name="appId" placeholder="app_acme" />
-            <Field
+            <ReferenceField
+              emptyLabel="Select an app"
+              id="grant-app-id"
+              label="App ID"
+              name="appId"
+              options={appOptions}
+              placeholder="app_acme"
+            />
+            <ReferenceField
+              emptyLabel="Select a channel"
+              id="grant-channel-id"
               label="Channel ID"
               name="channelId"
+              options={channelOptions}
               placeholder="channel_web"
             />
             <Field
@@ -158,7 +219,14 @@ export default async function SetupPage() {
         <Panel title="Pricing Policy">
           <form action={createConsolePricingPolicy} className="form-grid">
             <Field label="Policy ID" name="id" placeholder="policy_acme" />
-            <Field label="App ID" name="appId" placeholder="app_acme" />
+            <ReferenceField
+              emptyLabel="Select an app"
+              id="pricing-app-id"
+              label="App ID"
+              name="appId"
+              options={appOptions}
+              placeholder="app_acme"
+            />
             <Field label="Name" name="name" placeholder="Acme Pricing" />
             <Field
               label="Platform Fee"
@@ -228,15 +296,28 @@ export default async function SetupPage() {
 
         <Panel title="Activate App Defaults">
           <form action={activateConsoleAppDefaults} className="form-grid">
-            <Field label="App ID" name="appId" placeholder="app_acme" />
-            <Field
+            <ReferenceField
+              emptyLabel="Select an app"
+              id="defaults-app-id"
+              label="App ID"
+              name="appId"
+              options={appOptions}
+              placeholder="app_acme"
+            />
+            <ReferenceField
+              emptyLabel="Select a route"
+              id="defaults-route-id"
               label="Default Route ID"
               name="defaultRouteId"
+              options={routeOptions}
               placeholder="route_acme_default"
             />
-            <Field
+            <ReferenceField
+              emptyLabel="Select a pricing policy"
+              id="defaults-policy-id"
               label="Default Pricing Policy ID"
               name="defaultPricingPolicyId"
+              options={pricingPolicyOptions}
               placeholder="policy_acme"
             />
             <div className="form-actions">
@@ -247,15 +328,32 @@ export default async function SetupPage() {
 
         <Panel title="Credential">
           <form action={createConsoleCredential} className="form-grid">
-            <Field label="App ID" name="appId" placeholder="app_pdf_reader" />
+            <ReferenceField
+              emptyLabel="Select an app"
+              id="credential-app-id"
+              label="App ID"
+              name="appId"
+              options={appOptions}
+              placeholder="app_pdf_reader"
+            />
             <Field
               label="Owner Type"
               name="ownerType"
               placeholder="developer"
             />
-            <Field label="Owner ID" name="ownerId" placeholder="dev_acme" />
+            <Field
+              autoComplete="username"
+              label="Owner ID"
+              name="ownerId"
+              placeholder="dev_acme"
+            />
             <Field label="Provider" name="provider" placeholder="demo" />
-            <Field label="API Key" name="apiKey" type="password" />
+            <Field
+              autoComplete="new-password"
+              label="API Key"
+              name="apiKey"
+              type="password"
+            />
             <Field
               label="Daily Budget"
               name="budgetDaily"

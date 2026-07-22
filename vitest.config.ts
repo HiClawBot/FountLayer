@@ -1,6 +1,12 @@
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  oxc: {
+    jsx: {
+      importSource: "react",
+      runtime: "automatic",
+    },
+  },
   resolve: {
     alias: {
       "@fountlayer/adapter-core": new URL(
@@ -68,7 +74,11 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["apps/**/*.test.ts", "packages/**/*.test.ts"],
+    include: [
+      "apps/**/*.test.ts",
+      "packages/**/*.test.ts",
+      "scripts/**/*.test.mjs",
+    ],
     passWithNoTests: true,
   },
 });

@@ -249,13 +249,15 @@ button {
   min-width: 0;
 }
 
-.field span {
+.field span,
+.field > label {
   color: var(--muted);
   font-size: 12px;
   font-weight: 650;
 }
 
-.field input {
+.field input,
+.field select {
   width: 100%;
   min-height: 38px;
   border: 1px solid var(--line);
@@ -267,13 +269,25 @@ button {
   padding: 0 10px;
 }
 
-.field input:focus {
+.field select {
+  cursor: pointer;
+}
+
+.field input:focus,
+.field select:focus {
   border-color: var(--accent);
   outline: 2px solid rgb(23 107 91 / 16%);
   outline-offset: 0;
 }
 
-.field.compact input {
+.field small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.field.compact input,
+.field.compact select {
   min-height: 36px;
 }
 

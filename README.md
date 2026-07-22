@@ -106,6 +106,8 @@ For the production-shaped path, replace every value in `.env.production`, then r
 one-time migration and bootstrap seed before the application services:
 
 ```bash
+chmod 600 .env.production
+pnpm beta:doctor --env-file .env.production
 docker compose --env-file .env.production -f compose.production.yml up -d postgres litellm
 docker compose --env-file .env.production -f compose.production.yml run --rm migrate
 docker compose --env-file .env.production -f compose.production.yml --profile bootstrap run --rm seed
@@ -115,6 +117,12 @@ docker compose --env-file .env.production -f compose.production.yml up -d gatewa
 The published ports bind to loopback and must sit behind authenticated TLS ingress for
 remote access. See the [self-hosted beta runbook](docs/SELF_HOSTING_BETA.md) for secret
 generation, readiness, backup/restore verification, and shutdown procedures.
+
+`beta:doctor` is a read-only production configuration preflight. It checks the active
+Node/pnpm/Docker toolchain, private env-file permissions, required non-placeholder
+values, admin-token hash agreement, secret strength and independence, TLS origins,
+release identity, and Compose expansion. It reports variable names and remediation only;
+secret values are never printed. Use `--json` for machine-readable output.
 
 In another terminal, generate an independent Console operator credential, retain
 the plaintext token for login/smoke, and start the Console with only its digest:
@@ -259,7 +267,9 @@ credential-metadata, and pricing data from `CONSOLE_GATEWAY_BASE_URL` or
 unavailable state and empty runtime collections; it never substitutes sample records.
 The `/setup` page creates apps, channels, routes, faucet grants, immutable model-price
 versions, pricing policies, app defaults, and credential metadata through server-side
-Admin API actions. `/admin/*`
+Admin API actions. Once related records exist, reference fields use labeled choices
+instead of requiring operators to retype IDs; an empty or unavailable runtime retains a
+manual-ID fallback. `/admin/*`
 requires an admin bearer token, but the Console is protected by a single-operator login:
 its proxy gates every page, while runtime reads and Server Actions recheck the signed
 session or automation bearer token.
